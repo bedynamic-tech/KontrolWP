@@ -9,6 +9,7 @@ import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { OverviewPage } from "./components/OverviewPage";
 import { SitePage } from "./components/SitePage";
 import { SitesPage } from "./components/SitesPage";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 export function App() {
   // The overview doubles as the Access check: every page needs the API.
@@ -26,7 +27,10 @@ export function App() {
   return (
     <div className="flex min-h-dvh bg-canvas text-foreground">
       <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar px-3 py-4 md:flex">
-        <Brand />
+        <div className="flex items-center justify-between">
+          <Brand />
+          <ThemeToggle />
+        </div>
         <nav className="mt-6 space-y-1">
           <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
           <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
@@ -43,10 +47,23 @@ export function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
           <Brand />
-          <nav className="flex gap-1">
-            <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
-            <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
-          </nav>
+          <div className="flex items-center gap-1">
+            <nav className="flex gap-1">
+              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
+              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+            </nav>
+            {/* The sidebar is hidden on small screens, so its download link moves here. */}
+            <a
+              href={PLUGIN_ZIP_URL}
+              download
+              aria-label="Download the Presser Connect plugin"
+              title="Presser Connect plugin"
+              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+            >
+              <DownloadIcon />
+            </a>
+            <ThemeToggle />
+          </div>
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-8 md:py-10">
           <Routes>

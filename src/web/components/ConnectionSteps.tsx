@@ -1,5 +1,3 @@
-import { PluginDownloadButton } from "./PluginDownload";
-
 /** Where the Connection Key comes from: Presser Connect, on the site. */
 export function ConnectionSteps(props: { siteUrl?: string }) {
   const settings = props.siteUrl ? `${props.siteUrl}/wp-admin/options-general.php?page=presser-connect` : null;
@@ -8,11 +6,9 @@ export function ConnectionSteps(props: { siteUrl?: string }) {
       <li>
         <p className="font-medium">1. Install Presser Connect on the site</p>
         <p className="mt-1 text-muted-foreground">
-          Upload the plugin in Plugins, Add New, and activate it.
+          Download it from <span className="font-medium text-foreground">Presser Connect plugin</span> in
+          the sidebar, then upload it in Plugins, Add New, and activate it.
         </p>
-        <div className="mt-2">
-          <PluginDownloadButton label="presser-connect.zip" />
-        </div>
       </li>
       <li>
         <p className="font-medium">2. Copy its Connection Key</p>
