@@ -16,6 +16,7 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
+import { PluginDownloadButton } from "./PluginDownload";
 import { Section } from "./Section";
 import { StatusBadge } from "./StatusBadge";
 import { UpdatesList } from "./UpdatesList";
@@ -124,9 +125,12 @@ export function SitePage() {
                 A new Connection Key replaces the current one. The site stops syncing until you
                 paste it into Presser Connect.
               </p>
-              <Button variant="outline" size="sm" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
-                New connection key
-              </Button>
+              <div className="flex shrink-0 gap-2">
+                <PluginDownloadButton />
+                <Button variant="outline" size="sm" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
+                  New connection key
+                </Button>
+              </div>
             </div>
           )}
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

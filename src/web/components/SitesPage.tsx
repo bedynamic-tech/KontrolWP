@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { fetchOverview } from "../api";
 import { hostname, plural, timeAgo } from "../format";
 import { AddSiteDialog } from "./AddSiteDialog";
+import { PluginDownloadButton } from "./PluginDownload";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
 import { StatusBadge } from "./StatusBadge";
@@ -16,7 +17,10 @@ export function SitesPage() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Sites</h1>
-        <AddSiteDialog />
+        <div className="flex gap-2">
+          <PluginDownloadButton />
+          <AddSiteDialog />
+        </div>
       </div>
       <div className="mt-6 overflow-hidden rounded-xl border bg-background">
         {data.sites.length === 0 ? (

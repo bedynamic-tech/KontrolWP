@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboardIcon, GlobeIcon } from "lucide-react";
+import { DownloadIcon, GlobeIcon, LayoutDashboardIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { accessSetupError, fetchOverview } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
+import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { OverviewPage } from "./components/OverviewPage";
 import { SitePage } from "./components/SitePage";
 import { SitesPage } from "./components/SitesPage";
@@ -20,12 +21,20 @@ export function App() {
 
   return (
     <div className="flex min-h-dvh bg-canvas text-foreground">
-      <aside className="hidden w-56 shrink-0 border-r bg-sidebar px-3 py-4 md:block">
+      <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar px-3 py-4 md:flex">
         <Brand />
         <nav className="mt-6 space-y-1">
           <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
           <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
         </nav>
+        <a
+          href={PLUGIN_ZIP_URL}
+          download
+          className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+        >
+          <DownloadIcon />
+          <span>Presser Connect plugin</span>
+        </a>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
