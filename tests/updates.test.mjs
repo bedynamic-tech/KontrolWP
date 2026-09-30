@@ -5,6 +5,7 @@ import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
+import { listUpdates } from "../src/worker/sites/store.ts";
 import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
@@ -157,4 +158,32 @@ test("a Presser Connect updated by hand since the last sync counts as done", asy
   await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
   assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "done", error: null }], "not queued again right away");
+});
+
+test("updates count as active until the sync after them clears the row", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const db = t.env.DB;
+  const insert = db.sqlite.prepare(
+    "INSERT INTO site_updates (site_id, kind, slug, name, current_version, new_version) VALUES (1, 'plugin', ?, ?, '1.0', '2.0')",
+  );
+  for (const slug of ["idle", "queued", "running", "done-now", "done-old", "failed"]) insert.run(slug, slug);
+  const job = db.sqlite.prepare(
+    "INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES (1, 'plugin', ?, ?, unixepoch() - ?)",
+  );
+  job.run("queued", "queued", 0);
+  job.run("running", "running", 10);
+  job.run("done-now", "done", 30);
+  job.run("done-old", "done", 3600);
+  job.run("failed", "failed", 30);
+
+  const active = Object.fromEntries((await listUpdates(db)).map((u) => [u.slug, u.job_active]));
+  assert.deepEqual(active, {
+    idle: false,
+    queued: true,
+    running: true,
+    "done-now": true,
+    "done-old": false,
+    failed: false,
+  });
+  assert.equal((await listUpdates(db, 1)).length, 6);
 });

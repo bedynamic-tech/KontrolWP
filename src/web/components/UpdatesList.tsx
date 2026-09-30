@@ -12,7 +12,7 @@ import { EmptyRow } from "./Section";
 
 /** Poll quickly while an update is waiting or running, so its row follows along. */
 export function updatesRefetchInterval(updates: SiteUpdate[] | undefined): number {
-  const active = updates?.some((update) => update.job_status === "queued" || update.job_status === "running");
+  const active = updates?.some((update) => update.job_active);
   return active ? 3_000 : 60_000;
 }
 
