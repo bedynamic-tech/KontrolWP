@@ -10,9 +10,12 @@ export interface SiteCredentials {
 /** A failure talking to a site, phrased for the person reading the dashboard. */
 export class SiteRequestError extends Error {
   readonly status?: number;
-  constructor(message: string, status?: number) {
+  /** The WP_Error code Presser Connect returned, when there is one. */
+  readonly code?: string;
+  constructor(message: string, status?: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -77,7 +80,7 @@ export async function callSite<T>(
       throw new SiteRequestError("Presser Connect is not installed or not active on this site", 404);
     }
     const message = (json as { message?: string }).message;
-    throw new SiteRequestError(message || `The site returned HTTP ${response.status}`, response.status);
+    throw new SiteRequestError(message || `The site returned HTTP ${response.status}`, response.status, code);
   }
   return json as T;
 }
