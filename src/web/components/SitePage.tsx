@@ -18,6 +18,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { Section } from "./Section";
+import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
 import { UpdateAllButton, UpdatesList, updatesRefetchInterval } from "./UpdatesList";
@@ -96,6 +97,17 @@ export function SitePage() {
           </Button>
         </div>
       </div>
+
+      {site.plugin_version && compareVersions(site.plugin_version, SELF_UPDATING_SINCE) < 0 && (
+        <div className="mt-4 rounded-xl border px-4 py-3 text-sm">
+          <p className="font-medium">Install the new Presser Connect once</p>
+          <p className="mt-1 text-muted-foreground">
+            This site runs Presser Connect {site.plugin_version}, which cannot update itself. Install{" "}
+            {PRESSER_CONNECT_VERSION} from Presser Connect plugin in the sidebar; later versions install
+            automatically.
+          </p>
+        </div>
+      )}
 
       {site.last_error && (
         <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">

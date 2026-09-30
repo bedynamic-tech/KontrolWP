@@ -1,23 +1,38 @@
-import { PRESSER_CONNECT_VERSION } from "../../shared/plugin-version.ts";
+import { compareVersions, PRESSER_CONNECT_VERSION } from "../../shared/plugin-version.ts";
 import { SiteRequestError } from "./client.ts";
 
-/** The update row for Presser Connect itself, which the dashboard supplies. */
+/**
+ * The update job for Presser Connect itself. The dashboard supplies it and
+ * queues it on its own; it never appears in the updates lists.
+ */
 export const SELF_UPDATE = {
   slug: "presser-connect",
-  name: "Presser Connect",
-  iconUrl: "/presser.svg",
   version: PRESSER_CONNECT_VERSION,
 } as const;
 
-/** Compare dotted versions numerically; missing parts count as 0. */
-export function compareVersions(a: string, b: string): number {
-  const pa = a.split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-  const pb = b.split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (diff) return Math.sign(diff);
-  }
-  return 0;
+/**
+ * A finished or failed self-update waits this long before sync tries again,
+ * so a site that keeps reporting the old version never loops.
+ */
+const RETRY_FAILED_AFTER_SECONDS = 6 * 60 * 60;
+
+/**
+ * Queue Presser Connect's own update when the site runs an older one, unless
+ * it is already queued, running, or failed recently.
+ */
+export async function queueSelfUpdate(env: Env, siteId: number, siteVersion: string): Promise<void> {
+  if (!needsSelfUpdate(siteVersion)) return;
+  const queued = await env.DB
+    .prepare(
+      `INSERT INTO update_jobs (site_id, kind, slug) VALUES (?, 'plugin', ?)
+       ON CONFLICT (site_id, kind, slug) DO UPDATE SET
+         status = 'queued', error = NULL, attempts = 0, created_at = unixepoch(), started_at = NULL
+       WHERE update_jobs.status IN ('done', 'failed') AND COALESCE(update_jobs.started_at, 0) < ?
+       RETURNING id`,
+    )
+    .bind(siteId, SELF_UPDATE.slug, Math.floor(Date.now() / 1000) - RETRY_FAILED_AFTER_SECONDS)
+    .first();
+  if (queued) await env.SYNC_QUEUE.send({ type: "update", siteId });
 }
 
 /** True when the site runs an older Presser Connect than this dashboard ships. */
