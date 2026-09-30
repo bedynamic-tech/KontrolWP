@@ -1,0 +1,55 @@
+{
+  "name": "presser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run plugin:zip && vite",
+    "build": "npm run plugin:zip && vite build",
+    "check": "tsc -b",
+    "test": "node --test --experimental-strip-types tests/*.test.mjs",
+    "deploy": "npm run build && npm run db:migrate && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --config wrangler.dev.jsonc",
+    "db:migrate": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc",
+    "plugin:zip": "node scripts/build-plugin-zip.mjs",
+    "cf-typegen": "wrangler types"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "Stores your sites, their connection keys and the latest updates and comments. Choose a new database for this instance; migrations run automatically during deployment."
+      },
+      "SYNC_QUEUE": {
+        "description": "Syncs each site in the background on a schedule, with automatic retries. Use a queue dedicated to this instance."
+      }
+    }
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@tanstack/react-query": "^5.59.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "hono": "^4.6.0",
+    "jose": "^6.2.10",
+    "lucide-react": "^1.33.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.18.2",
+    "shadcn": "^4.18.0",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.0.0",
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "wrangler": "4.124.0"
+  }
+}
