@@ -35,7 +35,11 @@ export async function callSite<T>(
   const headers = await signedHeaders({ keyId: site.keyId, secret: site.secret, method, route, body });
   let response: Response;
   try {
-    response = await fetch(restUrl(site.url, route), {
+    // A unique query string keeps page caches and CDNs in front of the site
+    // from answering with a stored copy (the signature covers the route only).
+    const url = new URL(restUrl(site.url, route));
+    url.searchParams.set("presser_nonce", headers["X-Presser-Nonce"]);
+    response = await fetch(url, {
       method,
       headers: {
         ...headers,

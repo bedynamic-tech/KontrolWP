@@ -14,6 +14,7 @@ class Presser_Connect_Rest {
 
 	public static function register_routes() {
 		$auth = array( 'Presser_Connect_Auth', 'verify' );
+		add_filter( 'rest_post_dispatch', array( __CLASS__, 'no_store' ), 10, 3 );
 
 		register_rest_route(
 			self::NAMESPACE_V1,
@@ -189,6 +190,21 @@ class Presser_Connect_Rest {
 			}
 		}
 		return '';
+	}
+
+	/**
+	 * Tell page caches and CDNs never to keep Presser's answers, so the
+	 * dashboard always sees the site as it is now.
+	 *
+	 * @param WP_REST_Response $response Outgoing response.
+	 * @param WP_REST_Server   $server   REST server.
+	 * @param WP_REST_Request  $request  Incoming request.
+	 */
+	public static function no_store( $response, $server, $request ) {
+		if ( 0 === strpos( $request->get_route(), '/' . self::NAMESPACE_V1 . '/' ) && $response instanceof WP_REST_Response ) {
+			$response->header( 'Cache-Control', 'no-store, private, max-age=0' );
+		}
+		return $response;
 	}
 
 	/**
