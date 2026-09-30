@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchOverview } from "../api";
 import { AddSiteDialog } from "./AddSiteDialog";
-import { PluginDownloadButton } from "./PluginDownload";
 import { CommentsList } from "./CommentsList";
 import { Section } from "./Section";
 import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
@@ -32,12 +31,9 @@ export function OverviewPage() {
         <div className="mt-8 rounded-xl border bg-background px-6 py-12 text-center">
           <h2 className="text-base font-medium">Add your first site</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Connect a WordPress site with the Presser Connect plugin to see its updates and
-            comments here.
+            Connect a WordPress site with the Presser Connect plugin, from the sidebar, to see
+            its updates and comments here.
           </p>
-          <div className="mt-4 flex justify-center">
-            <PluginDownloadButton label="Download Presser Connect" />
-          </div>
         </div>
       ) : (
         <>

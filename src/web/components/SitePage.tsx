@@ -17,7 +17,6 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
-import { PluginDownloadButton } from "./PluginDownload";
 import { Section } from "./Section";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
@@ -156,12 +155,9 @@ export function SitePage() {
                 If you created a new key in Presser Connect, or reinstalled it, paste the site's
                 current Connection Key here.
               </p>
-              <div className="flex shrink-0 gap-2">
-                <PluginDownloadButton />
-                <Button variant="outline" size="sm" onClick={() => setReplacingKey(true)}>
-                  Replace connection key
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => setReplacingKey(true)}>
+                Replace connection key
+              </Button>
             </div>
           )}
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
