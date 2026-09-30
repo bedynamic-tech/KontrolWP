@@ -15,6 +15,16 @@ export interface SiteSummary {
   pending_comments: number;
   update_count: number;
   created_at: number;
+  /** The administrator Magic Login signs in as, if one is chosen. */
+  login_user_id: number | null;
+  login_user_name: string | null;
+}
+
+/** An administrator on a site, as Presser Connect lists them for Magic Login. */
+export interface SiteAdmin {
+  id: number;
+  login: string;
+  display_name: string;
 }
 
 export type UpdateKind = "core" | "plugin" | "theme";

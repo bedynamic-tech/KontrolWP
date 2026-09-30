@@ -98,6 +98,18 @@ A finished or failed self-update is not queued again for 6 hours, so a site
 that keeps reporting the old version never loops. Sites on a version before
 0.4.0 need the new zip installed by hand once; their page says so.
 
+## Magic Login
+
+Each site's page has a Magic Login setting: the owner picks one of the site's
+administrators (listed by `GET /admins`), and Presser stores that user's id.
+The Magic Login button asks the site for a one-time link (`POST /login`) and
+opens it in a new tab. The plugin keeps only a SHA-256 hash of the link's
+token, in an option that deleting spends: the first request to delete it
+signs in, any other gets an error page. A link lasts 60 seconds, and the
+plugin checks again that the user is still an administrator when it is used.
+Signing in goes through `wp_set_auth_cookie` and fires `wp_login`, so
+activity logs record it like any other login. Added in 0.5.0.
+
 ## Plugin routes (`presser/v1`)
 
 | Route | Does |
@@ -106,6 +118,8 @@ that keeps reporting the old version never loops. Sites on a version before
 | `GET /updates` | Available core, plugin and theme updates. Refreshes stale data from WordPress.org, at most once per 12 hours for core. |
 | `POST /updates/apply` | `{kind: core, plugin or theme, slug, version}`. Runs the same upgraders the Updates screen uses; core also runs the database upgrade. For core, `version` must match the offer the dashboard showed, so a site never installs a version the owner did not see. Refuses when `DISALLOW_FILE_MODS` is set. |
 | `POST /self-update` | `{version, package}`. Installs the Presser Connect zip the dashboard ships (base64 in the signed body, so the signature covers it) through WordPress's plugin upgrader, keeping the plugin's folder. Refuses a version that is not newer. Added in 0.4.0. |
+| `GET /admins` | Users who can `manage_options`, for the Magic Login setting. Added in 0.5.0. |
+| `POST /login` | `{user_id}`. A one-time `wp-login.php?action=presser_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 

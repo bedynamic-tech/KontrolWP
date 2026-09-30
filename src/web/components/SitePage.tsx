@@ -17,6 +17,7 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
+import { MAGIC_LOGIN_SECTION, MagicLoginButton, MagicLoginSettings } from "./MagicLogin";
 import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
@@ -30,6 +31,7 @@ export function SitePage() {
   const [connectionKey, setConnectionKey] = useState("");
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [choosingLoginUser, setChoosingLoginUser] = useState(false);
 
   const { data, error, isPending } = useQuery({
     queryKey: ["site", id],
@@ -85,7 +87,14 @@ export function SitePage() {
             </a>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap items-start gap-2">
+          <MagicLoginButton
+            site={site}
+            onChooseUser={() => {
+              setChoosingLoginUser(true);
+              document.getElementById(MAGIC_LOGIN_SECTION)?.scrollIntoView({ behavior: "smooth" });
+            }}
+          />
           <Button variant="outline" size="sm" asChild>
             <a href={`${site.url}/wp-admin/`} target="_blank" rel="noreferrer">
               WP Admin
@@ -129,6 +138,12 @@ export function SitePage() {
       <Section title={`Comments awaiting review (${site.pending_comments})`}>
         <CommentsList comments={comments} showSite={false} />
       </Section>
+
+      <div id={MAGIC_LOGIN_SECTION}>
+        <Section title="Magic Login">
+          <MagicLoginSettings site={site} editing={choosingLoginUser} onEditingChange={setChoosingLoginUser} />
+        </Section>
+      </div>
 
       <Section title="Connection">
         <div className="space-y-4 px-4 py-4">

@@ -6,7 +6,7 @@ import {
   REST_NAMESPACE,
   type ConnectionKey,
 } from "../../shared/protocol.ts";
-import type { Overview, PluginStatus, SiteDetail } from "../../shared/types.ts";
+import type { Overview, PluginStatus, SiteAdmin, SiteDetail } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
@@ -217,6 +217,84 @@ api.post("/sites/:id/updates", async (c) => {
   if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
   await enqueueUpdate(c.env, id, parsed.data);
   return c.json({ ok: true }, 202);
+});
+
+/** An older Presser Connect has no Magic Login routes; it updates itself on the next sync. */
+function magicLoginError(error: SiteRequestError): string {
+  return error.status === 404 && !error.code
+    ? "Presser Connect on this site is too old for Magic Login. It updates automatically; select Sync now to check."
+    : error.message;
+}
+
+async function fetchAdmins(site: NonNullable<Awaited<ReturnType<typeof getCredentials>>>): Promise<SiteAdmin[]> {
+  const { admins } = await callSite<{ admins: SiteAdmin[] }>(site, "GET", `${REST_NAMESPACE}/admins`);
+  return Array.isArray(admins) ? admins : [];
+}
+
+/** The site's administrators, to choose who Magic Login signs in as. */
+api.get("/sites/:id/admins", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getCredentials(c.env, id));
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  try {
+    return c.json({ admins: await fetchAdmins(site) });
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: magicLoginError(error) }, 502);
+    throw error;
+  }
+});
+
+const magicLoginUser = z.object({ user_id: z.number().int().positive().nullable() });
+
+/** Choose the administrator Magic Login signs in as, or turn it off with null. */
+api.put("/sites/:id/magic-login", async (c) => {
+  const id = siteId(c);
+  const parsed = magicLoginUser.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid user" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  let name: string | null = null;
+  if (parsed.data.user_id !== null) {
+    let admins: SiteAdmin[];
+    try {
+      admins = await fetchAdmins((await getCredentials(c.env, id))!);
+    } catch (error) {
+      if (error instanceof SiteRequestError) return c.json({ error: magicLoginError(error) }, 502);
+      throw error;
+    }
+    const admin = admins.find((user) => user.id === parsed.data.user_id);
+    if (!admin) return c.json({ error: "That user is not an administrator on the site" }, 400);
+    name = String(admin.display_name || admin.login).slice(0, 120);
+  }
+  await c.env.DB
+    .prepare("UPDATE sites SET login_user_id = ?, login_user_name = ? WHERE id = ?")
+    .bind(parsed.data.user_id, name, id)
+    .run();
+  return c.json(await getSite(c.env.DB, id));
+});
+
+/** Ask the site for a one-time link that signs the browser in as the chosen administrator. */
+api.post("/sites/:id/magic-login", async (c) => {
+  const id = siteId(c);
+  const summary = id && (await getSite(c.env.DB, id));
+  if (!id || !summary) return c.json({ error: "Site not found" }, 404);
+  if (!summary.login_user_id) return c.json({ error: "Choose an administrator for Magic Login first" }, 400);
+  const site = (await getCredentials(c.env, id))!;
+  let url: URL | null = null;
+  try {
+    const result = await callSite<{ url?: unknown }>(site, "POST", `${REST_NAMESPACE}/login`, {
+      user_id: summary.login_user_id,
+    });
+    url = typeof result.url === "string" && URL.canParse(result.url) ? new URL(result.url) : null;
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: magicLoginError(error) }, 502);
+    throw error;
+  }
+  // The browser opens this link, so never hand on anything but a web address.
+  if (!url || (url.protocol !== "https:" && url.protocol !== "http:")) {
+    return c.json({ error: "The site returned an invalid login link" }, 502);
+  }
+  c.header("Cache-Control", "no-store");
+  return c.json({ url: url.href });
 });
 
 async function siteAction(

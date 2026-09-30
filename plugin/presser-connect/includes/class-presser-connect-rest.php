@@ -81,6 +81,31 @@ class Presser_Connect_Rest {
 		);
 		register_rest_route(
 			self::NAMESPACE_V1,
+			'/admins',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( 'Presser_Connect_Login', 'admins' ),
+				'permission_callback' => $auth,
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/login',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( 'Presser_Connect_Login', 'create' ),
+				'permission_callback' => $auth,
+				'args'                => array(
+					'user_id' => array(
+						'required' => true,
+						'type'     => 'integer',
+						'minimum'  => 1,
+					),
+				),
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE_V1,
 			'/comments',
 			array(
 				'methods'             => 'GET',
