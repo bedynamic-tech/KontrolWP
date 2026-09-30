@@ -1,6 +1,5 @@
-import { DownloadIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CopyField } from "./CopyField";
+import { PluginDownloadButton } from "./PluginDownload";
 
 /** How to install Presser Connect and paste the Connection Key. */
 export function ConnectionSteps(props: { siteUrl: string; connectionKey: string }) {
@@ -20,11 +19,9 @@ export function ConnectionSteps(props: { siteUrl: string; connectionKey: string 
           </a>{" "}
           and activate it.
         </p>
-        <Button variant="outline" size="sm" className="mt-2" asChild>
-          <a href="/downloads/presser-connect.zip" download>
-            <DownloadIcon /> presser-connect.zip
-          </a>
-        </Button>
+        <div className="mt-2">
+          <PluginDownloadButton label="presser-connect.zip" />
+        </div>
       </li>
       <li>
         <p className="font-medium">2. Paste the Connection Key</p>

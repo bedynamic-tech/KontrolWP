@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchOverview } from "../api";
 import { AddSiteDialog } from "./AddSiteDialog";
+import { PluginDownloadButton } from "./PluginDownload";
 import { CommentsList } from "./CommentsList";
 import { Section } from "./Section";
 import { UpdatesList } from "./UpdatesList";
@@ -30,6 +31,9 @@ export function OverviewPage() {
             Connect a WordPress site with the Presser Connect plugin to see its updates and
             comments here.
           </p>
+          <div className="mt-4 flex justify-center">
+            <PluginDownloadButton label="Download Presser Connect" />
+          </div>
         </div>
       ) : (
         <>
