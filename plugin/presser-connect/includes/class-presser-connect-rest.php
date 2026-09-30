@@ -35,6 +35,26 @@ class Presser_Connect_Rest {
 		);
 		register_rest_route(
 			self::NAMESPACE_V1,
+			'/self-update',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'self_update' ),
+				'permission_callback' => $auth,
+				'args'                => array(
+					'version' => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+					// Base64 of the plugin zip, built by the dashboard.
+					'package' => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+				),
+			)
+		);
+		register_rest_route(
+			self::NAMESPACE_V1,
 			'/updates/apply',
 			array(
 				'methods'             => 'POST',
@@ -208,6 +228,17 @@ class Presser_Connect_Rest {
 			wp_update_themes();
 		}
 
+		return self::bulk_upgrade( $kind, $slug );
+	}
+
+	/**
+	 * Run the Updates screen's upgrader for one plugin or theme that
+	 * WordPress lists as having an update.
+	 *
+	 * @param string $kind plugin or theme.
+	 * @param string $slug Plugin file or theme stylesheet.
+	 */
+	private static function bulk_upgrade( $kind, $slug ) {
 		$skin     = new WP_Ajax_Upgrader_Skin();
 		$upgrader = 'plugin' === $kind ? new Plugin_Upgrader( $skin ) : new Theme_Upgrader( $skin );
 		ob_start();
@@ -228,6 +259,76 @@ class Presser_Connect_Rest {
 			return new WP_Error( 'presser_update_failed', __( 'The update did not complete.', 'presser-connect' ), array( 'status' => 500 ) );
 		}
 		return array( 'ok' => true );
+	}
+
+	/**
+	 * Update Presser Connect itself with the package the dashboard sent. The
+	 * dashboard sits behind Cloudflare Access, so WordPress cannot download
+	 * from it; the signed request carries the zip instead, and its signature
+	 * covers every byte. The package is then offered to WordPress as a normal
+	 * plugin update and installed by the same upgrader as any other plugin.
+	 *
+	 * @param WP_REST_Request $request Incoming request.
+	 */
+	public static function self_update( $request ) {
+		if ( ! wp_is_file_mod_allowed( 'presser_connect_update' ) ) {
+			return new WP_Error( 'presser_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		$version = (string) $request['version'];
+		if ( version_compare( $version, PRESSER_CONNECT_VERSION, '<=' ) ) {
+			return new WP_Error( 'presser_up_to_date', __( 'Presser Connect is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		$package = base64_decode( (string) $request['package'], true );
+		if ( false === $package || 'PK' !== substr( $package, 0, 2 ) ) {
+			return new WP_Error( 'presser_bad_package', __( 'The update package is not a zip file.', 'presser-connect' ), array( 'status' => 400 ) );
+		}
+
+		self::load_admin_includes();
+		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
+
+		$file = wp_tempnam( 'presser-connect.zip' );
+		if ( ! $file || false === file_put_contents( $file, $package ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			return self::filesystem_error();
+		}
+
+		// WordPress downloads a package given as a local path by using it as is.
+		$basename = plugin_basename( PRESSER_CONNECT_FILE );
+		$updates  = get_site_transient( 'update_plugins' );
+		if ( ! is_object( $updates ) ) {
+			$updates = new stdClass();
+		}
+		if ( ! isset( $updates->response ) || ! is_array( $updates->response ) ) {
+			$updates->response = array();
+		}
+		$updates->response[ $basename ] = (object) array(
+			'slug'        => 'presser-connect',
+			'plugin'      => $basename,
+			'new_version' => $version,
+			'package'     => $file,
+		);
+		set_site_transient( 'update_plugins', $updates );
+
+		// Keep the plugin in its current folder even if it was installed
+		// under another name than the zip uses.
+		$folder = dirname( $basename );
+		$rename = static function ( $source, $remote_source ) use ( $folder ) {
+			global $wp_filesystem;
+			$wanted = trailingslashit( $remote_source ) . $folder . '/';
+			if ( untrailingslashit( $source ) === untrailingslashit( $wanted ) || ! $wp_filesystem ) {
+				return $source;
+			}
+			return $wp_filesystem->move( $source, $wanted ) ? $wanted : $source;
+		};
+		add_filter( 'upgrader_source_selection', $rename, 10, 2 );
+		$result = self::bulk_upgrade( 'plugin', $basename );
+		remove_filter( 'upgrader_source_selection', $rename, 10 );
+		if ( file_exists( $file ) ) {
+			wp_delete_file( $file );
+		}
+		return $result;
 	}
 
 	/**

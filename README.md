@@ -18,6 +18,7 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
   the Connection Key the plugin shows. The name comes from WordPress.
 - **Updates.** Every available core, plugin and theme update across all sites,
   each queued with one click. Each site installs its updates one at a time.
+  Presser Connect itself updates from the dashboard the same way.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** every site is re-checked every 6 hours.

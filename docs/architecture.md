@@ -86,6 +86,16 @@ other error marks it failed with the site's message, shown on the update with
 **Try again**; the next job still runs. A job left running for 15 minutes is
 marked failed, and the cron restarts any site whose queue stalled.
 
+## Presser Connect updates
+
+The dashboard ships the plugin it was built with (`src/shared/plugin-version.ts`,
+checked against the plugin header by `tests/plugin-lint.test.mjs`). When a
+site reports an older version, sync lists a Presser Connect update beside the
+site's other updates. The dashboard is behind Access, so WordPress cannot
+download from it; the update job reads the zip from the Worker's static assets
+and sends it to `/self-update`. Sites on a version before 0.4.0 need the new
+zip installed by hand once.
+
 ## Plugin routes (`presser/v1`)
 
 | Route | Does |
@@ -93,6 +103,7 @@ marked failed, and the cron restarts any site whose queue stalled.
 | `GET /status` | Site name, WordPress, PHP and plugin versions, active theme. |
 | `GET /updates` | Available core, plugin and theme updates. Refreshes stale data from WordPress.org, at most once per 12 hours for core. |
 | `POST /updates/apply` | `{kind: core, plugin or theme, slug, version}`. Runs the same upgraders the Updates screen uses; core also runs the database upgrade. For core, `version` must match the offer the dashboard showed, so a site never installs a version the owner did not see. Refuses when `DISALLOW_FILE_MODS` is set. |
+| `POST /self-update` | `{version, package}`. Installs the Presser Connect zip the dashboard ships (base64 in the signed body, so the signature covers it) through WordPress's plugin upgrader, keeping the plugin's folder. Refuses a version that is not newer. Added in 0.4.0. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 
