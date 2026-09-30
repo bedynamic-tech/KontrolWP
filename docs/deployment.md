@@ -41,7 +41,10 @@ subject to Cloudflare's quotas and billing.
    pre-fills `npm run build`, clearing it avoids building twice.
 5. Deploy and wait for Workers Builds to finish. The script builds the
    dashboard and the Presser Connect zip, applies pending D1 migrations, then
-   deploys the Worker and its assets.
+   deploys the Worker and its assets. On the first deploy it also creates the
+   `SITE_SECRETS_KEY` Worker secret that encrypts site secrets; later deploys
+   keep it. Never delete or change it, or every site will need a new
+   Connection Key.
 
 Cloudflare's [Deploy to Cloudflare documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 describes resource provisioning and repository creation.
@@ -114,5 +117,11 @@ new migrations before the new Worker goes live.
 - **D1 database not found:** `database_name` in `wrangler.jsonc` must match a
   database in the account. For manual setup, create it before running
   migrations.
+- **"SITE_SECRETS_KEY is missing or invalid":** run `npm run deploy` (or
+  redeploy from Workers Builds) so the deploy script creates it. A plain
+  `wrangler deploy` does not.
+- **"Presser could not decrypt this site's secret":** the key changed since
+  the site was added. Create a new connection key for the site and paste it
+  into Presser Connect.
 - **Sites never sync on their own:** check that the `presser-sync` queue
   exists and that the Worker's **Settings, Triggers** shows the cron schedule.

@@ -4,6 +4,7 @@ import type {
   Overview,
   SiteDetail,
   SiteSummary,
+  SiteUpdate,
 } from "../shared/types";
 
 export interface AccessHint {
@@ -74,5 +75,12 @@ export const syncSite = (id: number) => request<{ ok: true }>(`/sites/${id}/sync
 export const moderateComment = (siteId: number, commentId: number, action: CommentAction) =>
   request<{ ok: true }>(`/sites/${siteId}/comments/${commentId}`, { method: "POST", json: { action } });
 
-export const applyUpdate = (siteId: number, kind: "plugin" | "theme", slug: string) =>
-  request<{ ok: true }>(`/sites/${siteId}/updates`, { method: "POST", json: { kind, slug } });
+export const applyUpdate = (siteId: number, update: Pick<SiteUpdate, "kind" | "slug" | "new_version">) =>
+  request<{ ok: true }>(`/sites/${siteId}/updates`, {
+    method: "POST",
+    json: {
+      kind: update.kind,
+      slug: update.slug,
+      ...(update.kind === "core" ? { version: update.new_version } : {}),
+    },
+  });

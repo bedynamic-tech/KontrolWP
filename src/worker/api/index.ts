@@ -9,6 +9,7 @@ import {
 import type { CreatedSite, Overview, SiteDetail } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
+import { encryptSecret, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
 import { requireSameOrigin } from "./csrf.ts";
 
@@ -42,11 +43,18 @@ api.post("/sites", async (c) => {
   const existing = await c.env.DB.prepare("SELECT id FROM sites WHERE url = ?").bind(url).first<{ id: number }>();
   if (existing) return c.json({ error: "This site is already in Presser", id: existing.id }, 409);
 
+  // Refuse before inserting, so a missing key never leaves a half-made site.
   const secret = randomToken(32);
+  await encryptSecret(c.env.SITE_SECRETS_KEY, 0, secret);
   const row = await c.env.DB
-    .prepare("INSERT INTO sites (name, url, secret) VALUES (?, ?, ?) RETURNING id")
-    .bind(parsed.data.name, url, secret)
+    .prepare("INSERT INTO sites (name, url, secret) VALUES (?, ?, '') RETURNING id")
+    .bind(parsed.data.name, url)
     .first<{ id: number }>();
+  // The ciphertext is bound to the site id, which exists only after the insert.
+  await c.env.DB
+    .prepare("UPDATE sites SET secret = ? WHERE id = ?")
+    .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, row!.id, secret), row!.id)
+    .run();
   const site = await getSite(c.env.DB, row!.id);
   return c.json<CreatedSite>(
     { site: site!, connection_key: encodeConnectionKey({ siteId: row!.id, secret, dashboard: dashboardOrigin(c) }) },
@@ -96,7 +104,7 @@ api.post("/sites/:id/connection-key", async (c) => {
   const secret = randomToken(32);
   const result = await c.env.DB
     .prepare("UPDATE sites SET secret = ?, status = 'pending', last_error = NULL WHERE id = ?")
-    .bind(secret, id)
+    .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, id, secret), id)
     .run();
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
   return c.json({ connection_key: encodeConnectionKey({ siteId: id, secret, dashboard: dashboardOrigin(c) }) });
@@ -133,7 +141,12 @@ api.post("/sites/:id/comments/:commentId", async (c) => {
   });
 });
 
-const updateAction = z.object({ kind: z.enum(["plugin", "theme"]), slug: z.string().min(1).max(300) });
+const updateAction = z.object({
+  kind: z.enum(["core", "plugin", "theme"]),
+  slug: z.string().min(1).max(300),
+  // Core only: the version the owner saw, so the site refuses anything newer.
+  version: z.string().max(40).optional(),
+});
 
 api.post("/sites/:id/updates", async (c) => {
   const parsed = updateAction.safeParse(await c.req.json().catch(() => null));
@@ -150,9 +163,9 @@ async function siteAction(
   action: (site: NonNullable<Awaited<ReturnType<typeof getCredentials>>>) => Promise<void>,
 ) {
   const id = siteId(c);
-  const site = id && (await getCredentials(c.env.DB, id));
-  if (!site) return c.json({ error: "Site not found" }, 404);
   try {
+    const site = id && (await getCredentials(c.env, id));
+    if (!site) return c.json({ error: "Site not found" }, 404);
     await action(site);
   } catch (error) {
     if (error instanceof SiteRequestError) return c.json({ error: error.message }, 502);
@@ -160,6 +173,12 @@ async function siteAction(
   }
   return c.json({ ok: true });
 }
+
+api.onError((error, c) => {
+  if (error instanceof SecretsKeyError) return c.json({ error: error.message, code: "secrets_key" }, 503);
+  console.error(error);
+  return c.json({ error: "Something went wrong" }, 500);
+});
 
 function siteId(c: AppContext): number | null {
   const id = Number(c.req.param("id"));

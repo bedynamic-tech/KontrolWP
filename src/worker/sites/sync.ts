@@ -1,6 +1,7 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { PluginComments, PluginStatus, PluginUpdates } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
+import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
 export type SyncResult = { ok: true } | { ok: false; error: string };
@@ -11,7 +12,14 @@ export type SyncResult = { ok: true } | { ok: false; error: string };
  * thrown, so the dashboard shows it; only unexpected errors throw.
  */
 export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
-  const site = await getCredentials(env.DB, siteId);
+  let site;
+  try {
+    site = await getCredentials(env, siteId);
+  } catch (error) {
+    if (!(error instanceof SecretsKeyError)) throw error;
+    await recordError(env, siteId, error.message);
+    return { ok: false, error: error.message };
+  }
   if (!site) return { ok: false, error: "Site not found" };
 
   let status: PluginStatus;
@@ -25,10 +33,7 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
     ]);
   } catch (error) {
     if (!(error instanceof SiteRequestError)) throw error;
-    await env.DB
-      .prepare("UPDATE sites SET status = 'error', last_error = ? WHERE id = ?")
-      .bind(error.message, siteId)
-      .run();
+    await recordError(env, siteId, error.message);
     return { ok: false, error: error.message };
   }
 
@@ -93,6 +98,10 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
 
   await env.DB.batch(statements);
   return { ok: true };
+}
+
+async function recordError(env: Env, siteId: number, message: string): Promise<void> {
+  await env.DB.prepare("UPDATE sites SET status = 'error', last_error = ? WHERE id = ?").bind(message, siteId).run();
 }
 
 function text(value: unknown): string {

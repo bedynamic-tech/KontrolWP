@@ -41,14 +41,19 @@ class Presser_Connect_Rest {
 				'callback'            => array( __CLASS__, 'apply_update' ),
 				'permission_callback' => $auth,
 				'args'                => array(
-					'kind' => array(
+					'kind'    => array(
 						'required' => true,
 						'type'     => 'string',
-						'enum'     => array( 'plugin', 'theme' ),
+						'enum'     => array( 'core', 'plugin', 'theme' ),
 					),
-					'slug' => array(
+					'slug'    => array(
 						'required' => true,
 						'type'     => 'string',
+					),
+					// For core: the version the dashboard showed, so the site
+					// never installs something the owner did not see.
+					'version' => array(
+						'type' => 'string',
 					),
 				),
 			)
@@ -147,19 +152,29 @@ class Presser_Connect_Rest {
 	}
 
 	/**
-	 * Update one plugin or theme, the same way the Updates screen does.
+	 * Update WordPress core, one plugin or one theme, the same way the
+	 * Updates screen does.
 	 *
 	 * @param WP_REST_Request $request Incoming request.
 	 */
 	public static function apply_update( $request ) {
-		if ( ! wp_is_file_mod_allowed( 'presser_connect_update' ) ) {
+		$kind = $request['kind'];
+		$slug = (string) $request['slug'];
+
+		$context = 'core' === $kind ? 'capability_update_core' : 'presser_connect_update';
+		if ( ! wp_is_file_mod_allowed( $context ) ) {
 			return new WP_Error( 'presser_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'presser-connect' ), array( 'status' => 409 ) );
 		}
 		self::load_admin_includes();
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 
-		$kind = $request['kind'];
-		$slug = (string) $request['slug'];
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
+
+		if ( 'core' === $kind ) {
+			return self::apply_core_update( (string) $request['version'] );
+		}
 
 		if ( 'plugin' === $kind ) {
 			if ( ! array_key_exists( $slug, get_plugins() ) ) {
@@ -173,10 +188,6 @@ class Presser_Connect_Rest {
 			wp_update_themes();
 		}
 
-		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		}
-
 		$skin     = new WP_Ajax_Upgrader_Skin();
 		$upgrader = 'plugin' === $kind ? new Plugin_Upgrader( $skin ) : new Theme_Upgrader( $skin );
 		ob_start();
@@ -187,7 +198,7 @@ class Presser_Connect_Rest {
 			return new WP_Error( 'presser_update_failed', implode( ' ', $skin->get_error_messages() ), array( 'status' => 500 ) );
 		}
 		if ( false === $results ) {
-			return new WP_Error( 'presser_update_failed', __( 'WordPress could not write to its files. Check file permissions or FS_METHOD.', 'presser-connect' ), array( 'status' => 500 ) );
+			return self::filesystem_error();
 		}
 		$result = isset( $results[ $slug ] ) ? $results[ $slug ] : null;
 		if ( is_wp_error( $result ) ) {
@@ -197,6 +208,57 @@ class Presser_Connect_Rest {
 			return new WP_Error( 'presser_update_failed', __( 'The update did not complete.', 'presser-connect' ), array( 'status' => 500 ) );
 		}
 		return array( 'ok' => true );
+	}
+
+	/**
+	 * Install the offered core version. Core_Upgrader puts the site in
+	 * maintenance mode, replaces the files and runs the database upgrade.
+	 */
+	private static function apply_core_update( $version ) {
+		wp_version_check( array(), true );
+
+		$offer = null;
+		foreach ( (array) get_core_updates() as $candidate ) {
+			if ( is_object( $candidate ) && isset( $candidate->response ) && 'upgrade' === $candidate->response ) {
+				$offer = $candidate;
+				break;
+			}
+		}
+		if ( ! $offer ) {
+			return new WP_Error( 'presser_up_to_date', __( 'WordPress is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		if ( '' !== $version && $offer->current !== $version ) {
+			return new WP_Error(
+				'presser_version_changed',
+				/* translators: %s: WordPress version now offered */
+				sprintf( __( 'WordPress now offers version %s. Sync the site and try again.', 'presser-connect' ), $offer->current ),
+				array( 'status' => 409 )
+			);
+		}
+
+		$skin     = new WP_Ajax_Upgrader_Skin();
+		$upgrader = new Core_Upgrader( $skin );
+		ob_start();
+		$result = $upgrader->upgrade( $offer, array( 'allow_relaxed_file_ownership' => true ) );
+		ob_end_clean();
+
+		if ( is_wp_error( $result ) ) {
+			return new WP_Error( 'presser_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
+		}
+		if ( $skin->get_errors()->has_errors() ) {
+			return new WP_Error( 'presser_update_failed', implode( ' ', $skin->get_error_messages() ), array( 'status' => 500 ) );
+		}
+		if ( ! $result ) {
+			return self::filesystem_error();
+		}
+		return array(
+			'ok'      => true,
+			'version' => $result,
+		);
+	}
+
+	private static function filesystem_error() {
+		return new WP_Error( 'presser_update_failed', __( 'WordPress could not write to its files. Check file permissions or FS_METHOD.', 'presser-connect' ), array( 'status' => 500 ) );
 	}
 
 	public static function comments() {

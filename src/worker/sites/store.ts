@@ -1,5 +1,6 @@
 import type { PendingComment, SiteSummary, SiteUpdate } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
+import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
@@ -17,8 +18,14 @@ export async function getSite(db: D1Database, id: number): Promise<SiteSummary |
   return db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s WHERE s.id = ?`).bind(id).first<SiteSummary>();
 }
 
-export async function getCredentials(db: D1Database, id: number): Promise<SiteCredentials | null> {
-  return db.prepare("SELECT id, url, secret FROM sites WHERE id = ?").bind(id).first<SiteCredentials>();
+/** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
+export async function getCredentials(env: Env, id: number): Promise<SiteCredentials | null> {
+  const row = await env.DB
+    .prepare("SELECT id, url, secret FROM sites WHERE id = ?")
+    .bind(id)
+    .first<SiteCredentials>();
+  if (!row) return null;
+  return { ...row, secret: await decryptSecret(env.SITE_SECRETS_KEY, row.id, row.secret) };
 }
 
 export async function listUpdates(db: D1Database, siteId?: number): Promise<SiteUpdate[]> {

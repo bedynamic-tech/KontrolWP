@@ -14,8 +14,9 @@ export class SiteRequestError extends Error {
 }
 
 const TIMEOUT_MS = 20_000;
-// Plugin and theme updates download and unpack a package on the site.
-const ACTION_TIMEOUT_MS = 120_000;
+// Updates download and unpack a package on the site; core also upgrades the
+// database, so give actions longer than reads.
+const ACTION_TIMEOUT_MS = 180_000;
 
 /** Send one signed request to Presser Connect and return its JSON body. */
 export async function callSite<T>(
@@ -42,7 +43,12 @@ export async function callSite<T>(
     });
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";
-    throw new SiteRequestError(timedOut ? "The site did not respond in time" : "Could not reach the site");
+    if (!timedOut) throw new SiteRequestError("Could not reach the site");
+    throw new SiteRequestError(
+      method === "POST"
+        ? "The site did not answer in time. It may still be finishing; sync in a minute to check."
+        : "The site did not respond in time",
+    );
   }
 
   if (response.status >= 300 && response.status < 400) {

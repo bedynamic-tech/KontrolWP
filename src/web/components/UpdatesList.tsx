@@ -23,7 +23,7 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: () => applyUpdate(update.site_id, update.kind as "plugin" | "theme", update.slug),
+    mutationFn: () => applyUpdate(update.site_id, update),
     onMutate: () => setError(null),
     onError: (err: Error) => setError(err.message),
     onSettled: () => {
@@ -52,17 +52,9 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean }) {
         </p>
         {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
       </div>
-      {update.kind === "core" ? (
-        <Button variant="outline" size="sm" asChild>
-          <a href={`${update.site_url}/wp-admin/update-core.php`} target="_blank" rel="noreferrer">
-            Update in WordPress
-          </a>
-        </Button>
-      ) : (
-        <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {mutation.isPending ? "Updating..." : "Update"}
-        </Button>
-      )}
+      <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+        {mutation.isPending ? "Updating..." : "Update"}
+      </Button>
     </li>
   );
 }

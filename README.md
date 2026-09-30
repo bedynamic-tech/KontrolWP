@@ -5,8 +5,8 @@ Self-hosted WordPress manager on Cloudflare.
 Presser is one dashboard for all your WordPress sites. Each site runs the
 **Presser Connect** plugin, and the dashboard pulls in what needs your
 attention: plugin, theme and core updates, and comments waiting for review.
-Update plugins and themes and moderate comments without logging in to each
-site.
+Update WordPress, plugins and themes and moderate comments without logging
+in to each site.
 
 Everything runs in your own Cloudflare account, behind Cloudflare Access.
 
@@ -16,7 +16,7 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 
 - **Sites.** Add a site, install Presser Connect, paste its Connection Key.
 - **Updates.** Every available core, plugin and theme update across all sites,
-  with one-click plugin and theme updates.
+  each applied with one click.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** Every site is re-checked every 30 minutes.

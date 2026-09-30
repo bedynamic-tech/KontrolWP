@@ -7,7 +7,7 @@
     "build": "npm run plugin:zip && vite build",
     "check": "tsc -b",
     "test": "node --test --experimental-strip-types tests/*.test.mjs",
-    "deploy": "npm run build && npm run db:migrate && wrangler deploy",
+    "deploy": "npm run build && npm run db:migrate && node scripts/deploy.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local --config wrangler.dev.jsonc",
     "db:migrate": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc",
     "plugin:zip": "node scripts/build-plugin-zip.mjs",

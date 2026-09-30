@@ -14,7 +14,8 @@
 | --- | --- | --- |
 | Worker + static assets | | Serves the React dashboard and the `/api/*` routes, one Worker like Mailroom. |
 | Cloudflare Access | | Protects the whole Worker. `requireWebAccess` also verifies the `Cf-Access-Jwt-Assertion` JWT on every API call, so a misconfigured route still fails closed. |
-| D1 | `DB` | Sites with their secrets, plus the latest snapshot of updates and pending comments per site. |
+| D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. |
+| Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. |
 | Cron Trigger | | `*/30 * * * *` enqueues every site. |
 
@@ -52,6 +53,14 @@ within five minutes, the signature matches (constant-time compare) and the
 nonce has not been used before. Only after the signature checks out is the
 nonce stored, so unsigned traffic cannot fill the store.
 
+**Secrets at rest.** The dashboard stores each site's secret in D1
+encrypted with AES-256-GCM under `SITE_SECRETS_KEY`, with the site id as
+associated data so a ciphertext only opens for its own row. A copy of the
+database alone cannot sign requests to any site. The deploy script creates
+the key the first time and never replaces it, because a new key would make
+every stored secret unreadable; if that ever happens, each site shows a clear
+error and needs a new Connection Key.
+
 **Why a per-site shared secret.** A leaked key only exposes the one site that
 held it. Rotating a key (**New connection key**) invalidates the old one
 immediately. The dashboard requires `https://` site URLs and uses
@@ -64,19 +73,14 @@ Cloudflare or a private network.
 | --- | --- |
 | `GET /status` | Site name, WordPress, PHP and plugin versions, active theme. |
 | `GET /updates` | Available core, plugin and theme updates. Refreshes stale data from WordPress.org, at most once per 12 hours for core. |
-| `POST /updates/apply` | `{kind: plugin or theme, slug}`. Runs the same bulk upgrader the Updates screen uses. Refuses when `DISALLOW_FILE_MODS` is set. |
+| `POST /updates/apply` | `{kind: core, plugin or theme, slug, version}`. Runs the same upgraders the Updates screen uses; core also runs the database upgrade. For core, `version` must match the offer the dashboard showed, so a site never installs a version the owner did not see. Refuses when `DISALLOW_FILE_MODS` is set. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 
-Core updates are shown but applied from WordPress itself for now, since a
-failed core update over REST is hard to recover from remotely.
-
 ## Next steps worth considering
 
-- Encrypt site secrets at rest in D1 with a Worker secret.
-- Core updates, plugin activation and backups before updates.
+- Backups before updates, and plugin activation.
 - Uptime and SSL expiry checks from the Worker.
 - Notifications (email or push) when a site fails to sync or has security
   updates, reusing Mailroom's notification code.
 - Multisite support.
-- Deploy to Cloudflare button and automatic builds on push, like Mailroom.
