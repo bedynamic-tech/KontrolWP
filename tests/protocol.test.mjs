@@ -19,12 +19,16 @@ function php(input) {
 }
 
 test("connection keys round-trip and reject anything else", () => {
-  const key = { siteId: 7, secret: randomToken(32), dashboard: "https://presser.example.com" };
+  const key = { keyId: randomToken(9), secret: randomToken(32) };
   const encoded = encodeConnectionKey(key);
-  assert.match(encoded, /^presser1\.[A-Za-z0-9_-]+$/);
+  assert.match(encoded, /^presser2\.[A-Za-z0-9_-]+$/);
   assert.deepEqual(decodeConnectionKey(`  ${encoded}\n`), key);
-  assert.equal(decodeConnectionKey("presser1.not-json"), null);
-  assert.equal(decodeConnectionKey(encoded.slice("presser1.".length)), null);
+  // Copying out of a wrapped textarea can add line breaks.
+  assert.deepEqual(decodeConnectionKey(encoded.slice(0, 20) + "\n" + encoded.slice(20)), key);
+  assert.equal(decodeConnectionKey("presser2.not-json"), null);
+  assert.equal(decodeConnectionKey(encoded.slice("presser2.".length)), null);
+  assert.equal(decodeConnectionKey(encodeConnectionKey({ keyId: key.keyId, secret: randomToken(16) })), null);
+  assert.equal(decodeConnectionKey(encodeConnectionKey({ keyId: "bad id!", secret: key.secret })), null);
 });
 
 test("site URLs must be public https addresses", () => {
@@ -40,46 +44,48 @@ test("REST URLs use rest_route so any permalink setting works", () => {
   assert.equal(restUrl("https://example.com/blog", "/presser/v1/status"), "https://example.com/blog/?rest_route=%2Fpresser%2Fv1%2Fstatus");
 });
 
-test("the plugin decodes dashboard connection keys", { skip: !hasPhp && "php is not installed" }, () => {
-  const secret = randomToken(32);
-  const parsed = php({ connection_key: encodeConnectionKey({ siteId: 3, secret, dashboard: "https://presser.example.com" }) });
-  assert.deepEqual(parsed, { site_id: 3, secret, dashboard: "https://presser.example.com" });
-  assert.deepEqual(php({ connection_key: "presser1.e30" }), { error: "presser_invalid_key" });
+test("the dashboard reads keys the plugin makes", { skip: !hasPhp && "php is not installed" }, async () => {
+  const { connection_key } = php({ create_key: true, requests: [] });
+  const key = decodeConnectionKey(connection_key);
+  assert.ok(key, connection_key);
+  assert.equal(Buffer.from(key.secret, "base64url").length, 32);
 });
 
 test("the plugin accepts dashboard signatures and rejects tampering", { skip: !hasPhp && "php is not installed" }, async () => {
+  const keyId = randomToken(9);
   const secret = randomToken(32);
-  const connection = { site_id: 5, secret, dashboard: "https://presser.example.com", connected_at: 0 };
+  const credentials = { key_id: keyId, secret, created_at: 0 };
   const route = "/presser/v1/comments/moderate";
   const body = JSON.stringify({ id: 12, action: "approve" });
-  const sign = (overrides = {}) => signedHeaders({ siteId: 5, secret, method: "POST", route, body, ...overrides });
+  const sign = (overrides = {}) => signedHeaders({ keyId, secret, method: "POST", route, body, ...overrides });
 
   const valid = await sign();
-  const replayed = { ...valid };
-  const stale = await sign({ now: Math.floor(Date.now() / 1000) - 600 });
-  const otherSite = await signedHeaders({ siteId: 6, secret, method: "POST", route, body });
-  const otherSecret = await sign({ secret: randomToken(32) });
-  const unsigned = {};
-
-  const results = php({
-    connection,
+  const { results } = php({
+    credentials,
     requests: [
       { method: "POST", route, body, headers: valid },
-      { method: "POST", route, body, headers: replayed },
+      { method: "POST", route, body, headers: { ...valid } },
       { method: "POST", route, body: body.replace("approve", "trash"), headers: await sign() },
       { method: "POST", route: "/presser/v1/updates/apply", body, headers: await sign() },
       { method: "GET", route, body, headers: await sign() },
-      { method: "POST", route, body, headers: stale },
-      { method: "POST", route, body, headers: otherSite },
-      { method: "POST", route, body, headers: otherSecret },
-      { method: "POST", route, body, headers: unsigned },
+      { method: "POST", route, body, headers: await sign({ now: Math.floor(Date.now() / 1000) - 600 }) },
+      { method: "POST", route, body, headers: await sign({ keyId: randomToken(9) }) },
+      { method: "POST", route, body, headers: await sign({ secret: randomToken(32) }) },
+      { method: "POST", route, body, headers: {} },
     ],
   });
   assert.equal(results[0], "ok");
   assert.match(results[1], /already used/);
   for (const result of results.slice(2, 5)) assert.match(result, /signature did not match/);
   assert.match(results[5], /expired/);
-  assert.match(results[6], /different Presser site/);
+  assert.match(results[6], /newer Connection Key/);
   assert.match(results[7], /signature did not match/);
   assert.match(results[8], /not signed/);
+});
+
+test("the plugin refuses everything before it has a key", { skip: !hasPhp && "php is not installed" }, async () => {
+  const route = "/presser/v1/status";
+  const headers = await signedHeaders({ keyId: randomToken(9), secret: randomToken(32), method: "GET", route, body: "" });
+  const { results } = php({ credentials: null, requests: [{ method: "GET", route, body: "", headers }] });
+  assert.match(results[0], /no Connection Key/);
 });

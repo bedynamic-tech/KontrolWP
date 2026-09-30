@@ -1,7 +1,11 @@
 <?php
 // Runs Presser_Connect_Auth::verify outside WordPress with minimal stubs.
-// Input (JSON on stdin): { connection, method, route, body, headers, now_offset? }
-// Output: "ok" or the WP_Error code and message.
+// Input (JSON on stdin), one of:
+//   { "create_key": true, "requests": [...] }  the plugin makes a key, then
+//                                              verifies requests signed with it
+//   { "credentials": {...}, "requests": [...] }
+// Each request is { method, route, body, headers } and gets back "ok" or the
+// error message. Requests may use "$KEY_ID" to mean the created key's id.
 
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'HOUR_IN_SECONDS', 3600 );
@@ -20,6 +24,8 @@ function __( $text ) { return $text; }
 function esc_url_raw( $url ) { return $url; }
 function get_option( $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
 function update_option( $name, $value ) { $GLOBALS['options'][ $name ] = $value; return true; }
+function delete_option( $name ) { unset( $GLOBALS['options'][ $name ] ); return true; }
+function wp_json_encode( $value, $flags = 0 ) { return json_encode( $value, $flags ); }
 function get_transient( $name ) { return $GLOBALS['transients'][ $name ] ?? false; }
 function set_transient( $name, $value ) { $GLOBALS['transients'][ $name ] = $value; return true; }
 
@@ -42,15 +48,15 @@ class Request {
 require dirname( __DIR__, 2 ) . '/plugin/presser-connect/includes/class-presser-connect-auth.php';
 
 $input = json_decode( stream_get_contents( STDIN ), true );
-if ( isset( $input['connection_key'] ) ) {
-	$parsed = Presser_Connect_Auth::parse_connection_key( $input['connection_key'] );
-	echo json_encode( $parsed instanceof WP_Error ? array( 'error' => $parsed->code ) : $parsed );
-	exit;
+$output = array();
+if ( ! empty( $input['create_key'] ) ) {
+	$output['connection_key'] = Presser_Connect_Auth::connection_key();
+} else {
+	$GLOBALS['options']['presser_connect'] = $input['credentials'];
 }
-$GLOBALS['options']['presser_connect'] = $input['connection'];
-$results = array();
-foreach ( $input['requests'] as $request ) {
-	$result    = Presser_Connect_Auth::verify( new Request( $request ) );
-	$results[] = true === $result ? 'ok' : $result->message;
+$output['results'] = array();
+foreach ( $input['requests'] ?? array() as $request ) {
+	$result                = Presser_Connect_Auth::verify( new Request( $request ) );
+	$output['results'][] = true === $result ? 'ok' : $result->message;
 }
-echo json_encode( $results );
+echo json_encode( $output );

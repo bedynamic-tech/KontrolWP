@@ -29,3 +29,17 @@ test("a missing or malformed key is refused", async () => {
     await assert.rejects(encryptSecret(bad, 1, "secret"), SecretsKeyError);
   }
 });
+
+test("keys are accepted in base64url or standard base64, as openssl prints them", async () => {
+  const { isValidSecretsKey } = await import("../src/worker/sites/secrets.ts");
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const standard = Buffer.from(bytes).toString("base64");
+  assert.equal(isValidSecretsKey(Buffer.from(bytes).toString("base64url")), true);
+  assert.equal(isValidSecretsKey(standard), true);
+  assert.equal(isValidSecretsKey(` ${standard}\n`), true);
+  const stored = await encryptSecret(standard, 1, "secret");
+  assert.equal(await decryptSecret(`${standard}\n`, 1, stored), "secret");
+  for (const bad of [undefined, "", "not a key", Buffer.from(bytes.slice(0, 16)).toString("base64")]) {
+    assert.equal(isValidSecretsKey(bad), false);
+  }
+});

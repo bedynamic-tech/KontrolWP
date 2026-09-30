@@ -18,7 +18,8 @@ subject to Cloudflare's quotas and billing.
 2. Open the dashboard and follow its setup screen: turn on Access for the
    Worker, then paste the two values it shows. The API rejects requests until
    this is done.
-3. Add a site, install Presser Connect on it and paste its Connection Key.
+3. Install Presser Connect on a site, then add the site in Presser with its
+   address and the Connection Key the plugin shows.
 
 ## 1. Deploy the dashboard
 
@@ -77,9 +78,11 @@ two variables across deploys.
 
 ## 3. Connect a site
 
-Select **Add site**, enter its name and https address, then follow the steps:
-download `presser-connect.zip`, install and activate it on the site, paste the
-Connection Key under **Settings, Presser Connect**, and select **Sync now**.
+Download `presser-connect.zip` from the dashboard (the sidebar or the Sites
+page), then install and activate it on the site. Under **Settings, Presser
+Connect** on the site, copy the Connection Key. In Presser, select **Add
+site** and enter the site's https address and the key. Presser checks the
+connection, names the site after its WordPress title and syncs it.
 
 ## Manual deployment
 
@@ -117,11 +120,14 @@ new migrations before the new Worker goes live.
 - **D1 database not found:** `database_name` in `wrangler.jsonc` must match a
   database in the account. For manual setup, create it before running
   migrations.
-- **"SITE_SECRETS_KEY is missing or invalid":** run `npm run deploy` (or
-  redeploy from Workers Builds) so the deploy script creates it. A plain
-  `wrangler deploy` does not.
+- **"Add Presser's encryption key" screen:** the Worker has no
+  `SITE_SECRETS_KEY`, usually because the deploy command is not
+  `npm run deploy` (a plain `wrangler deploy` does not create it). Follow the
+  screen: it generates a key in your browser to add as a Worker secret. Also
+  set the deploy command to `npm run deploy` under the Worker's **Settings,
+  Build**.
 - **"Presser could not decrypt this site's secret":** the key changed since
-  the site was added. Create a new connection key for the site and paste it
-  into Presser Connect.
+  the site was added. Copy the Connection Key from Settings, Presser Connect
+  on the site and use **Replace connection key** on the site's page.
 - **Sites never sync on their own:** check that the `presser-sync` queue
   exists and that the Worker's **Settings, Triggers** shows the cron schedule.

@@ -3,6 +3,7 @@ import { restUrl, signedHeaders } from "../../shared/protocol.ts";
 export interface SiteCredentials {
   id: number;
   url: string;
+  keyId: string;
   secret: string;
 }
 
@@ -26,7 +27,7 @@ export async function callSite<T>(
   payload?: unknown,
 ): Promise<T> {
   const body = payload === undefined ? "" : JSON.stringify(payload);
-  const headers = await signedHeaders({ siteId: site.id, secret: site.secret, method, route, body });
+  const headers = await signedHeaders({ keyId: site.keyId, secret: site.secret, method, route, body });
   let response: Response;
   try {
     response = await fetch(restUrl(site.url, route), {

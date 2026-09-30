@@ -1,15 +1,15 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import {
-  encodeConnectionKey,
+  decodeConnectionKey,
   normalizeSiteUrl,
-  randomToken,
   REST_NAMESPACE,
+  type ConnectionKey,
 } from "../../shared/protocol.ts";
-import type { CreatedSite, Overview, SiteDetail } from "../../shared/types.ts";
+import type { Overview, PluginStatus, SiteDetail } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
-import { encryptSecret, SecretsKeyError } from "../sites/secrets.ts";
+import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
 import { requireSameOrigin } from "./csrf.ts";
 
@@ -17,6 +17,18 @@ type AppContext = Context<{ Bindings: Env }>;
 
 export const api = new Hono<{ Bindings: Env }>();
 api.use("*", requireSameOrigin);
+
+// Every route needs site secrets, so show the setup screen until the key
+// exists. Runs after Access, so only signed-in owners see this.
+api.use("*", async (c, next) => {
+  if (!isValidSecretsKey(c.env.SITE_SECRETS_KEY)) {
+    return c.json(
+      { error: "SITE_SECRETS_KEY is missing or invalid", code: "secrets_key_missing" },
+      503,
+    );
+  }
+  await next();
+});
 
 api.get("/overview", async (c) => {
   const [sites, updates, comments] = await Promise.all([
@@ -30,36 +42,57 @@ api.get("/overview", async (c) => {
 api.get("/sites", async (c) => c.json(await listSites(c.env.DB)));
 
 const siteInput = z.object({
-  name: z.string().trim().min(1).max(120),
   url: z.string().trim().min(1).max(2000),
+  connection_key: z.string().trim().min(1).max(1000),
 });
+
+/**
+ * Check a pasted Connection Key against the site before saving anything, so a
+ * typo or a missing plugin is reported right away. Returns the site's name.
+ */
+async function verifyConnection(url: string, key: ConnectionKey): Promise<string> {
+  const status = await callSite<PluginStatus>(
+    { id: 0, url, keyId: key.keyId, secret: key.secret },
+    "GET",
+    `${REST_NAMESPACE}/status`,
+  );
+  return typeof status.name === "string" ? status.name.trim().slice(0, 120) : "";
+}
 
 api.post("/sites", async (c) => {
   const parsed = siteInput.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Enter a name and a URL" }, 400);
+  if (!parsed.success) return c.json({ error: "Enter the site address and its Connection Key" }, 400);
   const url = normalizeSiteUrl(parsed.data.url);
   if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
+  const key = decodeConnectionKey(parsed.data.connection_key);
+  if (!key) {
+    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, Presser Connect on the site." }, 400);
+  }
 
   const existing = await c.env.DB.prepare("SELECT id FROM sites WHERE url = ?").bind(url).first<{ id: number }>();
   if (existing) return c.json({ error: "This site is already in Presser", id: existing.id }, 409);
 
-  // Refuse before inserting, so a missing key never leaves a half-made site.
-  const secret = randomToken(32);
-  await encryptSecret(c.env.SITE_SECRETS_KEY, 0, secret);
+  // Refuse before inserting, so a missing encryption key never leaves a half-made site.
+  await encryptSecret(c.env.SITE_SECRETS_KEY, 0, key.secret);
+  let name: string;
+  try {
+    name = await verifyConnection(url, key);
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+
   const row = await c.env.DB
-    .prepare("INSERT INTO sites (name, url, secret) VALUES (?, ?, '') RETURNING id")
-    .bind(parsed.data.name, url)
+    .prepare("INSERT INTO sites (name, url, key_id, secret) VALUES (?, ?, ?, '') RETURNING id")
+    .bind(name || new URL(url).hostname, url, key.keyId)
     .first<{ id: number }>();
   // The ciphertext is bound to the site id, which exists only after the insert.
   await c.env.DB
     .prepare("UPDATE sites SET secret = ? WHERE id = ?")
-    .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, row!.id, secret), row!.id)
+    .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, row!.id, key.secret), row!.id)
     .run();
-  const site = await getSite(c.env.DB, row!.id);
-  return c.json<CreatedSite>(
-    { site: site!, connection_key: encodeConnectionKey({ siteId: row!.id, secret, dashboard: dashboardOrigin(c) }) },
-    201,
-  );
+  await syncSite(c.env, row!.id);
+  return c.json(await getSite(c.env.DB, row!.id), 201);
 });
 
 api.get("/sites/:id", async (c) => {
@@ -72,13 +105,13 @@ api.get("/sites/:id", async (c) => {
 
 api.patch("/sites/:id", async (c) => {
   const id = siteId(c);
-  const parsed = siteInput.partial().safeParse(await c.req.json().catch(() => null));
+  const parsed = siteInput.pick({ url: true }).safeParse(await c.req.json().catch(() => null));
   if (!id || !parsed.success) return c.json({ error: "Invalid site" }, 400);
-  const url = parsed.data.url === undefined ? undefined : normalizeSiteUrl(parsed.data.url);
-  if (url === null) return c.json({ error: "Enter the site's public https:// address" }, 400);
+  const url = normalizeSiteUrl(parsed.data.url);
+  if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
   const result = await c.env.DB
-    .prepare("UPDATE sites SET name = COALESCE(?, name), url = COALESCE(?, url) WHERE id = ?")
-    .bind(parsed.data.name ?? null, url ?? null, id)
+    .prepare("UPDATE sites SET url = ? WHERE id = ?")
+    .bind(url, id)
     .run()
     .catch(() => null);
   if (!result) return c.json({ error: "Another site already uses this URL" }, 409);
@@ -97,17 +130,28 @@ api.delete("/sites/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Replace the site's secret. The old Connection Key stops working at once. */
+/** Paste the site's current Connection Key, after it made a new one. */
 api.post("/sites/:id/connection-key", async (c) => {
   const id = siteId(c);
-  if (!id) return c.json({ error: "Site not found" }, 404);
-  const secret = randomToken(32);
-  const result = await c.env.DB
-    .prepare("UPDATE sites SET secret = ?, status = 'pending', last_error = NULL WHERE id = ?")
-    .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, id, secret), id)
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  const parsed = siteInput.pick({ connection_key: true }).safeParse(await c.req.json().catch(() => null));
+  const key = parsed.success ? decodeConnectionKey(parsed.data.connection_key) : null;
+  if (!key) {
+    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, Presser Connect on the site." }, 400);
+  }
+  try {
+    await verifyConnection(site.url, key);
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+  await c.env.DB
+    .prepare("UPDATE sites SET key_id = ?, secret = ? WHERE id = ?")
+    .bind(key.keyId, await encryptSecret(c.env.SITE_SECRETS_KEY, id, key.secret), id)
     .run();
-  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
-  return c.json({ connection_key: encodeConnectionKey({ siteId: id, secret, dashboard: dashboardOrigin(c) }) });
+  await syncSite(c.env, id);
+  return c.json(await getSite(c.env.DB, id));
 });
 
 api.post("/sites/:id/sync", async (c) => {
@@ -183,8 +227,4 @@ api.onError((error, c) => {
 function siteId(c: AppContext): number | null {
   const id = Number(c.req.param("id"));
   return Number.isSafeInteger(id) && id > 0 ? id : null;
-}
-
-function dashboardOrigin(c: AppContext): string {
-  return new URL(c.req.url).origin;
 }

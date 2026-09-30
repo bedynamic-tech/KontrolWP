@@ -5,7 +5,7 @@ Presser is a dashboard for managing many WordPress sites from one place, running
 ## Language
 
 **Site**:
-A WordPress install the owner added to Presser, identified by its public https home URL. It is Waiting to connect until its first successful sync, Connected after one, and Needs attention when the latest sync failed.
+A WordPress install the owner added to Presser, identified by its public https home URL and named after its WordPress title. It is Waiting to connect until its first successful sync, Connected after one, and Needs attention when the latest sync failed.
 _Avoid_: Website, install, instance
 
 **Presser Connect**:
@@ -13,7 +13,7 @@ The WordPress plugin installed on every Site. It answers only requests signed wi
 _Avoid_: Agent, client, worker plugin
 
 **Connection Key**:
-The string (starting `presser1.`) that pairs one Site with the dashboard. It carries the Site's id and secret, is shown once, and stops working as soon as a new one is created.
+The string (starting `presser2.`) that pairs one Site with the dashboard. Presser Connect creates it and shows it under Settings, Presser Connect; the owner pastes it into Presser with the Site's address. It carries a key id and the secret, and stops working as soon as the plugin creates a new one.
 _Avoid_: API key, token, password
 
 **Sync**:

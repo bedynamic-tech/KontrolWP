@@ -1,13 +1,14 @@
 <?php
 /**
- * Verifies that a REST request was signed by the Presser dashboard.
+ * Owns this site's Connection Key and verifies that REST requests were signed
+ * by the Presser dashboard that holds it.
  *
  * This is the PHP half of src/shared/protocol.ts in the Presser repository;
  * change both together. The dashboard signs
  *
  *     presser-v1 \n METHOD \n ROUTE \n TIMESTAMP \n NONCE \n sha256_hex(BODY)
  *
- * with HMAC-SHA256 and the per-site secret from the Connection Key.
+ * with HMAC-SHA256 and the secret from this site's Connection Key.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,47 +20,59 @@ class Presser_Connect_Auth {
 	const OPTION           = 'presser_connect';
 	const LAST_SEEN_OPTION = 'presser_connect_last_seen';
 	const PROTOCOL         = 'presser-v1';
-	const KEY_PREFIX       = 'presser1.';
+	const KEY_PREFIX       = 'presser2.';
 	const MAX_SKEW         = 300;
 
 	/**
-	 * The stored connection, or null when the site is not connected.
+	 * The stored key, or null before one exists.
 	 *
-	 * @return array{site_id:int,secret:string,dashboard:string,connected_at:int}|null
+	 * @return array{key_id:string,secret:string,created_at:int}|null
 	 */
-	public static function connection() {
-		$connection = get_option( self::OPTION );
-		if ( ! is_array( $connection ) || empty( $connection['site_id'] ) || empty( $connection['secret'] ) ) {
+	public static function credentials() {
+		$stored = get_option( self::OPTION );
+		if ( ! is_array( $stored ) || empty( $stored['key_id'] ) || empty( $stored['secret'] ) ) {
 			return null;
 		}
-		return $connection;
+		return $stored;
 	}
 
 	/**
-	 * Decode a Connection Key pasted by the site owner.
-	 *
-	 * @return array{site_id:int,secret:string,dashboard:string}|WP_Error
+	 * Create a key when none exists yet (on activation, or on first view of
+	 * the settings page). Keys from Presser Connect 0.1 are replaced.
 	 */
-	public static function parse_connection_key( $key ) {
-		$key = trim( (string) $key );
-		if ( 0 !== strpos( $key, self::KEY_PREFIX ) ) {
-			return new WP_Error( 'presser_invalid_key', __( 'That is not a Presser Connection Key. Copy it again from your dashboard.', 'presser-connect' ) );
-		}
-		$json = self::base64url_decode( substr( $key, strlen( self::KEY_PREFIX ) ) );
-		$data = is_string( $json ) ? json_decode( $json, true ) : null;
-		if ( ! is_array( $data ) || ! isset( $data['s'], $data['k'], $data['d'] ) || ! is_int( $data['s'] ) ) {
-			return new WP_Error( 'presser_invalid_key', __( 'The Connection Key is incomplete. Copy it again from your dashboard.', 'presser-connect' ) );
-		}
-		$secret = self::base64url_decode( (string) $data['k'] );
-		if ( ! is_string( $secret ) || strlen( $secret ) < 32 ) {
-			return new WP_Error( 'presser_invalid_key', __( 'The Connection Key is incomplete. Copy it again from your dashboard.', 'presser-connect' ) );
-		}
-		$dashboard = esc_url_raw( (string) $data['d'], array( 'https', 'http' ) );
-		return array(
-			'site_id'   => $data['s'],
-			'secret'    => (string) $data['k'],
-			'dashboard' => $dashboard,
+	public static function ensure_credentials() {
+		$credentials = self::credentials();
+		return $credentials ? $credentials : self::regenerate();
+	}
+
+	/**
+	 * Replace the key. Presser stops reaching this site until the owner pastes
+	 * the new Connection Key into the dashboard.
+	 */
+	public static function regenerate() {
+		$credentials = array(
+			'key_id'     => self::base64url_encode( random_bytes( 9 ) ),
+			'secret'     => self::base64url_encode( random_bytes( 32 ) ),
+			'created_at' => time(),
 		);
+		update_option( self::OPTION, $credentials, false );
+		delete_option( self::LAST_SEEN_OPTION );
+		return $credentials;
+	}
+
+	/**
+	 * What the owner copies into Presser, next to the site's address: the key
+	 * id and the secret. Treat it like a password.
+	 */
+	public static function connection_key( $credentials = null ) {
+		$credentials = $credentials ? $credentials : self::ensure_credentials();
+		$json        = wp_json_encode(
+			array(
+				'i' => $credentials['key_id'],
+				'k' => $credentials['secret'],
+			)
+		);
+		return self::KEY_PREFIX . self::base64url_encode( $json );
 	}
 
 	/**
@@ -69,12 +82,12 @@ class Presser_Connect_Auth {
 	 * @return true|WP_Error
 	 */
 	public static function verify( $request ) {
-		$connection = self::connection();
-		if ( ! $connection ) {
-			return self::deny( __( 'Presser Connect is installed but not connected. Paste the Connection Key under Settings, Presser Connect.', 'presser-connect' ) );
+		$credentials = self::credentials();
+		if ( ! $credentials ) {
+			return self::deny( __( 'Presser Connect has no Connection Key yet. Open Settings, Presser Connect on this site.', 'presser-connect' ) );
 		}
 
-		$site_id   = (string) $request->get_header( 'X-Presser-Site' );
+		$key_id    = (string) $request->get_header( 'X-Presser-Key-Id' );
 		$timestamp = (string) $request->get_header( 'X-Presser-Timestamp' );
 		$nonce     = (string) $request->get_header( 'X-Presser-Nonce' );
 		$signature = (string) $request->get_header( 'X-Presser-Signature' );
@@ -82,8 +95,8 @@ class Presser_Connect_Auth {
 		if ( '' === $signature || ! ctype_digit( $timestamp ) || ! preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $nonce ) ) {
 			return self::deny( __( 'This request was not signed by Presser.', 'presser-connect' ) );
 		}
-		if ( (string) $connection['site_id'] !== $site_id ) {
-			return self::deny( __( 'This site is connected to a different Presser site entry. Paste the latest Connection Key.', 'presser-connect' ) );
+		if ( ! hash_equals( (string) $credentials['key_id'], $key_id ) ) {
+			return self::deny( __( 'This site has a newer Connection Key. Copy it from Settings, Presser Connect and paste it into Presser.', 'presser-connect' ) );
 		}
 		if ( abs( time() - (int) $timestamp ) > self::MAX_SKEW ) {
 			return self::deny( __( 'The request expired. Check that this server\'s clock is correct.', 'presser-connect' ) );
@@ -100,9 +113,9 @@ class Presser_Connect_Auth {
 				hash( 'sha256', (string) $request->get_body() ),
 			)
 		);
-		$expected = self::sign( $connection['secret'], $canonical );
+		$expected = self::sign( $credentials['secret'], $canonical );
 		if ( ! hash_equals( $expected, $signature ) ) {
-			return self::deny( __( 'The signature did not match. Paste the latest Connection Key from your dashboard.', 'presser-connect' ) );
+			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, Presser Connect and paste it into Presser again.', 'presser-connect' ) );
 		}
 
 		// Checked after the signature so unsigned requests cannot fill the store.

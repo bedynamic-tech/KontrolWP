@@ -23,16 +23,21 @@ export class SecretsKeyError extends Error {
 const UNREADABLE =
   "Presser could not decrypt this site's secret. If SITE_SECRETS_KEY changed, create a new connection key for the site.";
 
+/** True when SITE_SECRETS_KEY decodes to 32 bytes (base64 or base64url). */
+export function isValidSecretsKey(value: string | undefined): boolean {
+  try {
+    return base64UrlDecode(value?.trim() ?? "").length === 32;
+  } catch {
+    return false;
+  }
+}
+
 const keys = new Map<string, Promise<CryptoKey>>();
 
 function importKey(value: string | undefined): Promise<CryptoKey> {
-  let raw: Uint8Array<ArrayBuffer>;
-  try {
-    raw = base64UrlDecode(value ?? "");
-  } catch {
-    throw new SecretsKeyError();
-  }
-  if (raw.length !== 32) throw new SecretsKeyError();
+  value = value?.trim();
+  if (!value || !isValidSecretsKey(value)) throw new SecretsKeyError();
+  const raw = base64UrlDecode(value);
   let key = keys.get(value!);
   if (!key) {
     key = crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);

@@ -14,7 +14,8 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 
 ## What it does today
 
-- **Sites.** Add a site, install Presser Connect, paste its Connection Key.
+- **Sites.** Install Presser Connect, then add the site with its address and
+  the Connection Key the plugin shows. The name comes from WordPress.
 - **Updates.** Every available core, plugin and theme update across all sites,
   each applied with one click.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
@@ -26,8 +27,9 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 1. **Deploy.** Click **Deploy to Cloudflare** above. The database, queue and
    migrations are set up for you.
 2. **Secure.** The setup screen walks you through turning on Cloudflare Access.
-3. **Connect.** Select **Add site**, install Presser Connect on the site and
-   paste its Connection Key.
+3. **Connect.** Install Presser Connect on the site, then select **Add site**
+   and enter the site's address and the Connection Key from Settings,
+   Presser Connect.
 
 Prefer to set things up by hand? Follow the
 [manual deployment guide](docs/deployment.md#manual-deployment).

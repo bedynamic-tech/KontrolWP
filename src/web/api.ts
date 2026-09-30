@@ -1,6 +1,5 @@
 import type {
   CommentAction,
-  CreatedSite,
   Overview,
   SiteDetail,
   SiteSummary,
@@ -26,6 +25,11 @@ export class ApiError extends Error {
 }
 
 const ACCESS_SETUP_CODES = ["access_not_configured", "access_missing", "access_invalid"];
+
+/** The Worker has no SITE_SECRETS_KEY yet. */
+export function secretsKeyMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "secrets_key_missing";
+}
 
 /** The API rejected the request because Cloudflare Access is not set up correctly. */
 export function accessSetupError(error: unknown): ApiError | null {
@@ -59,16 +63,19 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
 export const fetchOverview = () => request<Overview>("/overview");
 export const fetchSite = (id: number) => request<SiteDetail>(`/sites/${id}`);
 
-export const createSite = (input: { name: string; url: string }) =>
-  request<CreatedSite>("/sites", { method: "POST", json: input });
+export const createSite = (input: { url: string; connection_key: string }) =>
+  request<SiteSummary>("/sites", { method: "POST", json: input });
 
-export const updateSite = (id: number, input: { name?: string; url?: string }) =>
-  request<SiteSummary>(`/sites/${id}`, { method: "PATCH", json: input });
+export const updateSiteUrl = (id: number, url: string) =>
+  request<SiteSummary>(`/sites/${id}`, { method: "PATCH", json: { url } });
 
 export const deleteSite = (id: number) => request<{ ok: true }>(`/sites/${id}`, { method: "DELETE" });
 
-export const newConnectionKey = (id: number) =>
-  request<{ connection_key: string }>(`/sites/${id}/connection-key`, { method: "POST" });
+export const replaceConnectionKey = (id: number, connectionKey: string) =>
+  request<SiteSummary>(`/sites/${id}/connection-key`, {
+    method: "POST",
+    json: { connection_key: connectionKey },
+  });
 
 export const syncSite = (id: number) => request<{ ok: true }>(`/sites/${id}/sync`, { method: "POST" });
 

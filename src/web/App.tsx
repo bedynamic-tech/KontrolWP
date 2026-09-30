@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, GlobeIcon, LayoutDashboardIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
-import { accessSetupError, fetchOverview } from "./api";
+import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
+import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { OverviewPage } from "./components/OverviewPage";
 import { SitePage } from "./components/SitePage";
 import { SitesPage } from "./components/SitesPage";
@@ -17,6 +18,9 @@ export function App() {
     return (
       <AccessSetup error={setupError} onRetry={() => overview.refetch()} retrying={overview.isFetching} />
     );
+  }
+  if (secretsKeyMissing(overview.error)) {
+    return <SecretsKeySetup onRetry={() => overview.refetch()} retrying={overview.isFetching} />;
   }
 
   return (

@@ -3,8 +3,9 @@
  *
  * Every request carries four headers. The plugin rebuilds the same canonical
  * string, checks the HMAC with the site's secret, rejects timestamps outside
- * a five minute window and refuses a nonce it has already seen. The secret
- * never travels after the owner pastes the Connection Key into WordPress.
+ * a five minute window and refuses a nonce it has already seen. The plugin
+ * creates the secret; it travels once, when the owner pastes the Connection
+ * Key from WordPress into Presser.
  *
  * plugin/presser-connect/includes/class-presser-connect-auth.php is the other
  * half of this file; change both together.
@@ -15,7 +16,7 @@ export const REST_NAMESPACE = "/presser/v1";
 export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 export const HEADERS = {
-  site: "X-Presser-Site",
+  keyId: "X-Presser-Key-Id",
   timestamp: "X-Presser-Timestamp",
   nonce: "X-Presser-Nonce",
   signature: "X-Presser-Signature",
@@ -76,7 +77,7 @@ export async function sign(secret: string, canonical: string): Promise<string> {
 
 /** Headers for one signed request from the dashboard to a site. */
 export async function signedHeaders(input: {
-  siteId: number;
+  keyId: string;
   secret: string;
   method: string;
   route: string;
@@ -88,7 +89,7 @@ export async function signedHeaders(input: {
   const nonce = input.nonce ?? randomToken(16);
   const canonical = await canonicalRequest({ ...input, timestamp, nonce });
   return {
-    [HEADERS.site]: String(input.siteId),
+    [HEADERS.keyId]: input.keyId,
     [HEADERS.timestamp]: String(timestamp),
     [HEADERS.nonce]: nonce,
     [HEADERS.signature]: await sign(input.secret, canonical),
@@ -109,30 +110,29 @@ export function restUrl(siteUrl: string, route: string): string {
 }
 
 /**
- * What the owner pastes into Presser Connect. It carries the site's id and
- * secret, plus the dashboard address so the plugin can show where it is
- * connected. Treat it like a password.
+ * What Presser Connect shows under Settings, Presser Connect and the owner
+ * pastes into Presser: an id for the key and the secret itself. Treat it like
+ * a password.
  */
 export interface ConnectionKey {
-  siteId: number;
+  keyId: string;
   secret: string;
-  dashboard: string;
 }
 
-const CONNECTION_KEY_PREFIX = "presser1.";
+const CONNECTION_KEY_PREFIX = "presser2.";
 
 export function encodeConnectionKey(key: ConnectionKey): string {
-  const json = JSON.stringify({ s: key.siteId, k: key.secret, d: key.dashboard });
-  return CONNECTION_KEY_PREFIX + base64UrlEncode(encoder.encode(json));
+  return CONNECTION_KEY_PREFIX + base64UrlEncode(encoder.encode(JSON.stringify({ i: key.keyId, k: key.secret })));
 }
 
 export function decodeConnectionKey(value: string): ConnectionKey | null {
-  const trimmed = value.trim();
+  const trimmed = value.replace(/\s+/g, "");
   if (!trimmed.startsWith(CONNECTION_KEY_PREFIX)) return null;
   try {
     const json = JSON.parse(new TextDecoder().decode(base64UrlDecode(trimmed.slice(CONNECTION_KEY_PREFIX.length))));
-    if (!Number.isInteger(json.s) || typeof json.k !== "string" || typeof json.d !== "string") return null;
-    return { siteId: json.s, secret: json.k, dashboard: json.d };
+    if (typeof json.i !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(json.i)) return null;
+    if (typeof json.k !== "string" || base64UrlDecode(json.k).length < 32) return null;
+    return { keyId: json.i, secret: json.k };
   } catch {
     return null;
   }

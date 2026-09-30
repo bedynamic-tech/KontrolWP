@@ -29,11 +29,12 @@ Source of truth: `src/shared/protocol.ts` and
 `plugin/presser-connect/includes/class-presser-connect-auth.php`. They are
 tested against each other in `tests/protocol.test.mjs`.
 
-**Pairing.** Adding a site creates a random 32-byte secret for that site
-only. The dashboard shows it once, packed in a Connection Key
-(`presser1.` + base64url JSON of site id, secret and dashboard origin). The
-owner pastes the key into **Settings, Presser Connect** on the site. The
-secret never travels again.
+**Pairing.** Presser Connect creates the key when it is activated: a random
+key id and a random 32-byte secret for that site only. **Settings, Presser
+Connect** shows them as a Connection Key (`presser2.` + base64url JSON of the
+key id and secret). In Presser, **Add site** takes the site's address and
+that key, checks both by calling `/status` before saving anything, and takes
+the site's name from WordPress. The name is refreshed on every sync.
 
 **Requests.** The dashboard calls the plugin's REST routes at
 `https://site/?rest_route=/presser/v1/...` (works with or without pretty
@@ -48,7 +49,8 @@ random nonce
 sha256 hex of the body
 ```
 
-The plugin rejects a request unless the site id matches, the timestamp is
+Requests carry the key id in `X-Presser-Key-Id`. The plugin rejects a
+request unless the key id matches, the timestamp is
 within five minutes, the signature matches (constant-time compare) and the
 nonce has not been used before. Only after the signature checks out is the
 nonce stored, so unsigned traffic cannot fill the store.
@@ -62,8 +64,9 @@ every stored secret unreadable; if that ever happens, each site shows a clear
 error and needs a new Connection Key.
 
 **Why a per-site shared secret.** A leaked key only exposes the one site that
-held it. Rotating a key (**New connection key**) invalidates the old one
-immediately. The dashboard requires `https://` site URLs and uses
+held it. **Create a new key** in Presser Connect invalidates the old one
+immediately; **Replace connection key** on the site's page in Presser takes
+the new one. The dashboard requires `https://` site URLs and uses
 `global_fetch_strictly_public`, so a site URL cannot point back into
 Cloudflare or a private network.
 
