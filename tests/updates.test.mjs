@@ -136,3 +136,14 @@ test("a Presser Connect too old to update itself says how to fix it", async () =
   await runNextUpdate(t.env, 1);
   assert.match(t.jobs()[0].error, /cannot update itself/);
 });
+
+test("a Presser Connect updated by hand since the last sync counts as done", async () => {
+  const t = await setup(
+    async (_body, json) => json({ code: "presser_up_to_date", message: "Presser Connect is already up to date." }, 409),
+    "0.3.0",
+  );
+  await syncSite(t.env, 1);
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
+  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
+  assert.deepEqual(t.jobs(), []);
+});

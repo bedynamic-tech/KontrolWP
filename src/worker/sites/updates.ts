@@ -96,6 +96,11 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
     }
     await finish("done");
   } catch (error) {
+    if (job.slug === SELF_UPDATE.slug && error instanceof SiteRequestError && error.code === "presser_up_to_date") {
+      // Installed by hand since the last sync; the sync below drops the row.
+      await finish("done");
+      return afterJob(env, siteId);
+    }
     if (job.slug === SELF_UPDATE.slug && error instanceof SiteRequestError && error.status === 404) {
       // Versions before 0.4.0 have no self-update route.
       await finish(
