@@ -1,6 +1,7 @@
 import type {
   CommentAction,
   Overview,
+  SiteAdmin,
   SiteDetail,
   SiteSummary,
   SiteUpdate,
@@ -91,3 +92,11 @@ export const applyUpdate = (siteId: number, update: Pick<SiteUpdate, "kind" | "s
       ...(update.kind === "core" ? { version: update.new_version } : {}),
     },
   });
+
+export const fetchAdmins = (siteId: number) => request<{ admins: SiteAdmin[] }>(`/sites/${siteId}/admins`);
+
+export const setMagicLoginUser = (siteId: number, userId: number | null) =>
+  request<SiteSummary>(`/sites/${siteId}/magic-login`, { method: "PUT", json: { user_id: userId } });
+
+export const createMagicLogin = (siteId: number) =>
+  request<{ url: string }>(`/sites/${siteId}/magic-login`, { method: "POST" });
