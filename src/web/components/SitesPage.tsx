@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { fetchOverview } from "../api";
-import { hostname, plural, timeAgo } from "../format";
+import { hostname, plural } from "../format";
 import { AddSiteDialog } from "./AddSiteDialog";
 import { PluginDownloadButton } from "./PluginDownload";
 import { PageSkeleton } from "./OverviewPage";
@@ -38,11 +38,10 @@ export function SitesPage() {
                     <p className="truncate text-xs text-muted-foreground">{hostname(site.url)}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    {site.wp_version && <span>WordPress {site.wp_version}</span>}
                     <span>{plural(site.update_count, "update")}</span>
                     <span>{plural(site.pending_comments, "comment")}</span>
-                    <span>Synced {timeAgo(site.last_synced_at).toLowerCase()}</span>
-                    <StatusBadge status={site.status} />
+                    {/* Version, sync time and status live on the site's page; only a problem shows here. */}
+                    {site.status !== "connected" && <StatusBadge status={site.status} />}
                   </div>
                 </Link>
               </li>
