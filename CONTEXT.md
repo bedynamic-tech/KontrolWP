@@ -24,6 +24,10 @@ _Avoid_: Refresh, poll, crawl
 A newer version of WordPress core, a plugin or a theme that a Site reported during its last Sync.
 _Avoid_: Upgrade, patch
 
+**Update Queue**:
+The Updates the owner asked Presser to install on one Site, run one at a time in the order they were queued. An Update in it is Queued, Updating, Updated (until the next Sync) or failed.
+_Avoid_: Job list, batch
+
 **Pending Comment**:
 A comment held for moderation on a Site. Presser shows the newest 50 per Site and can approve, spam or trash each one.
 _Avoid_: Unapproved comment, queue item

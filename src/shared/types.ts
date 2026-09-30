@@ -27,7 +27,13 @@ export interface SiteUpdate {
   name: string;
   current_version: string;
   new_version: string;
+  /** The owner's request to install it, if any. `done` lasts until the next sync. */
+  job_status: UpdateJobStatus | null;
+  /** Why the last attempt failed, or a note while it waits to retry. */
+  job_error: string | null;
 }
+
+export type UpdateJobStatus = "queued" | "running" | "done" | "failed";
 
 export interface PendingComment {
   site_id: number;

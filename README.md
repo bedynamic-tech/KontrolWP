@@ -17,7 +17,7 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 - **Sites.** Install Presser Connect, then add the site with its address and
   the Connection Key the plugin shows. The name comes from WordPress.
 - **Updates.** Every available core, plugin and theme update across all sites,
-  each applied with one click.
+  each queued with one click. Each site installs its updates one at a time.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** every site is re-checked every 6 hours.

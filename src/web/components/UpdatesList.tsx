@@ -3,9 +3,15 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { SiteUpdate } from "../../shared/types";
+import type { SiteUpdate, UpdateJobStatus } from "../../shared/types";
 import { applyUpdate } from "../api";
 import { EmptyRow } from "./Section";
+
+/** Poll quickly while an update is waiting or running, so its row follows along. */
+export function updatesRefetchInterval(updates: SiteUpdate[] | undefined): number {
+  const active = updates?.some((update) => update.job_status === "queued" || update.job_status === "running");
+  return active ? 3_000 : 60_000;
+}
 
 export function UpdatesList(props: { updates: SiteUpdate[]; showSite: boolean }) {
   if (!props.updates.length) return <EmptyRow>Everything is up to date.</EmptyRow>;
@@ -18,19 +24,34 @@ export function UpdatesList(props: { updates: SiteUpdate[]; showSite: boolean })
   );
 }
 
+const JOB_LABELS: Record<UpdateJobStatus, string> = {
+  queued: "Queued",
+  running: "Updating...",
+  done: "Updated",
+  failed: "Try again",
+};
+
 function UpdateRow(props: { update: SiteUpdate; showSite: boolean }) {
   const { update } = props;
   const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () => applyUpdate(update.site_id, update),
-    onMutate: () => setError(null),
-    onError: (err: Error) => setError(err.message),
+    onMutate: () => setRequestError(null),
+    onError: (err: Error) => setRequestError(err.message),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["overview"] });
       queryClient.invalidateQueries({ queryKey: ["site", update.site_id] });
     },
   });
+
+  // Until the refetch shows the job, a request that went through reads as queued.
+  const status = mutation.isPending ? "queued" : (update.job_status ?? (mutation.isSuccess ? "queued" : null));
+  const failed = status === "failed";
+  const busy = status === "queued" || status === "running" || status === "done";
+  const label = status ? JOB_LABELS[status] : "Update";
+  const error = requestError ?? (failed ? update.job_error : null);
+  const note = status === "queued" ? update.job_error : null;
 
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
@@ -51,9 +72,10 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean }) {
           {update.current_version} to {update.new_version}
         </p>
         {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+        {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
       </div>
-      <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-        {mutation.isPending ? "Updating..." : "Update"}
+      <Button size="sm" onClick={() => mutation.mutate()} disabled={busy} variant={failed ? "outline" : "default"}>
+        {label}
       </Button>
     </li>
   );

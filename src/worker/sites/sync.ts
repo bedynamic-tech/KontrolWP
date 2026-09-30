@@ -58,6 +58,8 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
       ),
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
     env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(siteId),
+    // Finished updates are gone from the fresh list, so their jobs are too.
+    env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status = 'done'").bind(siteId),
   ];
 
   const insertUpdate = env.DB.prepare(
@@ -110,10 +112,20 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-/** Queue one sync per site; called by the cron trigger. */
+/**
+ * Queue one sync per site; called by the cron trigger. Sites with updates
+ * still waiting also get an update message, in case their queue stalled.
+ */
 export async function enqueueAllSites(env: Env): Promise<void> {
   const { results } = await env.DB.prepare("SELECT id FROM sites").all<{ id: number }>();
-  for (let i = 0; i < results.length; i += 100) {
-    await env.SYNC_QUEUE.sendBatch(results.slice(i, i + 100).map(({ id }) => ({ body: { siteId: id } })));
+  const { results: waiting } = await env.DB
+    .prepare("SELECT DISTINCT site_id FROM update_jobs WHERE status IN ('queued', 'running')")
+    .all<{ site_id: number }>();
+  const messages: MessageSendRequest<SyncMessage>[] = [
+    ...results.map(({ id }) => ({ body: { type: "sync" as const, siteId: id } })),
+    ...waiting.map(({ site_id }) => ({ body: { type: "update" as const, siteId: site_id } })),
+  ];
+  for (let i = 0; i < messages.length; i += 100) {
+    await env.SYNC_QUEUE.sendBatch(messages.slice(i, i + 100));
   }
 }
