@@ -126,6 +126,10 @@ new migrations before the new Worker goes live.
   screen: it generates a key in your browser to add as a Worker secret. Also
   set the deploy command to `npm run deploy` under the Worker's **Settings,
   Build**.
+- **"Presser could not update its database":** the Worker tried to apply a
+  missing migration and D1 refused it. The message names the migration and
+  the reason. Fix the cause, then run `npm run db:migrate`, which records
+  what it applies so the Worker does not try again.
 - **"Presser could not decrypt this site's secret":** the key changed since
   the site was added. Copy the Connection Key from Settings, Presser Connect
   on the site and use **Replace connection key** on the site's page.

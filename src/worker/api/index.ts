@@ -11,12 +11,27 @@ import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
+import { MigrationError } from "../db/migrate.ts";
+import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
 
 type AppContext = Context<{ Bindings: Env }>;
 
 export const api = new Hono<{ Bindings: Env }>();
 api.use("*", requireSameOrigin);
+
+// Bring the database up to date before any route reads it, in case this
+// Worker was deployed without running migrations.
+api.use("*", async (c, next) => {
+  try {
+    await ensureSchema(c.env.DB);
+  } catch (error) {
+    if (!(error instanceof MigrationError)) throw error;
+    console.error(error);
+    return c.json({ error: error.message, code: "database_migration" }, 503);
+  }
+  await next();
+});
 
 // Every route needs site secrets, so show the setup screen until the key
 // exists. Runs after Access, so only signed-in owners see this.
@@ -221,7 +236,9 @@ async function siteAction(
 api.onError((error, c) => {
   if (error instanceof SecretsKeyError) return c.json({ error: error.message, code: "secrets_key" }, 503);
   console.error(error);
-  return c.json({ error: "Something went wrong" }, 500);
+  // Only signed-in owners reach the API, so name the cause instead of hiding it.
+  const reason = error instanceof Error ? error.message : String(error);
+  return c.json({ error: `Something went wrong: ${reason}` }, 500);
 });
 
 function siteId(c: AppContext): number | null {
