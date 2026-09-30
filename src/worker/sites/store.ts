@@ -4,7 +4,7 @@ import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
-  s.php_version, s.plugin_version, s.theme_name, s.pending_comments, s.created_at,
+  s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
 export async function listSites(db: D1Database): Promise<SiteSummary[]> {

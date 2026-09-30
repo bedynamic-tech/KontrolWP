@@ -6,6 +6,7 @@ import { AddSiteDialog } from "./AddSiteDialog";
 import { PluginDownloadButton } from "./PluginDownload";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
+import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
 
 export function SitesPage() {
@@ -33,9 +34,12 @@ export function SitesPage() {
                   to={`/sites/${site.id}`}
                   className="flex flex-col gap-2 px-4 py-3 hover:bg-muted/50 sm:flex-row sm:items-center"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{site.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{hostname(site.url)}</p>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <SiteIcon site={site} className="size-9 text-sm" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{site.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{hostname(site.url)}</p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>{plural(site.update_count, "update")}</span>

@@ -11,6 +11,7 @@ export interface SiteSummary {
   php_version: string | null;
   plugin_version: string | null;
   theme_name: string | null;
+  icon_url: string | null;
   pending_comments: number;
   update_count: number;
   created_at: number;
@@ -69,6 +70,8 @@ export interface PluginStatus {
   php_version: string;
   plugin_version: string;
   theme: string;
+  /** Presser Connect 0.2.1+: the Site Icon URL, or "" when there is none. */
+  icon_url?: string;
 }
 
 export interface PluginUpdates {
