@@ -17,7 +17,7 @@ The string (starting `presser2.`) that pairs one Site with the dashboard. Presse
 _Avoid_: API key, token, password
 
 **Sync**:
-One pull of status, available Updates and Pending Comments from a Site, replacing what Presser stored for it. Runs every 30 minutes and on Sync now.
+One pull of status, available Updates and Pending Comments from a Site, replacing what Presser stored for it. Runs every 6 hours and on Sync now.
 _Avoid_: Refresh, poll, crawl
 
 **Update**:

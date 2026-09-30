@@ -42,10 +42,10 @@
       }
     ]
   },
-  // Sync every connected site every 30 minutes. Each site is its own queue
+  // Sync every connected site every 6 hours. Each site is its own queue
   // message, so one slow or broken site never delays the others.
   "triggers": {
-    "crons": ["*/30 * * * *"]
+    "crons": ["0 */6 * * *"]
   },
   "observability": {
     "enabled": true
