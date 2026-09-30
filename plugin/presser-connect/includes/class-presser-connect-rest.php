@@ -120,6 +120,7 @@ class Presser_Connect_Rest {
 				$core_update = array(
 					'current'     => get_bloginfo( 'version' ),
 					'new_version' => $offer->current,
+					'icon_url'    => includes_url( 'images/w-logo-blue.png' ),
 				);
 				break;
 			}
@@ -132,6 +133,7 @@ class Presser_Connect_Rest {
 				'name'            => $data->Name,
 				'current_version' => $data->Version,
 				'new_version'     => isset( $data->update->new_version ) ? $data->update->new_version : '',
+				'icon_url'        => self::plugin_icon( isset( $data->update->icons ) ? $data->update->icons : array() ),
 			);
 		}
 
@@ -142,6 +144,7 @@ class Presser_Connect_Rest {
 				'name'            => $theme->get( 'Name' ),
 				'current_version' => $theme->get( 'Version' ),
 				'new_version'     => isset( $theme->update['new_version'] ) ? $theme->update['new_version'] : '',
+				'icon_url'        => (string) $theme->get_screenshot(),
 			);
 		}
 
@@ -150,6 +153,22 @@ class Presser_Connect_Rest {
 			'plugins' => $plugins,
 			'themes'  => $themes,
 		);
+	}
+
+	/**
+	 * The plugin's icon from its update source: WordPress.org, or whatever
+	 * a commercial plugin's updater reports in the same format.
+	 *
+	 * @param array|object $icons Icon URLs keyed by svg, 2x, 1x or default.
+	 */
+	private static function plugin_icon( $icons ) {
+		$icons = (array) $icons;
+		foreach ( array( 'svg', '2x', '1x', 'default' ) as $size ) {
+			if ( ! empty( $icons[ $size ] ) && is_string( $icons[ $size ] ) ) {
+				return $icons[ $size ];
+			}
+		}
+		return '';
 	}
 
 	/**
