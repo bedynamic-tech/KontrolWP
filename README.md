@@ -20,7 +20,7 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
   each applied with one click.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
-- **Background sync.** Every site is re-checked every 30 minutes.
+- **Background sync.** every site is re-checked every 6 hours.
 
 ## Get started
 
