@@ -1,4 +1,6 @@
 interface SyncMessage {
+  /** "sync" pulls the site's state; "update" runs its next queued update. Absent means sync. */
+  type?: "sync" | "update";
   siteId: number;
 }
 

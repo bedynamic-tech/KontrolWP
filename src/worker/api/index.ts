@@ -11,6 +11,7 @@ import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
+import { enqueueUpdate } from "../sites/updates.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
@@ -140,6 +141,7 @@ api.delete("/sites/:id", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -207,14 +209,14 @@ const updateAction = z.object({
   version: z.string().max(40).optional(),
 });
 
+/** Queue an update. The queue consumer runs one at a time per site (sites/updates.ts). */
 api.post("/sites/:id/updates", async (c) => {
+  const id = siteId(c);
   const parsed = updateAction.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Invalid update" }, 400);
-  return siteAction(c, async (site) => {
-    await callSite(site, "POST", `${REST_NAMESPACE}/updates/apply`, parsed.data);
-    // Re-read the site so versions and the remaining updates are accurate.
-    await syncSite(c.env, site.id);
-  });
+  if (!id || !parsed.success) return c.json({ error: "Invalid update" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  await enqueueUpdate(c.env, id, parsed.data);
+  return c.json({ ok: true }, 202);
 });
 
 async function siteAction(

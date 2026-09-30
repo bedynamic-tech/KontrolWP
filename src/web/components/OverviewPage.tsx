@@ -5,10 +5,14 @@ import { AddSiteDialog } from "./AddSiteDialog";
 import { PluginDownloadButton } from "./PluginDownload";
 import { CommentsList } from "./CommentsList";
 import { Section } from "./Section";
-import { UpdatesList } from "./UpdatesList";
+import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
 
 export function OverviewPage() {
-  const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
+  const { data, error, isPending } = useQuery({
+    queryKey: ["overview"],
+    queryFn: fetchOverview,
+    refetchInterval: (query) => updatesRefetchInterval(query.state.data?.updates),
+  });
 
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;

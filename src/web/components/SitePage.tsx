@@ -20,7 +20,7 @@ import { PageSkeleton } from "./OverviewPage";
 import { PluginDownloadButton } from "./PluginDownload";
 import { Section } from "./Section";
 import { StatusBadge } from "./StatusBadge";
-import { UpdatesList } from "./UpdatesList";
+import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -30,7 +30,11 @@ export function SitePage() {
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const { data, error, isPending } = useQuery({ queryKey: ["site", id], queryFn: () => fetchSite(id) });
+  const { data, error, isPending } = useQuery({
+    queryKey: ["site", id],
+    queryFn: () => fetchSite(id),
+    refetchInterval: (query) => updatesRefetchInterval(query.state.data?.updates),
+  });
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["site", id] });
     queryClient.invalidateQueries({ queryKey: ["overview"] });

@@ -16,7 +16,7 @@
 | Cloudflare Access | | Protects the whole Worker. `requireWebAccess` also verifies the `Cf-Access-Jwt-Assertion` JWT on every API call, so a misconfigured route still fails closed. |
 | D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
-| Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. |
+| Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below). |
 | Cron Trigger | | `0 */6 * * *` (every 6 hours) enqueues every site. |
 
 Presser only makes outbound requests to sites. Sites never call the
@@ -69,6 +69,22 @@ immediately; **Replace connection key** on the site's page in Presser takes
 the new one. The dashboard requires `https://` site URLs and uses
 `global_fetch_strictly_public`, so a site URL cannot point back into
 Cloudflare or a private network.
+
+## Updates run one at a time per site
+
+WordPress puts a site in maintenance mode while it installs an update and
+answers every other request with HTTP 503, so two updates sent together make
+the second fail. **Update** in the dashboard therefore only adds a row to
+`update_jobs` and sends an `update` message for the site. The consumer
+(`src/worker/sites/updates.ts`) claims the site's oldest queued job in one
+statement that also checks nothing else is running for that site, so two
+consumers never update one site at once. After each job it sends another
+message if more are queued, and syncs the site once the queue is empty.
+
+A 503 puts the job back in the queue for 30 seconds, up to five attempts. Any
+other error marks it failed with the site's message, shown on the update with
+**Try again**; the next job still runs. A job left running for 15 minutes is
+marked failed, and the cron restarts any site whose queue stalled.
 
 ## Plugin routes (`presser/v1`)
 
