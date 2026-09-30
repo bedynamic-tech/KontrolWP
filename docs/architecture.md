@@ -90,11 +90,13 @@ marked failed, and the cron restarts any site whose queue stalled.
 
 The dashboard ships the plugin it was built with (`src/shared/plugin-version.ts`,
 checked against the plugin header by `tests/plugin-lint.test.mjs`). When a
-site reports an older version, sync lists a Presser Connect update beside the
-site's other updates. The dashboard is behind Access, so WordPress cannot
-download from it; the update job reads the zip from the Worker's static assets
-and sends it to `/self-update`. Sites on a version before 0.4.0 need the new
-zip installed by hand once.
+sync finds a site on an older version, it queues Presser Connect's own update
+in the site's update queue; it never appears in the updates lists. The
+dashboard is behind Access, so WordPress cannot download from it; the job
+reads the zip from the Worker's static assets and sends it to `/self-update`.
+A finished or failed self-update is not queued again for 6 hours, so a site
+that keeps reporting the old version never loops. Sites on a version before
+0.4.0 need the new zip installed by hand once; their page says so.
 
 ## Plugin routes (`presser/v1`)
 

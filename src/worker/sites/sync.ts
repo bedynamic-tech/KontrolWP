@@ -2,7 +2,7 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { PluginComments, PluginStatus, PluginUpdates } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
-import { needsSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
+import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
@@ -65,7 +65,8 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
     env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(siteId),
     // Finished updates are gone from the fresh list, so their jobs are too.
-    env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status = 'done'").bind(siteId),
+    // Presser Connect's own job stays: its start time spaces out retries.
+    env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status = 'done' AND slug != ?").bind(siteId, SELF_UPDATE.slug),
   ];
 
   const insertUpdate = env.DB.prepare(
@@ -91,16 +92,6 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
     }
   }
 
-  // Presser Connect's own update comes from this dashboard, not WordPress.org.
-  if (needsSelfUpdate(text(status.plugin_version))) {
-    statements.push(
-      insertUpdate.bind(
-        siteId, "plugin", SELF_UPDATE.slug, SELF_UPDATE.name, text(status.plugin_version), SELF_UPDATE.version,
-        SELF_UPDATE.iconUrl,
-      ),
-    );
-  }
-
   const insertComment = env.DB.prepare(
     `INSERT OR REPLACE INTO site_comments
        (site_id, comment_id, author, author_email, content, post_title, post_url, created_at)
@@ -123,6 +114,8 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
   }
 
   await env.DB.batch(statements);
+  // Presser Connect's own update comes from this dashboard and runs by itself.
+  await queueSelfUpdate(env, siteId, text(status.plugin_version));
   return { ok: true };
 }
 

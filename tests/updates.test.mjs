@@ -111,23 +111,34 @@ test("a failed update does not stop the next one", async () => {
   assert.deepEqual(t.jobs(), [{ slug: "a/a.php", status: "failed", error: "Download failed." }]);
 });
 
-test("an older Presser Connect is offered its update and gets the dashboard's zip", async () => {
+test("an older Presser Connect is updated automatically and never listed", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.3.0");
   await syncSite(t.env, 1);
-  const offered = t.env.DB.sqlite.prepare("SELECT slug, current_version, new_version FROM site_updates").all();
-  assert.deepEqual(offered.map((r) => ({ ...r })), [
-    { slug: "presser-connect", current_version: "0.3.0", new_version: PRESSER_CONNECT_VERSION },
-  ]);
+  assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
+  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
+  assert.deepEqual(t.sent.at(-1).body, { type: "update", siteId: 1 });
 
-  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
-  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
-  assert.deepEqual(t.applied, [{ version: PRESSER_CONNECT_VERSION, package: "UEsDBA==" }]);
+  await syncSite(t.env, 1);
+  assert.equal(t.jobs().length, 1, "a second sync does not queue it twice");
+
+  await runNextUpdate(t.env, 1);
+  assert.deepEqual(t.applied[0], { version: PRESSER_CONNECT_VERSION, package: "UEsDBA==" });
 });
 
-test("a current Presser Connect is not offered an update", async () => {
+test("a current Presser Connect is left alone", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }));
   await syncSite(t.env, 1);
-  assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
+  assert.deepEqual(t.jobs(), []);
+});
+
+test("a failed self-update is not retried by the sync that follows it", async () => {
+  const t = await setup(async (_body, json) => json({ code: "presser_update_failed", message: "Disk full." }, 500), "0.3.9");
+  await syncSite(t.env, 1);
+  const sentBefore = t.sent.length;
+  // Fails, then syncs; that sync must not queue it again.
+  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
+  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "failed", error: "Disk full." }]);
+  assert.equal(t.sent.length, sentBefore);
 });
 
 test("a Presser Connect too old to update itself says how to fix it", async () => {
@@ -145,5 +156,5 @@ test("a Presser Connect updated by hand since the last sync counts as done", asy
   await syncSite(t.env, 1);
   await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
-  assert.deepEqual(t.jobs(), []);
+  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "done", error: null }], "not queued again right away");
 });
