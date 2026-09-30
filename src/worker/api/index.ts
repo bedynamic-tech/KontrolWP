@@ -9,7 +9,7 @@ import {
 import type { CreatedSite, Overview, SiteDetail } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "../sites/client.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
-import { encryptSecret, SecretsKeyError } from "../sites/secrets.ts";
+import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
 import { requireSameOrigin } from "./csrf.ts";
 
@@ -17,6 +17,18 @@ type AppContext = Context<{ Bindings: Env }>;
 
 export const api = new Hono<{ Bindings: Env }>();
 api.use("*", requireSameOrigin);
+
+// Every route needs site secrets, so show the setup screen until the key
+// exists. Runs after Access, so only signed-in owners see this.
+api.use("*", async (c, next) => {
+  if (!isValidSecretsKey(c.env.SITE_SECRETS_KEY)) {
+    return c.json(
+      { error: "SITE_SECRETS_KEY is missing or invalid", code: "secrets_key_missing" },
+      503,
+    );
+  }
+  await next();
+});
 
 api.get("/overview", async (c) => {
   const [sites, updates, comments] = await Promise.all([

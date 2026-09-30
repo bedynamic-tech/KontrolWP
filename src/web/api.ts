@@ -27,6 +27,11 @@ export class ApiError extends Error {
 
 const ACCESS_SETUP_CODES = ["access_not_configured", "access_missing", "access_invalid"];
 
+/** The Worker has no SITE_SECRETS_KEY yet. */
+export function secretsKeyMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "secrets_key_missing";
+}
+
 /** The API rejected the request because Cloudflare Access is not set up correctly. */
 export function accessSetupError(error: unknown): ApiError | null {
   return error instanceof ApiError && error.code && ACCESS_SETUP_CODES.includes(error.code)

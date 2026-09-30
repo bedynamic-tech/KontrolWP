@@ -117,9 +117,12 @@ new migrations before the new Worker goes live.
 - **D1 database not found:** `database_name` in `wrangler.jsonc` must match a
   database in the account. For manual setup, create it before running
   migrations.
-- **"SITE_SECRETS_KEY is missing or invalid":** run `npm run deploy` (or
-  redeploy from Workers Builds) so the deploy script creates it. A plain
-  `wrangler deploy` does not.
+- **"Add Presser's encryption key" screen:** the Worker has no
+  `SITE_SECRETS_KEY`, usually because the deploy command is not
+  `npm run deploy` (a plain `wrangler deploy` does not create it). Follow the
+  screen: it generates a key in your browser to add as a Worker secret. Also
+  set the deploy command to `npm run deploy` under the Worker's **Settings,
+  Build**.
 - **"Presser could not decrypt this site's secret":** the key changed since
   the site was added. Create a new connection key for the site and paste it
   into Presser Connect.
