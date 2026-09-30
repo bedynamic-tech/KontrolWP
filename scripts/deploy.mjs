@@ -24,6 +24,27 @@ function runWrangler(args, { inherit = false } = {}) {
   return result;
 }
 
+/**
+ * Wrangler can print notices (such as "a newer version is available") on
+ * stdout around the JSON, so find the JSON array instead of parsing it all.
+ */
+export function parseSecretList(stdout) {
+  const lines = stripVTControlCharacters(stdout).split("\n");
+  for (let start = 0; start < lines.length; start++) {
+    if (!lines[start].trimStart().startsWith("[")) continue;
+    for (let end = lines.length; end > start; end--) {
+      if (!lines[end - 1].trimEnd().endsWith("]")) continue;
+      try {
+        const value = JSON.parse(lines.slice(start, end).join("\n"));
+        if (Array.isArray(value)) return value;
+      } catch {
+        // Not this span; keep looking.
+      }
+    }
+  }
+  return null;
+}
+
 /** Inspect secret names only; the existing key never leaves Cloudflare. */
 export async function deployWithSecretsKey({ config, run = runWrangler, log = console.log }) {
   if (!config.name || !config.configPath) throw new Error("A named Worker and a Wrangler config are required.");
@@ -39,9 +60,8 @@ export async function deployWithSecretsKey({ config, run = runWrangler, log = co
     if (listed.status !== 0) {
       throw new Error(`Listing Worker secrets failed. ${listed.stderr?.trim() || "Check Cloudflare credentials."}`);
     }
-    try {
-      secrets = JSON.parse(listed.stdout);
-    } catch {
+    secrets = parseSecretList(listed.stdout ?? "");
+    if (!secrets) {
       throw new Error(`Listing Worker secrets returned invalid JSON; refusing to change ${KEY_NAME}.`);
     }
     if (!Array.isArray(secrets) || !secrets.every((secret) => typeof secret?.name === "string")) {
