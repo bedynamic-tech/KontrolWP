@@ -34,6 +34,11 @@ export interface SiteUpdate {
   job_status: UpdateJobStatus | null;
   /** Why the last attempt failed, or a note while it waits to retry. */
   job_error: string | null;
+  /**
+   * Presser is still working on it: the job is queued or running, or it just
+   * finished and the sync that clears the row has not landed yet.
+   */
+  job_active: boolean;
 }
 
 export type UpdateJobStatus = "queued" | "running" | "done" | "failed";

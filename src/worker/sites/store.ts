@@ -34,18 +34,29 @@ export async function getCredentials(env: Env, id: number): Promise<SiteCredenti
   };
 }
 
+/**
+ * A finished update keeps its row until the sync after the site's queue
+ * empties. Count it as in progress for this long, so the dashboard keeps
+ * polling until that sync removes it.
+ */
+const SETTLE_SECONDS = 5 * 60;
+
 export async function listUpdates(db: D1Database, siteId?: number): Promise<SiteUpdate[]> {
   const where = siteId === undefined ? "" : "WHERE u.site_id = ?";
+  const settle = SETTLE_SECONDS;
   const statement = db.prepare(
     `SELECT u.site_id, s.name AS site_name, s.url AS site_url, u.kind, u.slug, u.name, u.current_version, u.new_version,
-            u.icon_url, j.status AS job_status, j.error AS job_error
+            u.icon_url, j.status AS job_status, j.error AS job_error,
+            (j.status IN ('queued', 'running') OR (j.status = 'done' AND j.started_at > unixepoch() - ?)) AS job_active
      FROM site_updates u JOIN sites s ON s.id = u.site_id
      LEFT JOIN update_jobs j ON j.site_id = u.site_id AND j.kind = u.kind AND j.slug = u.slug ${where}
      ORDER BY CASE u.kind WHEN 'core' THEN 0 WHEN 'plugin' THEN 1 ELSE 2 END,
               s.name COLLATE NOCASE, u.name COLLATE NOCASE`,
   );
-  const { results } = await (siteId === undefined ? statement : statement.bind(siteId)).all<SiteUpdate>();
-  return results;
+  const { results } = await (siteId === undefined ? statement.bind(settle) : statement.bind(settle, siteId)).all<
+    Omit<SiteUpdate, "job_active"> & { job_active: number | null }
+  >();
+  return results.map((row) => ({ ...row, job_active: Boolean(row.job_active) }));
 }
 
 export async function listComments(db: D1Database, siteId?: number, limit = 100): Promise<PendingComment[]> {
