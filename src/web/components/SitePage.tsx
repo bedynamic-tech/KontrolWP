@@ -102,9 +102,9 @@ export function SitePage() {
         <div className="mt-4 rounded-xl border px-4 py-3 text-sm">
           <p className="font-medium">Install the new Presser Connect once</p>
           <p className="mt-1 text-muted-foreground">
-            This site runs Presser Connect {site.plugin_version}, which cannot update itself. Install{" "}
-            {PRESSER_CONNECT_VERSION} from Presser Connect plugin in the sidebar; later versions install
-            automatically.
+            At its last sync ({timeAgo(site.last_synced_at).toLowerCase()}) this site reported Presser Connect{" "}
+            {site.plugin_version}, which cannot update itself. Install {PRESSER_CONNECT_VERSION} from Presser
+            Connect plugin in the sidebar; later versions install automatically. Already did? Select Sync now.
           </p>
         </div>
       )}

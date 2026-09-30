@@ -3,7 +3,7 @@
  * public/downloads/presser-connect.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const PRESSER_CONNECT_VERSION = "0.4.0";
+export const PRESSER_CONNECT_VERSION = "0.4.1";
 
 /** The first Presser Connect that can take updates from the dashboard. */
 export const SELF_UPDATING_SINCE = "0.4.0";
