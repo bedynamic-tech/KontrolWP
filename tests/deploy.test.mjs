@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
-import { deployWithSecretsKey, KEY_NAME } from "../scripts/deploy.mjs";
+import { deployWithSecretsKey, KEY_NAME, parseSecretList } from "../scripts/deploy.mjs";
 
 const config = { name: "presser-test", configPath: "/project/dist/presser/wrangler.json" };
 const json = (value) => ({ status: 0, stdout: JSON.stringify(value), stderr: "" });
@@ -66,4 +66,24 @@ test("a failed deploy is reported", async () => {
   const f = fixture({ deployStatus: 1 });
   await assert.rejects(f.deploy(), /deployment failed/);
   assert.equal(existsSync(f.file), false);
+});
+
+test("notices Wrangler prints around the JSON do not hide an existing key", async () => {
+  // Wrangler 4.124.0 prints this on stdout when the config has fields it does not know.
+  const stdout = [
+    "There is a newer version of Wrangler available (current: 4.124.0, latest: 4.145.0). Try upgrading, as it might support this configuration option.",
+    JSON.stringify([{ name: KEY_NAME, type: "secret_text" }], null, 2),
+    "",
+  ].join("\n");
+  const f = fixture({ listed: { status: 0, stdout, stderr: "" } });
+  await f.deploy();
+  assert.equal(f.uploaded, undefined);
+});
+
+test("the secret list parser finds only a real JSON array", () => {
+  assert.deepEqual(parseSecretList("[]"), []);
+  assert.deepEqual(parseSecretList("notice\n[\n  {\"name\": \"A\"}\n]\nmore"), [{ name: "A" }]);
+  assert.equal(parseSecretList("[not json]"), null);
+  assert.equal(parseSecretList("{}"), null);
+  assert.equal(parseSecretList(""), null);
 });
