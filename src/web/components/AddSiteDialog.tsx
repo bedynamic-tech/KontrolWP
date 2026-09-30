@@ -13,49 +13,39 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { CreatedSite } from "../../shared/types";
-import { ApiError, createSite, syncSite } from "../api";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiError, createSite } from "../api";
 import { ConnectionSteps } from "./ConnectionSteps";
 
 export function AddSiteDialog() {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [created, setCreated] = useState<CreatedSite | null>(null);
+  const [connectionKey, setConnectionKey] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const create = useMutation({
-    mutationFn: () => createSite({ name, url: url.includes("://") ? url : `https://${url}` }),
-    onSuccess: (result) => {
-      setCreated(result);
+    mutationFn: () =>
+      createSite({ url: url.includes("://") ? url : `https://${url}`, connection_key: connectionKey }),
+    onSuccess: (site) => {
       queryClient.invalidateQueries({ queryKey: ["overview"] });
+      reset(false);
+      navigate(`/sites/${site.id}`);
     },
     onError: (error) => {
       if (error instanceof ApiError && error.existingId) {
-        setOpen(false);
+        reset(false);
         navigate(`/sites/${error.existingId}`);
       }
-    },
-  });
-  const sync = useMutation({
-    mutationFn: () => syncSite(created!.site.id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["overview"] }),
-    onSuccess: () => {
-      const id = created!.site.id;
-      setOpen(false);
-      navigate(`/sites/${id}`);
     },
   });
 
   const reset = (next: boolean) => {
     setOpen(next);
     if (!next) {
-      setName("");
       setUrl("");
-      setCreated(null);
+      setConnectionKey("");
       create.reset();
-      sync.reset();
     }
   };
 
@@ -72,53 +62,44 @@ export function AddSiteDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
-        {created ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Connect {created.site.name}</DialogTitle>
-              <DialogDescription>{created.site.url}</DialogDescription>
-            </DialogHeader>
-            <ConnectionSteps siteUrl={created.site.url} connectionKey={created.connection_key} />
-            {sync.error && <p className="text-sm text-destructive">{sync.error.message}</p>}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => reset(false)}>
-                Finish later
-              </Button>
-              <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
-                {sync.isPending ? "Checking..." : "Sync now"}
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <form onSubmit={submit} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>Add a WordPress site</DialogTitle>
-              <DialogDescription>
-                Presser connects to the site through the Presser Connect plugin.
-              </DialogDescription>
-            </DialogHeader>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Name</span>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme blog" required />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Site address</span>
-              <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com"
-                inputMode="url"
-                required
-              />
-            </label>
-            {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
-            <DialogFooter>
-              <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? "Adding..." : "Continue"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+        <form onSubmit={submit} className="min-w-0 space-y-4">
+          <DialogHeader>
+            <DialogTitle>Add a WordPress site</DialogTitle>
+            <DialogDescription>
+              Presser uses the site's own name from WordPress.
+            </DialogDescription>
+          </DialogHeader>
+          <ConnectionSteps />
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Site address</span>
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com"
+              inputMode="url"
+              required
+            />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Connection Key</span>
+            <Textarea
+              value={connectionKey}
+              onChange={(e) => setConnectionKey(e.target.value)}
+              placeholder="presser2...."
+              className="font-mono text-xs"
+              rows={3}
+              spellCheck={false}
+              autoComplete="off"
+              required
+            />
+          </label>
+          {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending ? "Connecting..." : "Add site"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

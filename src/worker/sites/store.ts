@@ -21,11 +21,17 @@ export async function getSite(db: D1Database, id: number): Promise<SiteSummary |
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
 export async function getCredentials(env: Env, id: number): Promise<SiteCredentials | null> {
   const row = await env.DB
-    .prepare("SELECT id, url, secret FROM sites WHERE id = ?")
+    .prepare("SELECT id, url, key_id, secret FROM sites WHERE id = ?")
     .bind(id)
-    .first<SiteCredentials>();
+    .first<{ id: number; url: string; key_id: string | null; secret: string }>();
   if (!row) return null;
-  return { ...row, secret: await decryptSecret(env.SITE_SECRETS_KEY, row.id, row.secret) };
+  return {
+    id: row.id,
+    url: row.url,
+    // Sites added before 0.2 have no key id and must be reconnected.
+    keyId: row.key_id ?? "",
+    secret: await decryptSecret(env.SITE_SECRETS_KEY, row.id, row.secret),
+  };
 }
 
 export async function listUpdates(db: D1Database, siteId?: number): Promise<SiteUpdate[]> {

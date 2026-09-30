@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings, Presser Connect: where the owner pastes the Connection Key.
+ * Settings, Presser Connect: where the owner copies this site's Connection Key.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,8 +13,7 @@ class Presser_Connect_Admin {
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'add_page' ) );
-		add_action( 'admin_post_presser_connect_save', array( __CLASS__, 'save' ) );
-		add_action( 'admin_post_presser_connect_disconnect', array( __CLASS__, 'disconnect' ) );
+		add_action( 'admin_post_presser_connect_regenerate', array( __CLASS__, 'regenerate' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'notice' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( PRESSER_CONNECT_FILE ), array( __CLASS__, 'action_links' ) );
 	}
@@ -34,16 +33,17 @@ class Presser_Connect_Admin {
 		return $links;
 	}
 
+	/** On the Plugins screen, point to the key until Presser has connected once. */
 	public static function notice() {
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! current_user_can( 'manage_options' ) || ! $screen || 'plugins' !== $screen->id || Presser_Connect_Auth::connection() ) {
+		if ( ! current_user_can( 'manage_options' ) || ! $screen || 'plugins' !== $screen->id || get_option( Presser_Connect_Auth::LAST_SEEN_OPTION ) ) {
 			return;
 		}
 		printf(
 			'<div class="notice notice-info"><p>%s <a href="%s">%s</a></p></div>',
-			esc_html__( 'Presser Connect is almost ready.', 'presser-connect' ),
+			esc_html__( 'Presser Connect is ready.', 'presser-connect' ),
 			esc_url( self::page_url() ),
-			esc_html__( 'Paste your Connection Key', 'presser-connect' )
+			esc_html__( 'Copy the Connection Key into Presser', 'presser-connect' )
 		);
 	}
 
@@ -51,97 +51,74 @@ class Presser_Connect_Admin {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$connection = Presser_Connect_Auth::connection();
-		$last_seen  = (int) get_option( Presser_Connect_Auth::LAST_SEEN_OPTION, 0 );
-		$message    = isset( $_GET['presser_message'] ) ? sanitize_key( wp_unslash( $_GET['presser_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$error      = get_transient( 'presser_connect_error_' . get_current_user_id() );
-		delete_transient( 'presser_connect_error_' . get_current_user_id() );
+		$credentials = Presser_Connect_Auth::ensure_credentials();
+		$key         = Presser_Connect_Auth::connection_key( $credentials );
+		$last_seen   = (int) get_option( Presser_Connect_Auth::LAST_SEEN_OPTION, 0 );
+		$message     = isset( $_GET['presser_message'] ) ? sanitize_key( wp_unslash( $_GET['presser_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Presser Connect', 'presser-connect' ); ?></h1>
 
-			<?php if ( $error ) : ?>
-				<div class="notice notice-error"><p><?php echo esc_html( $error ); ?></p></div>
-			<?php elseif ( 'connected' === $message ) : ?>
-				<div class="notice notice-success"><p><?php esc_html_e( 'Connected. Select Sync now in your Presser dashboard to finish.', 'presser-connect' ); ?></p></div>
-			<?php elseif ( 'disconnected' === $message ) : ?>
-				<div class="notice notice-success"><p><?php esc_html_e( 'Disconnected. Presser can no longer reach this site.', 'presser-connect' ); ?></p></div>
+			<?php if ( 'regenerated' === $message ) : ?>
+				<div class="notice notice-success"><p><?php esc_html_e( 'New Connection Key created. Paste it into Presser to reconnect this site.', 'presser-connect' ); ?></p></div>
 			<?php endif; ?>
 
-			<?php if ( $connection ) : ?>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Dashboard', 'presser-connect' ); ?></th>
-						<td><a href="<?php echo esc_url( $connection['dashboard'] ); ?>" target="_blank" rel="noreferrer"><?php echo esc_html( $connection['dashboard'] ); ?></a></td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Last contact', 'presser-connect' ); ?></th>
-						<td>
-							<?php
-							echo $last_seen
-								? esc_html( sprintf( /* translators: %s: time since last contact */ __( '%s ago', 'presser-connect' ), human_time_diff( $last_seen ) ) )
-								: esc_html__( 'Not yet', 'presser-connect' );
-							?>
-						</td>
-					</tr>
-				</table>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<input type="hidden" name="action" value="presser_connect_disconnect" />
-					<?php wp_nonce_field( 'presser_connect_disconnect' ); ?>
-					<?php submit_button( __( 'Disconnect', 'presser-connect' ), 'secondary' ); ?>
-				</form>
-				<h2><?php esc_html_e( 'Replace the Connection Key', 'presser-connect' ); ?></h2>
-			<?php else : ?>
-				<p><?php esc_html_e( 'In your Presser dashboard, add this site and copy its Connection Key. Paste it below.', 'presser-connect' ); ?></p>
-			<?php endif; ?>
+			<p><?php esc_html_e( 'In Presser, select Add site, enter this site\'s address and paste this Connection Key. Treat it like a password: anyone with it can manage this site through Presser.', 'presser-connect' ); ?></p>
 
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><label for="presser_connection_key"><?php esc_html_e( 'Connection Key', 'presser-connect' ); ?></label></th>
+					<td>
+						<textarea id="presser_connection_key" rows="3" class="large-text code" readonly onclick="this.select()"><?php echo esc_textarea( $key ); ?></textarea>
+						<p>
+							<button type="button" class="button" id="presser_copy_key"><?php esc_html_e( 'Copy', 'presser-connect' ); ?></button>
+							<span id="presser_copied" class="description" hidden><?php esc_html_e( 'Copied', 'presser-connect' ); ?></span>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Last contact from Presser', 'presser-connect' ); ?></th>
+					<td>
+						<?php
+						echo $last_seen
+							? esc_html( sprintf( /* translators: %s: time since last contact */ __( '%s ago', 'presser-connect' ), human_time_diff( $last_seen ) ) )
+							: esc_html__( 'Not yet', 'presser-connect' );
+						?>
+					</td>
+				</tr>
+			</table>
+
+			<h2><?php esc_html_e( 'New Connection Key', 'presser-connect' ); ?></h2>
+			<p><?php esc_html_e( 'Creates a new key and stops the current one from working. Presser cannot reach this site until you paste the new key there.', 'presser-connect' ); ?></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="presser_connect_save" />
-				<?php wp_nonce_field( 'presser_connect_save' ); ?>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="presser_connection_key"><?php esc_html_e( 'Connection Key', 'presser-connect' ); ?></label></th>
-						<td>
-							<textarea id="presser_connection_key" name="presser_connection_key" rows="4" class="large-text code" autocomplete="off" spellcheck="false" required></textarea>
-							<p class="description"><?php esc_html_e( 'Treat it like a password. Anyone with it can manage this site through Presser.', 'presser-connect' ); ?></p>
-						</td>
-					</tr>
-				</table>
-				<?php submit_button( __( 'Connect', 'presser-connect' ) ); ?>
+				<input type="hidden" name="action" value="presser_connect_regenerate" />
+				<?php wp_nonce_field( 'presser_connect_regenerate' ); ?>
+				<?php submit_button( __( 'Create a new key', 'presser-connect' ), 'secondary', 'submit', false ); ?>
 			</form>
 		</div>
+		<script>
+			document.getElementById( 'presser_copy_key' ).addEventListener( 'click', function () {
+				var field = document.getElementById( 'presser_connection_key' );
+				var done = function () { document.getElementById( 'presser_copied' ).hidden = false; };
+				if ( navigator.clipboard && window.isSecureContext ) {
+					navigator.clipboard.writeText( field.value ).then( done );
+				} else {
+					field.select();
+					document.execCommand( 'copy' );
+					done();
+				}
+			} );
+		</script>
 		<?php
 	}
 
-	public static function save() {
+	public static function regenerate() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You are not allowed to do that.', 'presser-connect' ), 403 );
 		}
-		check_admin_referer( 'presser_connect_save' );
-
-		$key    = isset( $_POST['presser_connection_key'] ) ? sanitize_text_field( wp_unslash( $_POST['presser_connection_key'] ) ) : '';
-		$parsed = Presser_Connect_Auth::parse_connection_key( $key );
-		if ( is_wp_error( $parsed ) ) {
-			set_transient( 'presser_connect_error_' . get_current_user_id(), $parsed->get_error_message(), 60 );
-			wp_safe_redirect( self::page_url() );
-			exit;
-		}
-
-		$parsed['connected_at'] = time();
-		update_option( Presser_Connect_Auth::OPTION, $parsed, false );
-		delete_option( Presser_Connect_Auth::LAST_SEEN_OPTION );
-		wp_safe_redirect( add_query_arg( 'presser_message', 'connected', self::page_url() ) );
-		exit;
-	}
-
-	public static function disconnect() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'You are not allowed to do that.', 'presser-connect' ), 403 );
-		}
-		check_admin_referer( 'presser_connect_disconnect' );
-		delete_option( Presser_Connect_Auth::OPTION );
-		delete_option( Presser_Connect_Auth::LAST_SEEN_OPTION );
-		wp_safe_redirect( add_query_arg( 'presser_message', 'disconnected', self::page_url() ) );
+		check_admin_referer( 'presser_connect_regenerate' );
+		Presser_Connect_Auth::regenerate();
+		wp_safe_redirect( add_query_arg( 'presser_message', 'regenerated', self::page_url() ) );
 		exit;
 	}
 

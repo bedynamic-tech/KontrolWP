@@ -42,11 +42,13 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
     env.DB
       .prepare(
         `UPDATE sites SET status = 'connected', last_error = NULL, last_synced_at = ?,
+           name = COALESCE(NULLIF(?, ''), name),
            wp_version = ?, php_version = ?, plugin_version = ?, theme_name = ?, pending_comments = ?
          WHERE id = ?`,
       )
       .bind(
         now,
+        text(status.name).trim().slice(0, 120),
         text(status.wp_version),
         text(status.php_version),
         text(status.plugin_version),

@@ -3,6 +3,7 @@ import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSite, fetchSite, newConnectionKey, syncSite } from "../api";
+import { deleteSite, fetchSite, replaceConnectionKey, syncSite } from "../api";
 import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
@@ -25,7 +26,8 @@ export function SitePage() {
   const id = Number(useParams().siteId);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [connectionKey, setConnectionKey] = useState<string | null>(null);
+  const [connectionKey, setConnectionKey] = useState("");
+  const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const { data, error, isPending } = useQuery({ queryKey: ["site", id], queryFn: () => fetchSite(id) });
@@ -35,9 +37,12 @@ export function SitePage() {
   };
   // A failed sync is recorded on the site, so the refreshed page shows why.
   const sync = useMutation({ mutationFn: () => syncSite(id), onSettled: refresh });
-  const rotate = useMutation({
-    mutationFn: () => newConnectionKey(id),
-    onSuccess: (result) => setConnectionKey(result.connection_key),
+  const replaceKey = useMutation({
+    mutationFn: () => replaceConnectionKey(id, connectionKey),
+    onSuccess: () => {
+      setReplacingKey(false);
+      setConnectionKey("");
+    },
     onSettled: refresh,
   });
   const remove = useMutation({
@@ -92,15 +97,6 @@ export function SitePage() {
         </div>
       )}
 
-      {site.status === "pending" && !connectionKey && (
-        <div className="mt-4 rounded-xl border bg-background px-4 py-3 text-sm">
-          <p className="font-medium">This site is not connected yet</p>
-          <p className="mt-1 text-muted-foreground">
-            If you no longer have its Connection Key, create a new one below.
-          </p>
-        </div>
-      )}
-
       <dl className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Fact label="WordPress" value={site.wp_version} />
         <Fact label="PHP" value={site.php_version} />
@@ -117,18 +113,45 @@ export function SitePage() {
 
       <Section title="Connection">
         <div className="space-y-4 px-4 py-4">
-          {connectionKey ? (
-            <ConnectionSteps siteUrl={site.url} connectionKey={connectionKey} />
+          {replacingKey ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                replaceKey.mutate();
+              }}
+            >
+              <ConnectionSteps siteUrl={site.url} />
+              <Textarea
+                value={connectionKey}
+                onChange={(e) => setConnectionKey(e.target.value)}
+                placeholder="presser2...."
+                className="font-mono text-xs"
+                rows={3}
+                spellCheck={false}
+                autoComplete="off"
+                required
+              />
+              {replaceKey.error && <p className="text-sm text-destructive">{replaceKey.error.message}</p>}
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={replaceKey.isPending}>
+                  {replaceKey.isPending ? "Connecting..." : "Save key"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setReplacingKey(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                A new Connection Key replaces the current one. The site stops syncing until you
-                paste it into Presser Connect.
+                If you created a new key in Presser Connect, or reinstalled it, paste the site's
+                current Connection Key here.
               </p>
               <div className="flex shrink-0 gap-2">
                 <PluginDownloadButton />
-                <Button variant="outline" size="sm" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
-                  New connection key
+                <Button variant="outline" size="sm" onClick={() => setReplacingKey(true)}>
+                  Replace connection key
                 </Button>
               </div>
             </div>
@@ -149,8 +172,8 @@ export function SitePage() {
           <DialogHeader>
             <DialogTitle>Remove {site.name}?</DialogTitle>
             <DialogDescription>
-              Presser forgets this site and its Connection Key. You can deactivate Presser Connect
-              on the site afterwards.
+              Presser forgets this site and its Connection Key. To shut the door on the site too,
+              deactivate Presser Connect or create a new key there.
             </DialogDescription>
           </DialogHeader>
           {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}

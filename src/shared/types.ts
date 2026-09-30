@@ -55,11 +55,6 @@ export interface SiteDetail {
   comments: PendingComment[];
 }
 
-export interface CreatedSite {
-  site: SiteSummary;
-  connection_key: string;
-}
-
 /** What Presser Connect reports. Mirrors plugin/presser-connect/includes/class-presser-connect-rest.php. */
 export interface PluginStatus {
   name: string;
