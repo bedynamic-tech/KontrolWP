@@ -38,7 +38,7 @@ export async function listUpdates(db: D1Database, siteId?: number): Promise<Site
   const where = siteId === undefined ? "" : "WHERE u.site_id = ?";
   const statement = db.prepare(
     `SELECT u.site_id, s.name AS site_name, s.url AS site_url, u.kind, u.slug, u.name, u.current_version, u.new_version,
-            j.status AS job_status, j.error AS job_error
+            u.icon_url, j.status AS job_status, j.error AS job_error
      FROM site_updates u JOIN sites s ON s.id = u.site_id
      LEFT JOIN update_jobs j ON j.site_id = u.site_id AND j.kind = u.kind AND j.slug = u.slug ${where}
      ORDER BY CASE u.kind WHEN 'core' THEN 0 WHEN 'plugin' THEN 1 ELSE 2 END,

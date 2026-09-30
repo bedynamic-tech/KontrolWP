@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SiteUpdate, UpdateJobStatus } from "../../shared/types";
 import { applyUpdate } from "../api";
+import { RemoteIcon } from "./RemoteIcon";
 import { EmptyRow } from "./Section";
 
 /** Poll quickly while an update is waiting or running, so its row follows along. */
@@ -55,24 +56,27 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean }) {
 
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-medium">{update.name}</span>
-          <Badge variant="outline" className="capitalize">{update.kind === "core" ? "WordPress" : update.kind}</Badge>
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <RemoteIcon sources={[update.icon_url]} name={update.name} className="size-9 text-sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-medium">{update.name}</span>
+            <Badge variant="outline" className="capitalize">{update.kind === "core" ? "WordPress" : update.kind}</Badge>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {props.showSite && (
+              <>
+                <Link to={`/sites/${update.site_id}`} className="hover:text-foreground hover:underline">
+                  {update.site_name}
+                </Link>
+                {" · "}
+              </>
+            )}
+            {update.current_version} to {update.new_version}
+          </p>
+          {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+          {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {props.showSite && (
-            <>
-              <Link to={`/sites/${update.site_id}`} className="hover:text-foreground hover:underline">
-                {update.site_name}
-              </Link>
-              {" · "}
-            </>
-          )}
-          {update.current_version} to {update.new_version}
-        </p>
-        {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-        {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
       </div>
       <Button size="sm" onClick={() => mutation.mutate()} disabled={busy} variant={failed ? "outline" : "default"}>
         {label}

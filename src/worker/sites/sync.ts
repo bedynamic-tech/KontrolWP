@@ -1,6 +1,7 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { PluginComments, PluginStatus, PluginUpdates } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
+import { discoverIcon } from "./icons.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
@@ -25,6 +26,8 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
   let status: PluginStatus;
   let updates: PluginUpdates;
   let comments: PluginComments;
+  // What browsers show for the site; best effort, alongside the plugin calls.
+  const pageIcon = discoverIcon(site.url);
   try {
     [status, updates, comments] = await Promise.all([
       callSite<PluginStatus>(site, "GET", `${REST_NAMESPACE}/status`),
@@ -55,7 +58,7 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
         text(status.plugin_version),
         text(status.theme),
         Math.max(0, Math.trunc(Number(comments.pending_count) || 0)),
-        iconUrl(status.icon_url),
+        (await pageIcon) ?? iconUrl(status.icon_url),
         siteId,
       ),
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
@@ -65,18 +68,24 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
   ];
 
   const insertUpdate = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_updates (site_id, kind, slug, name, current_version, new_version)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO site_updates (site_id, kind, slug, name, current_version, new_version, icon_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   if (updates.core) {
     statements.push(
-      insertUpdate.bind(siteId, "core", "wordpress", "WordPress", text(updates.core.current), text(updates.core.new_version)),
+      insertUpdate.bind(
+        siteId, "core", "wordpress", "WordPress", text(updates.core.current), text(updates.core.new_version),
+        iconUrl(updates.core.icon_url),
+      ),
     );
   }
   for (const [kind, items] of [["plugin", updates.plugins], ["theme", updates.themes]] as const) {
     for (const item of (items ?? []).slice(0, 500)) {
       statements.push(
-        insertUpdate.bind(siteId, kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version)),
+        insertUpdate.bind(
+          siteId, kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version),
+          iconUrl(item.icon_url),
+        ),
       );
     }
   }

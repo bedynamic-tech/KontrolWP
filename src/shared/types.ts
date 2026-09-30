@@ -28,6 +28,8 @@ export interface SiteUpdate {
   name: string;
   current_version: string;
   new_version: string;
+  /** The plugin's icon, the theme's screenshot or the WordPress logo, when known. */
+  icon_url: string | null;
   /** The owner's request to install it, if any. `done` lasts until the next sync. */
   job_status: UpdateJobStatus | null;
   /** Why the last attempt failed, or a note while it waits to retry. */
@@ -74,10 +76,11 @@ export interface PluginStatus {
   icon_url?: string;
 }
 
+/** `icon_url` arrives from Presser Connect 0.3+. */
 export interface PluginUpdates {
-  core: { current: string; new_version: string } | null;
-  plugins: Array<{ slug: string; name: string; current_version: string; new_version: string }>;
-  themes: Array<{ slug: string; name: string; current_version: string; new_version: string }>;
+  core: { current: string; new_version: string; icon_url?: string } | null;
+  plugins: Array<{ slug: string; name: string; current_version: string; new_version: string; icon_url?: string }>;
+  themes: Array<{ slug: string; name: string; current_version: string; new_version: string; icon_url?: string }>;
 }
 
 export interface PluginComments {
