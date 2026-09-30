@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Resource names identify this deployment; every instance chooses its own.
+  "name": "presser",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-01",
+  // global_fetch_strictly_public keeps site requests on the public internet,
+  // so a site URL can never reach this Worker or other Cloudflare internals.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Publish the workers.dev hostname and put Cloudflare Access on this Worker.
+  // Preview URLs are separate hostnames, so keep them off.
+  "workers_dev": true,
+  "preview_urls": false,
+  // Preserve per-instance WEB_ACCESS_TEAM_DOMAIN and WEB_ACCESS_AUD from
+  // Worker Settings > Variables and Secrets. Missing values deny all API access.
+  "keep_vars": true,
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      // Resolve by name in the deploying Cloudflare account; no account-specific ID.
+      "database_name": "presser",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SYNC_QUEUE",
+        "queue": "presser-sync"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "presser-sync",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3
+      }
+    ]
+  },
+  // Sync every connected site every 30 minutes. Each site is its own queue
+  // message, so one slow or broken site never delays the others.
+  "triggers": {
+    "crons": ["*/30 * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}

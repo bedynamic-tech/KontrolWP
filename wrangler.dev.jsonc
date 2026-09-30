@@ -1,0 +1,36 @@
+// Local-dev-only config. Its entrypoint skips Cloudflare Access so the UI can
+// be used on localhost. Deploys use wrangler.jsonc.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "presser",
+  "main": "src/worker/dev.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "presser",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SYNC_QUEUE",
+        "queue": "presser-sync-dev"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "presser-sync-dev",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 1
+      }
+    ]
+  }
+}
