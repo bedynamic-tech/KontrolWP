@@ -2,6 +2,7 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { UpdateKind } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
 import { SecretsKeyError } from "./secrets.ts";
+import { loadPackage, SELF_UPDATE } from "./presser-connect.ts";
 import { getCredentials } from "./store.ts";
 import { syncSite } from "./sync.ts";
 
@@ -81,13 +82,28 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
   try {
     const site = await getCredentials(env, siteId);
     if (!site) return { next: "idle" };
-    await callSite(site, "POST", `${REST_NAMESPACE}/updates/apply`, {
-      kind: job.kind,
-      slug: job.slug,
-      ...(job.version ? { version: job.version } : {}),
-    });
+    if (job.kind === "plugin" && job.slug === SELF_UPDATE.slug) {
+      await callSite(site, "POST", `${REST_NAMESPACE}/self-update`, {
+        version: SELF_UPDATE.version,
+        package: await loadPackage(env),
+      });
+    } else {
+      await callSite(site, "POST", `${REST_NAMESPACE}/updates/apply`, {
+        kind: job.kind,
+        slug: job.slug,
+        ...(job.version ? { version: job.version } : {}),
+      });
+    }
     await finish("done");
   } catch (error) {
+    if (job.slug === SELF_UPDATE.slug && error instanceof SiteRequestError && error.status === 404) {
+      // Versions before 0.4.0 have no self-update route.
+      await finish(
+        "failed",
+        "This version of Presser Connect cannot update itself. Install the new version from the sidebar once; later updates come from Presser.",
+      );
+      return afterJob(env, siteId);
+    }
     if (error instanceof SiteRequestError && error.status === 503 && job.attempts < MAX_ATTEMPTS) {
       await finish("queued", "The site is busy. Trying again shortly.");
       return { next: "retry", delaySeconds: BUSY_RETRY_SECONDS };
@@ -98,7 +114,11 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
     }
     await finish("failed", error.message);
   }
+  return afterJob(env, siteId);
+}
 
+/** Hand on the site's next queued update, or sync once the queue is empty. */
+async function afterJob(env: Env, siteId: number): Promise<UpdateStep> {
   const more = await env.DB
     .prepare("SELECT 1 FROM update_jobs WHERE site_id = ? AND status = 'queued' LIMIT 1")
     .bind(siteId)

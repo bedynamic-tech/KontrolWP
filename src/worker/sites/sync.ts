@@ -2,6 +2,7 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { PluginComments, PluginStatus, PluginUpdates } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
+import { needsSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
@@ -88,6 +89,16 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
         ),
       );
     }
+  }
+
+  // Presser Connect's own update comes from this dashboard, not WordPress.org.
+  if (needsSelfUpdate(text(status.plugin_version))) {
+    statements.push(
+      insertUpdate.bind(
+        siteId, "plugin", SELF_UPDATE.slug, SELF_UPDATE.name, text(status.plugin_version), SELF_UPDATE.version,
+        SELF_UPDATE.iconUrl,
+      ),
+    );
   }
 
   const insertComment = env.DB.prepare(

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomToken } from "../src/shared/protocol.ts";
+import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
+import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
 import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
@@ -9,14 +11,19 @@ import { fakeD1, migrations } from "./helpers/d1.mjs";
 const SITE = "https://example.com";
 
 /** A database with one site, and a stubbed Presser Connect behind fetch. */
-async function setup(handleApply) {
+async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
   const db = fakeD1();
   await applyMigrations(db, migrations);
   const key = randomToken(32);
   db.sqlite.prepare("INSERT INTO sites (id, name, url, key_id, secret) VALUES (1, 'Example', ?, 'key-id-1', '')").run(SITE);
   db.sqlite.prepare("UPDATE sites SET secret = ? WHERE id = 1").run(await encryptSecret(key, 1, randomToken(32)));
   const sent = [];
-  const env = { DB: db, SITE_SECRETS_KEY: key, SYNC_QUEUE: { send: async (body, options) => sent.push({ body, options }) } };
+  const env = {
+    DB: db,
+    SITE_SECRETS_KEY: key,
+    SYNC_QUEUE: { send: async (body, options) => sent.push({ body, options }) },
+    ASSETS: { fetch: async () => new Response(new Uint8Array([0x50, 0x4b, 3, 4])) },
+  };
 
   const applied = [];
   let inFlight = 0;
@@ -25,19 +32,19 @@ async function setup(handleApply) {
     const route = new URL(url).searchParams.get("rest_route");
     const json = (body, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-    if (route === "/presser/v1/updates/apply") {
+    if (route === "/presser/v1/updates/apply" || route === "/presser/v1/self-update") {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       try {
         const body = JSON.parse(init.body);
-        applied.push(body.slug);
+        applied.push(body.slug ?? { version: body.version, package: body.package });
         return await handleApply(body, json);
       } finally {
         inFlight--;
       }
     }
     if (route === "/presser/v1/status") {
-      return json({ name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version: "0.2.0", theme: "T" });
+      return json({ name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version, theme: "T" });
     }
     if (route === "/presser/v1/updates") return json({ core: null, plugins: [], themes: [] });
     if (route === "/presser/v1/comments") return json({ pending_count: 0, comments: [] });
@@ -102,4 +109,30 @@ test("a failed update does not stop the next one", async () => {
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "continue" });
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
   assert.deepEqual(t.jobs(), [{ slug: "a/a.php", status: "failed", error: "Download failed." }]);
+});
+
+test("an older Presser Connect is offered its update and gets the dashboard's zip", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }), "0.3.0");
+  await syncSite(t.env, 1);
+  const offered = t.env.DB.sqlite.prepare("SELECT slug, current_version, new_version FROM site_updates").all();
+  assert.deepEqual(offered.map((r) => ({ ...r })), [
+    { slug: "presser-connect", current_version: "0.3.0", new_version: PRESSER_CONNECT_VERSION },
+  ]);
+
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
+  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
+  assert.deepEqual(t.applied, [{ version: PRESSER_CONNECT_VERSION, package: "UEsDBA==" }]);
+});
+
+test("a current Presser Connect is not offered an update", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  await syncSite(t.env, 1);
+  assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
+});
+
+test("a Presser Connect too old to update itself says how to fix it", async () => {
+  const t = await setup(async (_body, json) => json({ code: "rest_no_route", message: "No route" }, 404), "0.3.0");
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
+  await runNextUpdate(t.env, 1);
+  assert.match(t.jobs()[0].error, /cannot update itself/);
 });
