@@ -20,7 +20,7 @@ import { PageSkeleton } from "./OverviewPage";
 import { Section } from "./Section";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
-import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
+import { UpdateAllButton, UpdatesList, updatesRefetchInterval } from "./UpdatesList";
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -111,7 +111,7 @@ export function SitePage() {
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
 
-      <Section title="Updates">
+      <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
         <UpdatesList updates={updates} showSite={false} />
       </Section>
       <Section title={`Comments awaiting review (${site.pending_comments})`}>

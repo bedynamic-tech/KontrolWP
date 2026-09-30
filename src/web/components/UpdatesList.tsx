@@ -80,17 +80,15 @@ function UpdateGroup(props: { updates: SiteUpdate[] }) {
   const count = (status: UpdateJobStatus) => updates.filter((update) => update.job_status === status).length;
   const failed = count("failed");
   const versions = [...new Set(updates.map((update) => update.new_version))];
-  const label = mutation.isPending
+  const status = mutation.isPending
     ? "Queued"
-    : !pending.length
-      ? count("done") === updates.length
+    : pending.length
+      ? null
+      : count("done") === updates.length
         ? "Updated"
         : count("running")
           ? "Updating..."
-          : "Queued"
-      : failed === pending.length
-        ? "Try again"
-        : `Update ${pending.length === updates.length ? "all" : pending.length}`;
+          : "Queued";
 
   return (
     <li>
@@ -118,14 +116,11 @@ function UpdateGroup(props: { updates: SiteUpdate[] }) {
             {requestError && <p className="mt-1 text-xs text-destructive">{requestError}</p>}
           </div>
         </div>
-        <Button
-          size="sm"
+        <UpdateButton
+          status={status}
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || !pending.length}
-          variant={failed && failed === pending.length ? "outline" : "default"}
-        >
-          {label}
-        </Button>
+        />
       </div>
       {open && (
         <ul className="divide-y border-t bg-muted/30 pl-16">
@@ -142,8 +137,39 @@ const JOB_LABELS: Record<UpdateJobStatus, string> = {
   queued: "Queued",
   running: "Updating...",
   done: "Updated",
-  failed: "Try again",
+  failed: "Failed",
 };
+
+/** Always reads "Update"; where the update stands shows beside it. */
+function UpdateButton(props: { status: string | null; onClick: () => void; disabled: boolean }) {
+  return (
+    <div className="flex shrink-0 items-center gap-3">
+      {props.status && <span className="text-xs text-muted-foreground">{props.status}</span>}
+      <Button size="sm" onClick={props.onClick} disabled={props.disabled}>
+        Update
+      </Button>
+    </div>
+  );
+}
+
+/** Queue every update that is not already queued, running or done. */
+export function UpdateAllButton(props: { updates: SiteUpdate[] }) {
+  const queryClient = useQueryClient();
+  const pending = props.updates.filter((update) => update.job_status === null || update.job_status === "failed");
+  const mutation = useMutation({
+    mutationFn: () => Promise.all(pending.map((update) => applyUpdate(update.site_id, update))),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      queryClient.invalidateQueries({ queryKey: ["site"] });
+    },
+  });
+  if (!props.updates.length) return null;
+  return (
+    <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || !pending.length}>
+      Update all
+    </Button>
+  );
+}
 
 function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: boolean }) {
   const { update } = props;
@@ -163,14 +189,15 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
   const status = mutation.isPending ? "queued" : (update.job_status ?? (mutation.isSuccess ? "queued" : null));
   const failed = status === "failed";
   const busy = status === "queued" || status === "running" || status === "done";
-  const label = status ? JOB_LABELS[status] : "Update";
   const error = requestError ?? (failed ? update.job_error : null);
   const note = status === "queued" ? update.job_error : null;
 
   const button = (
-    <Button size="sm" onClick={() => mutation.mutate()} disabled={busy} variant={failed ? "outline" : "default"}>
-      {label}
-    </Button>
+    <UpdateButton
+      status={status && status !== "failed" ? JOB_LABELS[status] : null}
+      onClick={() => mutation.mutate()}
+      disabled={busy}
+    />
   );
 
   // One site inside a grouped update: the group row already names the update.

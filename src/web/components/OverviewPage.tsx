@@ -4,7 +4,7 @@ import { fetchOverview } from "../api";
 import { AddSiteDialog } from "./AddSiteDialog";
 import { CommentsList } from "./CommentsList";
 import { Section } from "./Section";
-import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
+import { UpdateAllButton, UpdatesList, updatesRefetchInterval } from "./UpdatesList";
 
 export function OverviewPage() {
   const { data, error, isPending } = useQuery({
@@ -43,7 +43,7 @@ export function OverviewPage() {
             <Stat label="Comments to review" value={pendingComments} />
             <Stat label="Sites needing attention" value={attention} tone={attention ? "warn" : undefined} />
           </div>
-          <Section title="Updates">
+          <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
             <UpdatesList updates={updates} showSite />
           </Section>
           <Section title="Comments awaiting review">
