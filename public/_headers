@@ -1,0 +1,8 @@
+# Applies to the dashboard's static files. The API sets its own headers.
+# same-origin, not no-referrer: no-referrer makes browsers send "Origin: null"
+# on same-origin POSTs, which the API's CSRF check rejects.
+/*
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin

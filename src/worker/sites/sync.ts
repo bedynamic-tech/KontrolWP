@@ -107,7 +107,7 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
         text(comment.author_email),
         text(comment.content).slice(0, 2000),
         text(comment.post_title),
-        text(comment.post_url),
+        webUrl(comment.post_url),
         Number.isFinite(created) ? Math.floor(created / 1000) : now,
       ),
     );
@@ -130,6 +130,16 @@ function iconUrl(value: unknown): string | null {
     return new URL(value).protocol === "https:" ? value : null;
   } catch {
     return null;
+  }
+}
+
+/** Keep only an http(s) link, so a site can never hand the dashboard a script URL. */
+function webUrl(value: unknown): string {
+  if (typeof value !== "string" || value.length > 2000) return "";
+  try {
+    return ["https:", "http:"].includes(new URL(value).protocol) ? value : "";
+  } catch {
+    return "";
   }
 }
 
