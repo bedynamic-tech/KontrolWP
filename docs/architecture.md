@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | Worker + static assets | | Serves the React dashboard and the `/api/*` routes, one Worker like Mailroom. |
 | Cloudflare Access | | Protects the whole Worker. `requireWebAccess` also verifies the `Cf-Access-Jwt-Assertion` JWT on every API call, so a misconfigured route still fails closed. |
-| D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. |
+| D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. |
 | Cron Trigger | | `*/30 * * * *` enqueues every site. |
