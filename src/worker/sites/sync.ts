@@ -43,7 +43,8 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
       .prepare(
         `UPDATE sites SET status = 'connected', last_error = NULL, last_synced_at = ?,
            name = COALESCE(NULLIF(?, ''), name),
-           wp_version = ?, php_version = ?, plugin_version = ?, theme_name = ?, pending_comments = ?
+           wp_version = ?, php_version = ?, plugin_version = ?, theme_name = ?, pending_comments = ?,
+           icon_url = ?
          WHERE id = ?`,
       )
       .bind(
@@ -54,6 +55,7 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
         text(status.plugin_version),
         text(status.theme),
         Math.max(0, Math.trunc(Number(comments.pending_count) || 0)),
+        iconUrl(status.icon_url),
         siteId,
       ),
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
@@ -106,6 +108,16 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
 
 async function recordError(env: Env, siteId: number, message: string): Promise<void> {
   await env.DB.prepare("UPDATE sites SET status = 'error', last_error = ? WHERE id = ?").bind(message, siteId).run();
+}
+
+/** Keep only an https icon URL; the browser loads it straight from the site. */
+function iconUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2000) return null;
+  try {
+    return new URL(value).protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function text(value: unknown): string {

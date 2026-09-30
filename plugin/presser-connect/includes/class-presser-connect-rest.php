@@ -98,6 +98,7 @@ class Presser_Connect_Rest {
 			'php_version'    => PHP_VERSION,
 			'plugin_version' => PRESSER_CONNECT_VERSION,
 			'theme'          => wp_get_theme()->get( 'Name' ),
+			'icon_url'       => get_site_icon_url( 128 ),
 		);
 	}
 

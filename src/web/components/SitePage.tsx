@@ -19,6 +19,7 @@ import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { PluginDownloadButton } from "./PluginDownload";
 import { Section } from "./Section";
+import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
 import { UpdatesList, updatesRefetchInterval } from "./UpdatesList";
 
@@ -67,19 +68,22 @@ export function SitePage() {
         <ArrowLeftIcon className="size-3" /> Sites
       </Link>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
-            <StatusBadge status={site.status} />
+        <div className="flex min-w-0 items-center gap-3">
+          <SiteIcon site={site} className="size-13 text-xl" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
+              <StatusBadge status={site.status} />
+            </div>
+            <a
+              href={site.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              {site.url} <ExternalLinkIcon className="size-3" />
+            </a>
           </div>
-          <a
-            href={site.url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            {site.url} <ExternalLinkIcon className="size-3" />
-          </a>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" asChild>
