@@ -19,7 +19,7 @@ import type {
   UmamiSettings,
 } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
-import { base64 } from "../sites/presser-connect.ts";
+import { base64, SELF_UPDATE } from "../sites/presser-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { coreAutoUpdate, syncSite } from "../sites/sync.ts";
@@ -327,8 +327,8 @@ const updatesExcluded = z.object({ excluded: z.boolean() });
 
 /**
  * Exclude a site from update checks, or include it again. Excluding drops
- * its listed updates and anything still waiting in its queue; including it
- * checks right away.
+ * its listed updates and anything still waiting in its queue, except
+ * Presser Connect's own update; including it checks right away.
  */
 api.put("/sites/:id/updates-excluded", async (c) => {
   const id = siteId(c);
@@ -341,7 +341,10 @@ api.put("/sites/:id/updates-excluded", async (c) => {
     ...(excluded
       ? [
           c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
-          c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running'").bind(id),
+          // Presser Connect's own update is not one the owner excludes.
+          c.env.DB
+            .prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running' AND slug != ?")
+            .bind(id, SELF_UPDATE.slug),
         ]
       : []),
   ]);

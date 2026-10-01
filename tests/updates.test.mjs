@@ -275,7 +275,7 @@ test("a Presser Connect without Magic Login is not asked for administrators", as
   assert.equal(t.env.DB.sqlite.prepare("SELECT login_user_id FROM sites WHERE id = 1").get().login_user_id, null);
 });
 
-test("a site excluded from update checks is not asked for updates and gets nothing queued", async () => {
+test("a site excluded from update checks is not asked for updates but still updates Presser Connect", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.0.1");
   const asked = [];
   const fetchSite = globalThis.fetch;
@@ -289,7 +289,11 @@ test("a site excluded from update checks is not asked for updates and gets nothi
     .run();
   await syncSite(t.env, 1);
   assert.ok(!asked.includes("/presser/v1/updates"));
-  assert.deepEqual(t.jobs(), [], "not even Presser Connect's own update");
+  assert.deepEqual(
+    t.jobs().map((job) => job.slug),
+    ["presser-connect"],
+    "only Presser Connect's own update",
+  );
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
   assert.equal((await getSite(t.env.DB, 1)).updates_excluded, true);
 });

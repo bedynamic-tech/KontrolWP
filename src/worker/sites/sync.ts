@@ -136,8 +136,9 @@ export async function syncSite(
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
   await storePlugins(env, site, text(status.plugin_version));
-  // Presser Connect's own update comes from this dashboard and runs by itself.
-  if (checkUpdates) await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
+  // Presser Connect's own update comes from this dashboard and runs by itself,
+  // even on a site excluded from update checks.
+  await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };
 }
 
