@@ -29,7 +29,10 @@
     "consumers": [
       {
         "queue": "kontrolwp-sync-dev",
-        "max_batch_size": 10,
+        // One message per run: a Worker run opens at most six connections at
+        // once and the rest wait, with their timeouts already running, so ten
+        // sites synced together made healthy sites look unreachable.
+        "max_batch_size": 1,
         "max_batch_timeout": 1,
         "max_retries": 1
       }
