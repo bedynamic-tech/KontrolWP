@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -257,8 +258,14 @@ function WebsitePicker(props: { site: SiteSummary; current: string | null; chose
 
   if (!open) {
     return (
-      <button type="button" className="hover:text-foreground hover:underline" onClick={() => setOpen(true)}>
-        Change
+      <button
+        type="button"
+        aria-label="Change the Umami website"
+        title="Change the Umami website"
+        className="-my-1 inline-flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
+        onClick={() => setOpen(true)}
+      >
+        <PencilIcon className="size-3.5" />
       </button>
     );
   }
