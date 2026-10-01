@@ -21,6 +21,7 @@ import {
   fetchUmamiSettings,
   replaceConnectionKey,
   setSiteCloudflare,
+  setLinksExcluded,
   setUpdatesExcluded,
   syncSite,
 } from "../api";
@@ -99,6 +100,10 @@ export function SitePage() {
   const sync = useMutation({ mutationFn: () => syncSite(id), onSettled: refresh });
   const excludeUpdates = useMutation({
     mutationFn: (excluded: boolean) => setUpdatesExcluded(id, excluded),
+    onSettled: refresh,
+  });
+  const excludeLinks = useMutation({
+    mutationFn: (excluded: boolean) => setLinksExcluded(id, excluded),
     onSettled: refresh,
   });
   const replaceKey = useMutation({
@@ -332,17 +337,34 @@ export function SitePage() {
               </label>
             )}
             {!isStatic && (
+              <label className="flex cursor-pointer items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Check for broken links</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {site.links_excluded
+                      ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
+                      : "KontrolWP scans this site's posts and pages for broken links."}
+                  </p>
+                  {excludeLinks.error && <p className="mt-1 text-xs text-destructive">{excludeLinks.error.message}</p>}
+                </div>
+                {excludeLinks.isPending && <Spinner className="size-4 text-muted-foreground" />}
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-primary"
+                  checked={excludeLinks.isPending ? excludeLinks.variables === false : !site.links_excluded}
+                  disabled={excludeLinks.isPending}
+                  onChange={(event) => excludeLinks.mutate(!event.target.checked)}
+                />
+              </label>
+            )}
+            {!isStatic && (
               <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
                 <MagicLoginUserSelect site={site} />
               </SettingRow>
             )}
             {isStatic && <CloudflareRow site={site} />}
             {umami.data?.configured && (
-              <SettingRow
-                title="Umami website"
-                detail="Where this site's analytics come from."
-                stacked
-              >
+              <SettingRow title="Umami website" detail="Where this site's analytics come from." stacked>
                 <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
               </SettingRow>
             )}

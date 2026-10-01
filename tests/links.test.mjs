@@ -333,3 +333,32 @@ test("the Overview lists broken and unresponsive links across sites, not ignored
     ],
   );
 });
+
+test("excluding a site from broken link detection clears what it found and keeps it out of the Overview and schedule", async () => {
+  const { listFleetLinks } = await import("../src/worker/sites/store.ts");
+  const { runScheduledLinkScans } = await import("../src/worker/sites/link-schedule.ts");
+  const { setLinksExcluded } = await import("../src/worker/sites/links.ts");
+  const { env } = await setup([
+    { items: [post(1, "Home", [{ url: "https://gone.test/", text: "", kind: "link" }])], page: 1, total_pages: 1, total_posts: 1 },
+  ]);
+  env.DB.sqlite.prepare("UPDATE sites SET plugin_version = '0.9.3' WHERE id = 1").run();
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  await checkLinks(env, 1, scanId, web({ "https://gone.test/": 404 }));
+  assert.equal((await listFleetLinks(env.DB)).total, 1);
+
+  await setLinksExcluded(env.DB, 1, true);
+  assert.deepEqual(await listFleetLinks(env.DB), { total: 0, scanned: false, items: [] });
+  assert.equal((await listLinks(env.DB, 1)).scan, null);
+  // A message still queued from the old scan does nothing.
+  assert.equal(await checkLinks(env, 1, scanId, web({})), false);
+  // Midnight skips the site.
+  const sent = [];
+  env.SYNC_QUEUE = { send: async (body) => sent.push(body) };
+  await runScheduledLinkScans(env, Date.parse("2026-10-02T00:05:00Z") / 1000);
+  assert.deepEqual(sent, []);
+
+  await setLinksExcluded(env.DB, 1, false);
+  await runScheduledLinkScans(env, Date.parse("2026-10-09T00:05:00Z") / 1000);
+  assert.deepEqual(sent.map((body) => body.siteId), [1]);
+});

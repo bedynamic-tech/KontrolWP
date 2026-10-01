@@ -33,6 +33,8 @@ export interface SiteSummary {
   self_update_error: string | null;
   /** The owner excluded the site from update checks. */
   updates_excluded: boolean;
+  /** The owner excluded the site from broken link detection. */
+  links_excluded: boolean;
   /** WordPress's own core auto-updates, from the last sync; null before KontrolWP Connect 0.7.0. */
   core_auto_update: CoreAutoUpdate | null;
   /** wp-config.php decides core auto-updates, so KontrolWP cannot change them. */

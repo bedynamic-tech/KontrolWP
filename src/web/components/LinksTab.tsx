@@ -79,7 +79,7 @@ export function LinksTab(props: { site: SiteSummary }) {
   const links = useQuery({
     queryKey: ["site", site.id, "links"],
     queryFn: () => fetchLinks(site.id),
-    enabled: supported(site),
+    enabled: supported(site) && !site.links_excluded,
     // Follow a scan while it runs; otherwise results only change on request.
     refetchInterval: (query) =>
       running(query.state.data?.scan) ? 3000 : queued(query.state.data?.scan) ? 60_000 : false,
@@ -90,6 +90,16 @@ export function LinksTab(props: { site: SiteSummary }) {
     onSuccess: setData,
   });
 
+  if (site.links_excluded) {
+    return (
+      <Section title="Links">
+        <EmptyRow>
+          Broken link detection is turned off for this site. Turn on Check for broken links in Site settings to scan it
+          again.
+        </EmptyRow>
+      </Section>
+    );
+  }
   if (!supported(site)) {
     return (
       <Section title="Links">

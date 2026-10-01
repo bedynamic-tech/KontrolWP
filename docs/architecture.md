@@ -249,6 +249,10 @@ unwrap the link in each post it appears in (`POST /links/unlink`): the link
 text stays, buttons are left alone since unwrapping breaks the block, and
 images are not touched. Posts are saved with `wp_update_post`, so WordPress
 keeps a revision to restore, then re-read so the list matches. A site keeps at most 5,000 addresses.
+The Check for broken links setting in Site settings (`PUT /api/sites/:id/links-excluded`)
+excludes a site: its scan and every link it found are deleted, scheduled
+checks skip it, Scan now answers 409, and its Links tab says detection is off.
+Including it again leaves the tab ready to scan.
 
 ## Posts and pages
 
