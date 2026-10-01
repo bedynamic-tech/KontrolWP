@@ -114,7 +114,11 @@ token, in an option that deleting spends: the first request to delete it
 signs in, any other gets an error page. A link lasts 60 seconds, and the
 plugin checks again that the user is still an administrator when it is used.
 Signing in goes through `wp_set_auth_cookie` and fires `wp_login`, so
-activity logs record it like any other login. Added in 0.5.0.
+activity logs record it like any other login. Two-factor plugins
+that prompt on `wp_login` (Two Factor, WP 2FA) are told through their own
+filters to skip that one sign-in, for that user and request only (0.6.1);
+plugins that check during password authentication, such as Wordfence, never
+see it. Password logins still get their two-factor prompt. Added in 0.5.0.
 
 ## Plugin routes (`presser/v1`)
 
