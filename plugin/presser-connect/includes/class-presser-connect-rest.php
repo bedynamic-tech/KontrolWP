@@ -139,13 +139,14 @@ class Presser_Connect_Rest {
 
 	public static function status() {
 		return array(
-			'name'           => html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ),
-			'home_url'       => home_url( '/' ),
-			'wp_version'     => get_bloginfo( 'version' ),
-			'php_version'    => PHP_VERSION,
-			'plugin_version' => PRESSER_CONNECT_VERSION,
-			'theme'          => wp_get_theme()->get( 'Name' ),
-			'icon_url'       => get_site_icon_url( 128 ),
+			'name'             => html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ),
+			'home_url'         => home_url( '/' ),
+			'wp_version'       => get_bloginfo( 'version' ),
+			'php_version'      => PHP_VERSION,
+			'plugin_version'   => PRESSER_CONNECT_VERSION,
+			'theme'            => wp_get_theme()->get( 'Name' ),
+			'icon_url'         => get_site_icon_url( 128 ),
+			'core_auto_update' => Presser_Connect_Plugins::core_auto_update(),
 		);
 	}
 

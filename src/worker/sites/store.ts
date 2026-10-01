@@ -8,6 +8,7 @@ const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded,
+  s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates,
   j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
@@ -29,9 +30,15 @@ export async function getSite(db: D1Database, id: number): Promise<SiteSummary |
   return row && summary(row);
 }
 
-type SiteRow = Omit<SiteSummary, "updates_excluded"> & { updates_excluded: number };
+type SiteFlag = "updates_excluded" | "core_auto_update_locked" | "plugin_auto_updates";
+type SiteRow = Omit<SiteSummary, SiteFlag> & Record<SiteFlag, number>;
 
-const summary = (row: SiteRow): SiteSummary => ({ ...row, updates_excluded: Boolean(row.updates_excluded) });
+const summary = (row: SiteRow): SiteSummary => ({
+  ...row,
+  updates_excluded: Boolean(row.updates_excluded),
+  core_auto_update_locked: Boolean(row.core_auto_update_locked),
+  plugin_auto_updates: Boolean(row.plugin_auto_updates),
+});
 
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
 export async function getCredentials(env: Env, id: number): Promise<SiteCredentials | null> {
@@ -92,7 +99,8 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
     db
       .prepare(
         `SELECT p.site_id, s.name AS site_name, s.url AS site_url, s.icon_url AS site_icon_url, s.updates_excluded,
-                p.file, p.name, p.version, p.author, p.active, p.network_active, p.protected,
+                s.plugin_version AS site_plugin_version, s.plugin_auto_updates AS site_plugin_auto_updates,
+                p.file, p.name, p.version, p.author, p.active, p.network_active, p.protected, p.auto_update,
                 u.new_version, u.icon_url, j.status AS job_status, j.error AS job_error
          FROM site_plugins p JOIN sites s ON s.id = p.site_id
          LEFT JOIN site_updates u ON u.site_id = p.site_id AND u.kind = 'plugin' AND u.slug = p.file
@@ -106,7 +114,7 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
       plugin_version: string | null;
     }>(),
   ]);
-  const flags = ["updates_excluded", "active", "network_active", "protected"] as const;
+  const flags = ["updates_excluded", "site_plugin_auto_updates", "active", "network_active", "protected", "auto_update"] as const;
   return {
     plugins: results.map((row) => {
       const plugin = { ...row } as unknown as FleetPlugin;

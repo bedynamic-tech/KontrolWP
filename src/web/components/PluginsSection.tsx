@@ -52,7 +52,13 @@ export function PluginsSection(props: { site: SiteSummary }) {
     body = (
       <ul className="divide-y">
         {plugins.data.plugins.map((plugin) => (
-          <PluginRow key={plugin.file} siteId={site.id} plugin={plugin} canDelete={canModify} />
+          <PluginRow
+            key={plugin.file}
+            siteId={site.id}
+            plugin={plugin}
+            canDelete={canModify}
+            autoUpdates={plugins.data.auto_updates}
+          />
         ))}
       </ul>
     );
@@ -85,9 +91,17 @@ const ACTION_LABELS: Record<PluginAction, string> = {
   activate: "Activating...",
   deactivate: "Deactivating...",
   delete: "Deleting...",
+  "enable-auto-update": "Turning on auto-updates...",
+  "disable-auto-update": "Turning off auto-updates...",
 };
 
-function PluginRow(props: { siteId: number; plugin: InstalledPlugin; canDelete: boolean }) {
+function PluginRow(props: {
+  siteId: number;
+  plugin: InstalledPlugin;
+  canDelete: boolean;
+  /** Undefined before Presser Connect 0.7.0; false when the site turns plugin auto-updates off in code. */
+  autoUpdates: boolean | undefined;
+}) {
   const { siteId, plugin } = props;
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -110,6 +124,20 @@ function PluginRow(props: { siteId: number; plugin: InstalledPlugin; canDelete: 
         </div>
         <p className="truncate text-xs text-muted-foreground">
           {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
+          {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
+          {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined && (
+            <>
+              {` · Auto-updates ${plugin.auto_update ? "on" : "off"} · `}
+              <button
+                type="button"
+                className="hover:text-foreground hover:underline disabled:opacity-60"
+                disabled={action.isPending}
+                onClick={() => action.mutate(plugin.auto_update ? "disable-auto-update" : "enable-auto-update")}
+              >
+                {plugin.auto_update ? "Disable" : "Enable"}
+              </button>
+            </>
+          )}
         </p>
         {action.error && <p className="mt-1 text-xs text-destructive">{action.error.message}</p>}
       </div>

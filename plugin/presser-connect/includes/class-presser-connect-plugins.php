@@ -4,7 +4,8 @@
  * deactivate or delete one, and install new ones from WordPress.org, a URL
  * or an uploaded zip. Everything goes through WordPress's own functions and
  * Plugin_Upgrader, as the Plugins screen does. Presser Connect itself can
- * never be deactivated or deleted this way.
+ * never be deactivated or deleted this way. Also WordPress's own
+ * auto-update settings, for plugins and for core.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -38,7 +39,23 @@ class Presser_Connect_Plugins {
 					'action' => array(
 						'required' => true,
 						'type'     => 'string',
-						'enum'     => array( 'activate', 'deactivate', 'delete' ),
+						'enum'     => array( 'activate', 'deactivate', 'delete', 'enable-auto-update', 'disable-auto-update' ),
+					),
+				),
+			)
+		);
+		register_rest_route(
+			Presser_Connect_Rest::NAMESPACE_V1,
+			'/core/auto-update',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'set_core_auto_update' ),
+				'permission_callback' => $auth,
+				'args'                => array(
+					'mode' => array(
+						'required' => true,
+						'type'     => 'string',
+						'enum'     => array( 'all', 'minor', 'off' ),
 					),
 				),
 			)
@@ -73,6 +90,7 @@ class Presser_Connect_Plugins {
 	public static function index() {
 		self::load_admin_includes();
 		$own   = plugin_basename( PRESSER_CONNECT_FILE );
+		$auto  = (array) get_site_option( 'auto_update_plugins', array() );
 		$items = array();
 		foreach ( get_plugins() as $file => $data ) {
 			$items[] = array(
@@ -83,11 +101,14 @@ class Presser_Connect_Plugins {
 				'active'         => is_plugin_active( $file ),
 				'network_active' => is_multisite() && is_plugin_active_for_network( $file ),
 				'protected'      => $file === $own,
+				'auto_update'    => in_array( $file, $auto, true ),
 			);
 		}
 		return array(
 			'plugins'          => $items,
 			'can_modify_files' => wp_is_file_mod_allowed( 'presser_connect_plugins' ),
+			// False when the site turns plugin auto-updates off in code.
+			'auto_updates'     => wp_is_auto_update_enabled_for_type( 'plugin' ),
 		);
 	}
 
@@ -102,8 +123,15 @@ class Presser_Connect_Plugins {
 		if ( ! array_key_exists( $file, get_plugins() ) ) {
 			return new WP_Error( 'presser_not_found', __( 'That plugin is not installed.', 'presser-connect' ), array( 'status' => 404 ) );
 		}
-		if ( 'activate' !== $action && plugin_basename( PRESSER_CONNECT_FILE ) === $file ) {
+		if ( 'enable-auto-update' === $action && plugin_basename( PRESSER_CONNECT_FILE ) === $file ) {
+			return new WP_Error( 'presser_protected', __( 'Presser keeps Presser Connect up to date itself.', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		if ( 'activate' !== $action && 'disable-auto-update' !== $action && plugin_basename( PRESSER_CONNECT_FILE ) === $file ) {
 			return new WP_Error( 'presser_protected', __( 'Presser Connect cannot deactivate or delete itself from Presser. Do it in wp-admin if you mean to disconnect this site.', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+
+		if ( 'enable-auto-update' === $action || 'disable-auto-update' === $action ) {
+			return self::set_auto_update( $file, 'enable-auto-update' === $action );
 		}
 
 		if ( 'activate' === $action ) {
@@ -240,6 +268,69 @@ class Presser_Connect_Plugins {
 		);
 	}
 
+	/**
+	 * Turn WordPress's own auto-updates on or off for one plugin, as the
+	 * Plugins screen's "Enable auto-updates" link does.
+	 *
+	 * @param string $file    Plugin file.
+	 * @param bool   $enabled Whether WordPress should update it automatically.
+	 */
+	private static function set_auto_update( $file, $enabled ) {
+		if ( ! wp_is_auto_update_enabled_for_type( 'plugin' ) ) {
+			return new WP_Error( 'presser_auto_updates_disabled', __( 'Plugin auto-updates are turned off on this site in code (the plugins_auto_update_enabled filter).', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		$auto = (array) get_site_option( 'auto_update_plugins', array() );
+		$auto = $enabled ? array_merge( $auto, array( $file ) ) : array_diff( $auto, array( $file ) );
+		// Drop plugins that are no longer installed, as WordPress does.
+		$auto = array_values( array_unique( array_intersect( $auto, array_keys( get_plugins() ) ) ) );
+		update_site_option( 'auto_update_plugins', $auto );
+		return array( 'ok' => true );
+	}
+
+	/**
+	 * WordPress core auto-updates: "all" versions, "minor" (maintenance and
+	 * security releases only, WordPress's default) or "off". Locked when
+	 * wp-config.php decides it with WP_AUTO_UPDATE_CORE or
+	 * AUTOMATIC_UPDATER_DISABLED.
+	 */
+	public static function core_auto_update() {
+		if ( defined( 'AUTOMATIC_UPDATER_DISABLED' ) && AUTOMATIC_UPDATER_DISABLED ) {
+			return array(
+				'mode'   => 'off',
+				'locked' => true,
+			);
+		}
+		if ( defined( 'WP_AUTO_UPDATE_CORE' ) ) {
+			$value = WP_AUTO_UPDATE_CORE;
+			return array(
+				'mode'   => false === $value ? 'off' : ( 'minor' === $value ? 'minor' : 'all' ),
+				'locked' => true,
+			);
+		}
+		$major = 'enabled' === get_site_option( 'auto_update_core_major', 'unset' );
+		$minor = 'enabled' === get_site_option( 'auto_update_core_minor', 'enabled' );
+		return array(
+			'mode'   => $major ? 'all' : ( $minor ? 'minor' : 'off' ),
+			'locked' => false,
+		);
+	}
+
+	/**
+	 * @param WP_REST_Request $request Incoming request.
+	 */
+	public static function set_core_auto_update( $request ) {
+		if ( self::core_auto_update()['locked'] ) {
+			return new WP_Error( 'presser_auto_updates_locked', __( 'This site\'s wp-config.php sets WordPress auto-updates (WP_AUTO_UPDATE_CORE or AUTOMATIC_UPDATER_DISABLED), so they cannot be changed from Presser.', 'presser-connect' ), array( 'status' => 409 ) );
+		}
+		$mode = $request['mode'];
+		// The same site options the Updates screen sets; minor also covers
+		// development versions, as WordPress does.
+		update_site_option( 'auto_update_core_major', 'all' === $mode ? 'enabled' : 'disabled' );
+		update_site_option( 'auto_update_core_minor', 'off' === $mode ? 'disabled' : 'enabled' );
+		update_site_option( 'auto_update_core_dev', 'off' === $mode ? 'disabled' : 'enabled' );
+		return self::core_auto_update();
+	}
+
 	private static function bad_request( $message ) {
 		return new WP_Error( 'presser_bad_request', $message, array( 'status' => 400 ) );
 	}
@@ -256,5 +347,6 @@ class Presser_Connect_Plugins {
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/misc.php';
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		require_once ABSPATH . 'wp-admin/includes/update.php';
 	}
 }

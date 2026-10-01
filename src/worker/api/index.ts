@@ -19,7 +19,7 @@ import { callSite, SiteRequestError, type SiteCredentials } from "../sites/clien
 import { base64 } from "../sites/presser-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
-import { syncSite } from "../sites/sync.ts";
+import { coreAutoUpdate, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
@@ -337,9 +337,14 @@ api.put("/sites/:id/updates-excluded", async (c) => {
 
 /** An older Presser Connect has no plugin routes; it updates itself on the next sync. */
 function pluginsError(error: SiteRequestError): string {
-  return error.status === 404 && !error.code
-    ? "Presser Connect on this site is too old to manage plugins. It updates automatically; select Sync now to check."
-    : error.message;
+  if (error.status === 404 && !error.code) {
+    return "Presser Connect on this site is too old to manage plugins. It updates automatically; select Sync now to check.";
+  }
+  // An older Presser Connect rejects actions it does not know, such as auto-updates before 0.7.0.
+  if (error.status === 400 && error.code === "rest_invalid_param") {
+    return "Presser Connect on this site is too old for this. It updates automatically; select Sync now to check.";
+  }
+  return error.message;
 }
 
 /** Run a plugin request against the site, then re-sync it in the background so its updates stay current. */
@@ -363,7 +368,7 @@ api.get("/sites/:id/plugins", (c) =>
 
 const pluginAction = z.object({
   plugin: z.string().min(1).max(300),
-  action: z.enum(["activate", "deactivate", "delete"]),
+  action: z.enum(["activate", "deactivate", "delete", "enable-auto-update", "disable-auto-update"]),
 });
 
 api.post("/sites/:id/plugins", async (c) => {
@@ -458,15 +463,61 @@ api.post("/plugins/install", async (c) => {
   });
 });
 
+const coreAutoUpdateMode = z.object({ mode: z.enum(["all", "minor", "off"]) });
+
+/** Store what the site reports after a core auto-update change. */
+async function saveCoreAutoUpdate(env: Env, siteId: number, result: PluginStatus["core_auto_update"]) {
+  const [mode, locked] = coreAutoUpdate({ core_auto_update: result });
+  if (mode) {
+    await env.DB.prepare("UPDATE sites SET core_auto_update = ?, core_auto_update_locked = ? WHERE id = ?")
+      .bind(mode, locked, siteId)
+      .run();
+  }
+}
+
+/** Set WordPress's core auto-updates on one site. */
+api.put("/sites/:id/core-auto-update", async (c) => {
+  const parsed = coreAutoUpdateMode.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose all, minor or off" }, 400);
+  const response = await pluginRequest(c, async (site) => {
+    const result = await callSite<PluginStatus["core_auto_update"]>(site, "POST", `${REST_NAMESPACE}/core/auto-update`, parsed.data);
+    await saveCoreAutoUpdate(c.env, site.id, result);
+    return { ok: true };
+  });
+  if (response.status !== 200) return response;
+  return c.json(await getSite(c.env.DB, siteId(c)!));
+});
+
+/** Set WordPress's core auto-updates on several sites. */
+api.post("/core-auto-update", async (c) => {
+  const parsed = coreAutoUpdateMode
+    .extend({ site_ids: z.array(z.number().int().positive()).min(1).max(500) })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose a mode and at least one site" }, 400);
+  const { mode, site_ids } = parsed.data;
+  return c.json({
+    results: await forEachSite(
+      c.env,
+      site_ids,
+      async (site) => {
+        const result = await callSite<PluginStatus["core_auto_update"]>(site, "POST", `${REST_NAMESPACE}/core/auto-update`, { mode });
+        await saveCoreAutoUpdate(c.env, site.id, result);
+      },
+      { sync: false },
+    ),
+  });
+});
+
 /**
  * Run a plugin request on each site, a few at a time, then sync each one
- * that changed so the Plugins page shows the result. Per-site failures are
- * reported, not thrown.
+ * that changed so the Plugins page shows the result (unless the request
+ * stores its own result). Per-site failures are reported, not thrown.
  */
 async function forEachSite(
   env: Env,
   siteIds: number[],
   request: (site: SiteCredentials) => Promise<unknown>,
+  options: { sync?: boolean } = {},
 ): Promise<BulkPluginResult[]> {
   const results: BulkPluginResult[] = [];
   const queue = [...siteIds];
@@ -479,7 +530,7 @@ async function forEachSite(
           continue;
         }
         await request(site);
-        await syncSite(env, id);
+        if (options.sync !== false) await syncSite(env, id);
         results.push({ site_id: id, ok: true });
       } catch (error) {
         if (!(error instanceof SiteRequestError || error instanceof SecretsKeyError)) throw error;

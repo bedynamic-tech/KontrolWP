@@ -1,6 +1,7 @@
 import type {
   BulkPluginResult,
   CommentAction,
+  CoreAutoUpdate,
   FleetPlugins,
   Overview,
   PluginAction,
@@ -146,3 +147,9 @@ export function installPluginOnSites(siteIds: number[], install: PluginInstall) 
   form.set("site_ids", siteIds.join(","));
   return request<{ results: BulkPluginResult[] }>(path, { method: "POST", body: form });
 }
+
+export const setCoreAutoUpdate = (siteId: number, mode: CoreAutoUpdate) =>
+  request<SiteSummary>(`/sites/${siteId}/core-auto-update`, { method: "PUT", json: { mode } });
+
+export const bulkCoreAutoUpdate = (siteIds: number[], mode: CoreAutoUpdate) =>
+  request<{ results: BulkPluginResult[] }>("/core-auto-update", { method: "POST", json: { mode, site_ids: siteIds } });

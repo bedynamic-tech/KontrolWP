@@ -133,6 +133,20 @@ for that site and does not stop the others. Updates go through each site's
 update queue, as on the Overview, and skip sites excluded from updates.
 Presser Connect is listed but has no actions.
 
+## Auto-updates
+
+Presser can turn WordPress's own auto-updates on and off (Presser Connect
+0.7.0+), using the same site options as WordPress's screens:
+`auto_update_plugins` for each plugin, and `auto_update_core_major`,
+`auto_update_core_minor` and `auto_update_core_dev` for core. Core has three
+modes: all new versions, maintenance and security releases only (WordPress's
+default), or off. `/status` reports the core mode, and `/plugins` reports each
+plugin's setting; sync stores both. A site whose wp-config.php sets
+`WP_AUTO_UPDATE_CORE` or `AUTOMATIC_UPDATER_DISABLED` reports core as locked,
+and Presser leaves it alone. The site page sets core and each plugin; the
+Plugins page sets plugins across selected sites, and the Sites page's
+WordPress auto-updates dialog sets core across chosen sites.
+
 ## Plugin routes (`presser/v1`)
 
 | Route | Does |
@@ -144,7 +158,8 @@ Presser Connect is listed but has no actions.
 | `GET /admins` | Users who can `manage_options`, for the Magic Login setting. Added in 0.5.0. |
 | `POST /login` | `{user_id}`. A one-time `wp-login.php?action=presser_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
 | `GET /plugins` | Installed plugins with version, author and active state, and whether file changes are allowed. Added in 0.6.0. |
-| `POST /plugins/manage` | `{plugin, action: activate, deactivate or delete}`. Delete deactivates first, then uses `delete_plugins`. Presser Connect refuses to deactivate or delete itself. Added in 0.6.0. |
+| `POST /plugins/manage` | `{plugin, action: activate, deactivate, delete, enable-auto-update or disable-auto-update}`. Delete deactivates first, then uses `delete_plugins`. Presser Connect refuses to deactivate or delete itself. Added in 0.6.0; auto-update actions in 0.7.0. |
+| `POST /core/auto-update` | `{mode: all, minor or off}`. Sets WordPress core auto-updates; refuses when wp-config.php decides them. Added in 0.7.0. |
 | `POST /plugins/install` | `{source: wordpress.org, url or zip, slug, url or package, activate}`. Installs through `Plugin_Upgrader::install`: a WordPress.org slug resolves through `plugins_api`, a link is downloaded by the site, a zip (up to 10 MB, base64 in the signed body) is written to a temp file. Added in 0.6.0. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |

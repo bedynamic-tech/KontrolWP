@@ -24,7 +24,17 @@ export interface SiteSummary {
   self_update_error: string | null;
   /** The owner excluded the site from update checks. */
   updates_excluded: boolean;
+  /** WordPress's own core auto-updates, from the last sync; null before Presser Connect 0.7.0. */
+  core_auto_update: CoreAutoUpdate | null;
+  /** wp-config.php decides core auto-updates, so Presser cannot change them. */
+  core_auto_update_locked: boolean;
+  /** False when the site turns plugin auto-updates off in code. */
+  plugin_auto_updates: boolean;
 }
+
+/** Core auto-updates: every new version, maintenance and security releases only, or none. */
+export type CoreAutoUpdate = "all" | "minor" | "off";
+
 
 /** An administrator on a site, as Presser Connect lists them for Magic Login. */
 export interface SiteAdmin {
@@ -95,6 +105,8 @@ export interface PluginStatus {
   theme: string;
   /** Presser Connect 0.2.1+: the Site Icon URL, or "" when there is none. */
   icon_url?: string;
+  /** Presser Connect 0.7.0+. */
+  core_auto_update?: { mode: CoreAutoUpdate; locked: boolean };
 }
 
 /** `icon_url` arrives from Presser Connect 0.3+. */
@@ -128,15 +140,19 @@ export interface InstalledPlugin {
   network_active: boolean;
   /** Presser Connect itself: never deactivated or deleted from Presser. */
   protected: boolean;
+  /** Presser Connect 0.7.0+: WordPress updates it automatically. */
+  auto_update?: boolean;
 }
 
 export interface SitePlugins {
   plugins: InstalledPlugin[];
   /** False when the site sets DISALLOW_FILE_MODS: no installs or deletes. */
   can_modify_files: boolean;
+  /** Presser Connect 0.7.0+: false when the site turns plugin auto-updates off in code. */
+  auto_updates?: boolean;
 }
 
-export type PluginAction = "activate" | "deactivate" | "delete";
+export type PluginAction = "activate" | "deactivate" | "delete" | "enable-auto-update" | "disable-auto-update";
 
 /** One plugin on one site, as last synced, for the fleet-wide Plugins page. */
 export interface FleetPlugin {
@@ -145,6 +161,9 @@ export interface FleetPlugin {
   site_url: string;
   site_icon_url: string | null;
   updates_excluded: boolean;
+  site_plugin_version: string | null;
+  /** False when the site turns plugin auto-updates off in code. */
+  site_plugin_auto_updates: boolean;
   file: string;
   name: string;
   version: string;
@@ -152,6 +171,7 @@ export interface FleetPlugin {
   active: boolean;
   network_active: boolean;
   protected: boolean;
+  auto_update: boolean;
   /** The version WordPress offers, when an update is available. */
   new_version: string | null;
   icon_url: string | null;
