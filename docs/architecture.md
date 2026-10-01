@@ -123,6 +123,8 @@ that prompt on `wp_login` (Two Factor, WP 2FA) are told through their own
 filters to skip that one sign-in, for that user and request only (0.6.1);
 plugins that check during password authentication, such as Wordfence, never
 see it. Password logins still get their two-factor prompt. Added in 0.5.0.
+With a `post_id` (0.9.0), the link opens that post's editor instead of the
+dashboard, if the administrator can edit it; the Links tab uses this.
 
 ## Plugins across sites
 
@@ -211,6 +213,29 @@ operating systems, devices and events, plus visitors online now from
 `/websites/:id/active`. A breakdown the Umami version rejects (entry and exit
 pages came in Umami 3) is left out rather than failing the page.
 
+## Links
+
+A site's Links tab finds broken links and images in its published content
+(every public post type except media). Scan now writes a new `scan_id` to
+`link_scans` and queues a `links-collect` message. Each one asks the site for
+50 posts (`POST /links`) and stores every http(s) address in `site_links` and
+where it appears in `site_link_refs`; the last page drops addresses no longer
+in the content and queues `links-check`. Each `links-check` checks 10
+addresses, five at a time, and queues the next until none are left, so one
+run stays well under Cloudflare's subrequest limit and the site itself does
+no checking. A check sends HEAD, then GET when a server refuses HEAD,
+follows redirects, and gives up after 10 seconds:
+
+- **Broken:** 404, 410 or any other 4xx, or a domain that does not exist.
+- **Unresponsive:** a timeout, a failed connection or a 5xx.
+- **Couldn't check:** 401, 403 or 429, which usually mean the other site
+  blocks automated requests; they often work in a browser.
+
+A rescan keeps the last result on each address until it is checked again.
+Messages from a replaced scan are dropped by `scan_id`, and a scan with no
+progress for 15 minutes shows as stopped. Owners can check one link again
+after fixing it, or ignore it. A site keeps at most 5,000 addresses.
+
 ## Plugin routes (`kontrolwp/v1`)
 
 | Route | Does |
@@ -220,7 +245,7 @@ pages came in Umami 3) is left out rather than failing the page.
 | `POST /updates/apply` | `{kind: core, plugin or theme, slug, version}`. Runs the same upgraders the Updates screen uses; core also runs the database upgrade. For core, `version` must match the offer the dashboard showed, so a site never installs a version the owner did not see. Refuses when `DISALLOW_FILE_MODS` is set. |
 | `POST /self-update` | `{version, package}`. Installs the KontrolWP Connect zip the dashboard ships (base64 in the signed body, so the signature covers it) through WordPress's plugin upgrader, keeping the plugin's folder. Refuses a version that is not newer. Added in 0.4.0. |
 | `GET /admins` | Users who can `manage_options`, for the Magic Login setting. Added in 0.5.0. |
-| `POST /login` | `{user_id}`. A one-time `wp-login.php?action=kontrolwp_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
+| `POST /login` | `{user_id, post_id}`. A one-time `wp-login.php?action=kontrolwp_login` link for that administrator, valid for 60 seconds; with `post_id` it lands in that post's editor. Added in 0.5.0; `post_id` in 0.9.0. |
 | `GET /plugins` | Installed plugins with version, author and active state, and whether file changes are allowed. Added in 0.6.0; auto-update state in 0.7.0; each plugin's icon from WordPress's last update check in 0.7.1. |
 | `POST /plugins/manage` | `{plugin, action: activate, deactivate, delete, enable-auto-update or disable-auto-update}`. Delete deactivates first, then uses `delete_plugins`. KontrolWP Connect refuses to deactivate or delete itself. Added in 0.6.0; auto-update actions in 0.7.0. |
 | `POST /core/auto-update` | `{mode: all, minor or off}`. Sets WordPress core auto-updates; refuses when wp-config.php decides them. Added in 0.7.0. |
@@ -228,6 +253,7 @@ pages came in Umami 3) is left out rather than failing the page.
 | `GET /users` | Up to 2,000 users with login, email, display name, roles and registration time, the site's roles, and the total. Added in 0.8.0. |
 | `POST /users/create` | `{login, email, role, first_name, last_name, password, notify}`. Adds a user through `wp_insert_user`; an empty password gets a random one, and `notify` sends WordPress's set-your-password email. Added in 0.8.0. |
 | `POST /users/manage` | `{user_id, action: set-role, reset-password or delete, role}`. Refuses to demote or delete the only administrator; delete gives the user's content to the earliest other administrator. Added in 0.8.0. |
+| `POST /links` | `{page, per_page}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. Added in 0.9.0. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 

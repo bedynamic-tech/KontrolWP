@@ -59,6 +59,8 @@ class KontrolWP_Connect_Login {
 			array(
 				'user_id' => (int) $user->ID,
 				'expires' => time() + self::LIFETIME,
+				// Optional: open this post's editor instead of the dashboard (0.9.0).
+				'post_id' => max( 0, (int) $request['post_id'] ),
 			),
 			'',
 			'no'
@@ -107,7 +109,11 @@ class KontrolWP_Connect_Login {
 		// to let this one sign-in through; normal logins are unaffected.
 		self::skip_two_factor( $user );
 		do_action( 'wp_login', $user->user_login, $user );
-		wp_safe_redirect( admin_url() );
+		$post_id = isset( $grant['post_id'] ) ? (int) $grant['post_id'] : 0;
+		$target  = $post_id && get_post( $post_id ) && user_can( $user, 'edit_post', $post_id )
+			? admin_url( 'post.php?post=' . $post_id . '&action=edit' )
+			: admin_url();
+		wp_safe_redirect( $target );
 		exit;
 	}
 

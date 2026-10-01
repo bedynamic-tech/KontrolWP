@@ -377,3 +377,45 @@ export interface BulkUserResult {
   ok: boolean;
   error?: string;
 }
+
+/** What checking a link found. "blocked" means the other site refused the check, so it couldn't be tested. */
+export type LinkStatus = "pending" | "ok" | "broken" | "unresponsive" | "blocked";
+
+/** A site's link scan: KontrolWP Connect lists the links, then the Worker checks each one. */
+export interface LinkScan {
+  /** "stopped" is a scan that made no progress for a while; scan again to restart it. */
+  status: "collecting" | "checking" | "done" | "failed" | "stopped";
+  error: string | null;
+  posts_scanned: number;
+  total_urls: number;
+  checked_urls: number;
+  started_at: number;
+  finished_at: number | null;
+}
+
+/** One place a link appears. */
+export interface LinkRef {
+  post_id: number;
+  post_title: string;
+  post_type: string;
+  permalink: string;
+  link_text: string;
+  kind: "link" | "image";
+}
+
+export interface SiteLink {
+  url: string;
+  status: LinkStatus;
+  http_status: number | null;
+  error: string | null;
+  checked_at: number | null;
+  ignored: boolean;
+  refs: LinkRef[];
+}
+
+/** The Links tab: the latest scan, counts, and every link that needs a look (plus the ignored ones). */
+export interface SiteLinks {
+  scan: LinkScan | null;
+  counts: Record<Exclude<LinkStatus, "pending">, number> & { ignored: number; total: number };
+  links: SiteLink[];
+}
