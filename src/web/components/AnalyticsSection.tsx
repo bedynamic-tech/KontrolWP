@@ -123,11 +123,7 @@ function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
         <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t sm:border-t-0" />
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
-        <span>
-          From Umami website {data.website!.name || data.website!.domain}
-          {data.website!.domain && data.website!.name !== data.website!.domain && ` (${data.website!.domain})`}
-          {data.chosen ? ", chosen for this site." : ", matched by domain."}
-        </span>
+        <span>Connected to {data.website!.name || data.website!.domain}</span>
         <WebsitePicker site={props.site} current={data.website!.id} chosen={data.chosen} compact />
         <Link to="/settings" className="ml-auto hover:text-foreground hover:underline">
           Umami settings
