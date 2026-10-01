@@ -235,7 +235,6 @@ function PluginRow(props: {
             {[plugin.version && `Version ${plugin.version}`, plugin.author, plugin.network_active && "Network active"]
               .filter(Boolean)
               .join(" · ")}
-            {plugin.protected && " · Connects this site to Presser"}
             {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
             {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined &&
               ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`}
