@@ -288,3 +288,48 @@ test("ignored links are not checked again by a scan or Check again", async () =>
   assert.equal(await recheckLink(env, 1, "https://gone.test/", web({}, calls)), true);
   assert.equal(calls.length, 1);
 });
+
+test("the Overview lists broken and unresponsive links across sites, not ignored or uncheckable ones", async () => {
+  const { listFleetLinks } = await import("../src/worker/sites/store.ts");
+  const { env } = await setup([
+    {
+      items: [
+        post(1, "Home", [
+          { url: "https://gone.test/", text: "", kind: "link" },
+          { url: "https://slow.test/", text: "", kind: "link" },
+          { url: "https://blocked.test/", text: "", kind: "link" },
+          { url: "https://hidden.test/", text: "", kind: "link" },
+        ]),
+        post(2, "About", [{ url: "https://gone.test/", text: "", kind: "link" }]),
+      ],
+      page: 1,
+      total_pages: 1,
+      total_posts: 2,
+    },
+  ]);
+  assert.deepEqual(await listFleetLinks(env.DB), { total: 0, scanned: false, items: [] });
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  await checkLinks(
+    env,
+    1,
+    scanId,
+    web({
+      "https://gone.test/": 404,
+      "https://slow.test/": 503,
+      "https://blocked.test/": 403,
+      "https://hidden.test/": 404,
+    }),
+  );
+  await ignoreLink(env.DB, 1, "https://hidden.test/", true);
+  const fleet = await listFleetLinks(env.DB);
+  assert.equal(fleet.total, 2);
+  assert.equal(fleet.scanned, true);
+  assert.deepEqual(
+    fleet.items.map((link) => [link.url, link.status, link.post_title, link.post_count, link.site_name]),
+    [
+      ["https://gone.test/", "broken", "About", 2, "Example"],
+      ["https://slow.test/", "unresponsive", "Home", 1, "Example"],
+    ],
+  );
+});
