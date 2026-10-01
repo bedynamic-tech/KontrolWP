@@ -27,7 +27,7 @@ export function App() {
 
   return (
     <div className="flex min-h-dvh bg-canvas text-foreground">
-      <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar px-3 py-4 md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col overflow-y-auto border-r bg-sidebar px-3 py-4 md:flex">
         <div className="flex items-center justify-between">
           <Brand />
           <ThemeToggle />
