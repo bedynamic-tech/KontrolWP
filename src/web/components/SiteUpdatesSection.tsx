@@ -13,7 +13,7 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
     return (
       <Section title="Updates">
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          This site is excluded from update checks. Include it again in Site settings, next to Sync now.
+          This site is excluded from update checks.
         </p>
       </Section>
     );
