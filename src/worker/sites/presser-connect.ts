@@ -54,7 +54,11 @@ export function needsSelfUpdate(siteVersion: string): boolean {
 export async function loadPackage(env: Env): Promise<string> {
   const response = await env.ASSETS.fetch("https://assets.invalid/downloads/presser-connect.zip");
   if (!response.ok) throw new SiteRequestError(`The Presser Connect package is missing from this deployment (HTTP ${response.status})`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  return base64(new Uint8Array(await response.arrayBuffer()));
+}
+
+/** Base64 for a zip in a signed JSON body. */
+export function base64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);

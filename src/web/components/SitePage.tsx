@@ -26,6 +26,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
+import { PluginsSection } from "./PluginsSection";
 import { EmptyRow, Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
@@ -181,6 +182,7 @@ export function SitePage() {
           <UpdatesList updates={updates} showSite={false} />
         </Section>
       )}
+      <PluginsSection site={site} />
       <Section title={`Comments awaiting review (${site.pending_comments})`}>
         <CommentsList comments={comments} showSite={false} />
       </Section>
