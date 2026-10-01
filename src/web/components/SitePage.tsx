@@ -175,10 +175,9 @@ export function SitePage() {
         </div>
       )}
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Fact label="WordPress" value={site.wp_version} />
         <Fact label="KontrolWP Connect" value={site.plugin_version} />
-        <Fact label="PHP" value={site.php_version} />
         <Fact label="Theme" value={site.theme_name} />
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
