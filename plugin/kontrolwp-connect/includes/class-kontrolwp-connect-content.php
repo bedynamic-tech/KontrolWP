@@ -1,7 +1,7 @@
 <?php
 /**
- * This site's posts and pages, for the dashboard's Posts and pages tab: a
- * read-only, filterable list, one page at a time. Titles and statuses come
+ * This site's posts, pages and custom post types, for the dashboard's Posts
+ * and pages tab: a read-only, filterable list, one page at a time. Titles and statuses come
  * straight from WordPress, and nothing is changed.
  */
 
@@ -16,8 +16,6 @@ class KontrolWP_Connect_Content {
 
 	/** The statuses the list covers, in the order the dashboard shows them. Trash and auto-drafts are left out. */
 	const STATUSES = array( 'publish', 'future', 'draft', 'pending', 'private' );
-
-	const TYPES = array( 'post', 'page' );
 
 	public static function register_routes( $auth ) {
 		register_rest_route(
@@ -40,7 +38,7 @@ class KontrolWP_Connect_Content {
 						'maximum' => self::MAX_PER_PAGE,
 						'default' => 25,
 					),
-					// "all", or one of the types above.
+					// "all", or the slug of one of the site's public post types.
 					'type'     => array(
 						'type'    => 'string',
 						'default' => 'all',
@@ -57,6 +55,25 @@ class KontrolWP_Connect_Content {
 				),
 			)
 		);
+	}
+
+	/** The public post types the list covers, posts and pages first, then custom types by name (0.11.0). */
+	private static function types() {
+		$types = get_post_types( array( 'public' => true ), 'objects' );
+		unset( $types['attachment'] );
+		uasort(
+			$types,
+			function ( $a, $b ) {
+				$rank = array(
+					'post' => 0,
+					'page' => 1,
+				);
+				$ra   = isset( $rank[ $a->name ] ) ? $rank[ $a->name ] : 2;
+				$rb   = isset( $rank[ $b->name ] ) ? $rank[ $b->name ] : 2;
+				return $ra === $rb ? strcasecmp( $a->labels->name, $b->labels->name ) : $ra - $rb;
+			}
+		);
+		return $types;
 	}
 
 	/** How many of each status there are, for the chosen type. */
@@ -76,8 +93,17 @@ class KontrolWP_Connect_Content {
 	public static function index( $request ) {
 		$type   = (string) $request->get_param( 'type' );
 		$status = (string) $request->get_param( 'status' );
-		$types  = in_array( $type, self::TYPES, true ) ? array( $type ) : self::TYPES;
+		$all    = self::types();
+		$types  = isset( $all[ $type ] ) ? array( $type ) : array_keys( $all );
 		$counts = self::counts( $types );
+		$labels = array();
+		foreach ( $all as $slug => $object ) {
+			$labels[] = array(
+				'slug'     => $slug,
+				'name'     => html_entity_decode( $object->labels->name, ENT_QUOTES, 'UTF-8' ),
+				'singular' => html_entity_decode( $object->labels->singular_name, ENT_QUOTES, 'UTF-8' ),
+			);
+		}
 
 		$query = new WP_Query(
 			array(
@@ -119,6 +145,7 @@ class KontrolWP_Connect_Content {
 			'items'  => $items,
 			'counts' => $counts,
 			'total'  => (int) $query->found_posts,
+			'types'  => $labels,
 		);
 	}
 }

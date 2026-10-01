@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.10.0";
+export const KONTROLWP_CONNECT_VERSION = "0.11.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -45,3 +45,6 @@ export const LINK_UNLINK_SINCE = "0.9.3";
 
 /** The first KontrolWP Connect that lists the site's posts and pages. */
 export const CONTENT_LIST_SINCE = "0.10.0";
+
+/** The first KontrolWP Connect that lists custom post types too, with their names. */
+export const CONTENT_TYPES_SINCE = "0.11.0";

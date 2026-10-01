@@ -253,7 +253,7 @@ keeps a revision to restore, then re-read so the list matches. A site keeps at m
 ## Posts and pages
 
 The Posts and pages tab (KontrolWP Connect 0.10.0) lists a WordPress site's
-posts and pages read live from the site (`GET /api/sites/:id/content`, which
+posts, pages and, from 0.11.0, custom post types read live from the site (`GET /api/sites/:id/content`, which
 asks the plugin's `POST /content`), 25 per page, newest first. It filters by
 status (published, scheduled, draft, pending review, private), by type and
 by search, and each status chip shows its count for the chosen type. Trash is
@@ -279,7 +279,7 @@ in D1, and static sites do not have the tab.
 | `POST /users/create` | `{login, email, role, first_name, last_name, password, notify}`. Adds a user through `wp_insert_user`; an empty password gets a random one, and `notify` sends WordPress's set-your-password email. Added in 0.8.0. |
 | `POST /users/manage` | `{user_id, action: set-role, reset-password or delete, role}`. Refuses to demote or delete the only administrator; delete gives the user's content to the earliest other administrator. Added in 0.8.0. |
 | `POST /links` | `{page, per_page, post_ids}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. With `post_ids` (up to 100), just those posts, if still published. Added in 0.9.0; `post_ids` in 0.9.2. |
-| `POST /content` | `{page, per_page, type: all, post or page, status: all, publish, future, draft, pending or private, search}`. One page of posts and pages (newest first, up to 100 per page) with title, type, status, author, dates and permalink, the count of each status for the chosen type, and the total matching. Read-only; trash is left out. Added in 0.10.0. |
+| `POST /content` | `{page, per_page, type: all or a post type slug, status: all, publish, future, draft, pending or private, search}`. One page of posts, pages and custom post types (newest first, up to 100 per page) with title, type, status, author, dates and permalink, the count of each status for the chosen type, the total matching, and the site's public post types with their names (custom types, 0.11.0). Read-only; trash is left out. Added in 0.10.0. |
 | `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
