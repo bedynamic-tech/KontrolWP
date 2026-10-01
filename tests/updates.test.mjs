@@ -217,3 +217,27 @@ test("Sync now retries a failed self-update; a scheduled sync waits", async () =
   await syncSite(t.env, 1, { retrySelfUpdate: true });
   assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
 });
+
+test("an update to the version already installed is not listed", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const fetchSite = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (new URL(url).searchParams.get("rest_route") === "/presser/v1/updates") {
+      return new Response(
+        JSON.stringify({
+          core: { current: "7.1.2", new_version: "7.1.2" },
+          plugins: [
+            { slug: "a/a.php", name: "A", current_version: "1.0", new_version: "1.0" },
+            { slug: "b/b.php", name: "B", current_version: "1.0", new_version: "1.1" },
+          ],
+          themes: [],
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return fetchSite(url, init);
+  };
+  await syncSite(t.env, 1);
+  const rows = t.env.DB.sqlite.prepare("SELECT slug FROM site_updates").all().map((r) => r.slug);
+  assert.deepEqual(rows, ["b/b.php"]);
+});

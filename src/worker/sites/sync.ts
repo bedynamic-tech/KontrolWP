@@ -78,7 +78,9 @@ export async function syncSite(
     `INSERT OR REPLACE INTO site_updates (site_id, kind, slug, name, current_version, new_version, icon_url)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
-  if (updates.core) {
+  // An offer of the version already installed is stale data from the site
+  // (Presser Connect before 0.5.1 could report one after a core update).
+  if (updates.core && text(updates.core.new_version) !== text(updates.core.current)) {
     statements.push(
       insertUpdate.bind(
         siteId, "core", "wordpress", "WordPress", text(updates.core.current), text(updates.core.new_version),
@@ -88,6 +90,7 @@ export async function syncSite(
   }
   for (const [kind, items] of [["plugin", updates.plugins], ["theme", updates.themes]] as const) {
     for (const item of (items ?? []).slice(0, 500)) {
+      if (text(item.new_version) === text(item.current_version)) continue;
       statements.push(
         insertUpdate.bind(
           siteId, kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version),
