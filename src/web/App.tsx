@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, GlobeIcon, LayoutDashboardIcon } from "lucide-react";
+import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
@@ -7,6 +7,7 @@ import { AccessSetup } from "./components/AccessSetup";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { OverviewPage } from "./components/OverviewPage";
+import { PluginsPage } from "./components/PluginsPage";
 import { SitePage } from "./components/SitePage";
 import { SitesPage } from "./components/SitesPage";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -34,6 +35,7 @@ export function App() {
         <nav className="mt-6 space-y-1">
           <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
           <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+          <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
         </nav>
         <a
           href={PLUGIN_ZIP_URL}
@@ -49,8 +51,9 @@ export function App() {
           <Brand />
           <div className="flex items-center gap-1">
             <nav className="flex gap-1">
-              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
-              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
+              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
+              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
             </nav>
             {/* The sidebar is hidden on small screens, so its download link moves here. */}
             <a
@@ -70,6 +73,7 @@ export function App() {
             <Route path="/" element={<OverviewPage />} />
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/sites/:siteId" element={<SitePage />} />
+            <Route path="/plugins" element={<PluginsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -87,10 +91,12 @@ function Brand() {
   );
 }
 
-function NavItem(props: { to: string; icon: ReactNode; label: string }) {
+/** compact hides the label on phones, where the header has room only for icons. */
+function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: boolean }) {
   return (
     <NavLink
       to={props.to}
+      title={props.compact ? props.label : undefined}
       end={props.to === "/"}
       className={({ isActive }) =>
         `flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm [&_svg]:size-4 ${
@@ -101,7 +107,7 @@ function NavItem(props: { to: string; icon: ReactNode; label: string }) {
       }
     >
       {props.icon}
-      <span>{props.label}</span>
+      <span className={props.compact ? "sr-only sm:not-sr-only" : undefined}>{props.label}</span>
     </NavLink>
   );
 }

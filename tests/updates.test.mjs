@@ -5,7 +5,7 @@ import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
-import { getSite, listUpdates } from "../src/worker/sites/store.ts";
+import { getSite, listFleetPlugins, listUpdates } from "../src/worker/sites/store.ts";
 import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
@@ -49,6 +49,15 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
     }
     if (route === "/presser/v1/updates") return json({ core: null, plugins: [], themes: [] });
     if (route === "/presser/v1/comments") return json({ pending_count: 0, comments: [] });
+    if (route === "/presser/v1/plugins") {
+      return json({
+        plugins: [
+          { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false },
+          { file: "presser-connect/presser-connect.php", name: "Presser Connect", version: plugin_version, author: "Presser", active: true, network_active: false, protected: true },
+        ],
+        can_modify_files: true,
+      });
+    }
     if (route === "/presser/v1/admins") {
       return json({ admins: [{ id: 7, login: "editor-in-chief", display_name: "Chief" }, { id: 2, login: "owner", display_name: "Owner" }] });
     }
@@ -279,4 +288,36 @@ test("a site excluded from update checks is not asked for updates and gets nothi
   assert.deepEqual(t.jobs(), [], "not even Presser Connect's own update");
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
   assert.equal((await getSite(t.env.DB, 1)).updates_excluded, true);
+});
+
+test("sync keeps each site's plugins for the Plugins page, with their updates", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const fetchSite = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (new URL(url).searchParams.get("rest_route") === "/presser/v1/updates") {
+      return new Response(
+        JSON.stringify({ core: null, plugins: [{ slug: "akismet/akismet.php", name: "Akismet", current_version: "5.3", new_version: "5.4" }], themes: [] }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return fetchSite(url, init);
+  };
+  await syncSite(t.env, 1);
+  const fleet = await listFleetPlugins(t.env.DB);
+  assert.deepEqual(
+    fleet.plugins.map((p) => [p.file, p.active, p.protected, p.new_version, p.site_name]),
+    [
+      ["akismet/akismet.php", true, false, "5.4", "Example"],
+      ["presser-connect/presser-connect.php", true, true, null, "Example"],
+    ],
+  );
+  assert.deepEqual(fleet.unsupported_sites, []);
+});
+
+test("a site whose Presser Connect cannot list plugins is reported, not listed", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }), "0.5.1");
+  await syncSite(t.env, 1);
+  const fleet = await listFleetPlugins(t.env.DB);
+  assert.deepEqual(fleet.plugins, []);
+  assert.deepEqual(fleet.unsupported_sites.map((s) => ({ ...s })), [{ id: 1, name: "Example", plugin_version: "0.5.1" }]);
 });

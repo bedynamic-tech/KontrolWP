@@ -6,10 +6,18 @@ import {
   REST_NAMESPACE,
   type ConnectionKey,
 } from "../../shared/protocol.ts";
-import type { Overview, PluginStatus, SiteAdmin, SiteDetail, SitePlugins } from "../../shared/types.ts";
+import type {
+  BulkPluginResult,
+  FleetPlugins,
+  Overview,
+  PluginStatus,
+  SiteAdmin,
+  SiteDetail,
+  SitePlugins,
+} from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64 } from "../sites/presser-connect.ts";
-import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
+import { getCredentials, getSite, listComments, listFleetPlugins, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
@@ -142,6 +150,7 @@ api.delete("/sites/:id", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
@@ -378,30 +387,109 @@ const pluginInstall = z.discriminatedUnion("source", [
  */
 const MAX_PLUGIN_ZIP_BYTES = 10 * 1024 * 1024;
 
+type InstallRequest = { payload: Record<string, unknown>; siteIds: number[] } | { error: string; status: 400 | 413 };
+
 /**
- * Install a plugin from WordPress.org (slug), a link (url), or an uploaded
- * zip (multipart form with a "file" field).
+ * Read an install request: a WordPress.org slug or a link as JSON, or an
+ * uploaded zip as a multipart form with a "file" field. The fleet route
+ * also names the sites, as site_ids.
  */
-api.post("/sites/:id/plugins/install", async (c) => {
-  let payload: Record<string, unknown>;
+async function readInstallRequest(c: AppContext): Promise<InstallRequest> {
   if ((c.req.header("Content-Type") ?? "").startsWith("multipart/form-data")) {
     const form = await c.req.parseBody();
     const file = form.file;
-    if (!(file instanceof File)) return c.json({ error: "Choose a plugin zip to upload" }, 400);
-    if (file.size > MAX_PLUGIN_ZIP_BYTES) return c.json({ error: "The zip is larger than 10 MB. Install it from a link instead." }, 413);
-    payload = { source: "zip", package: base64(new Uint8Array(await file.arrayBuffer())), activate: form.activate === "true" };
-  } else {
-    const parsed = pluginInstall.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "Enter a WordPress.org slug or an http(s) link to a zip" }, 400);
-    payload = parsed.data;
+    if (!(file instanceof File)) return { error: "Choose a plugin zip to upload", status: 400 };
+    if (file.size > MAX_PLUGIN_ZIP_BYTES) {
+      return { error: "The zip is larger than 10 MB. Install it from a link instead.", status: 413 };
+    }
+    return {
+      payload: { source: "zip", package: base64(new Uint8Array(await file.arrayBuffer())), activate: form.activate === "true" },
+      siteIds: siteIdList(String(form.site_ids ?? "").split(",")),
+    };
   }
+  const body = await c.req.json().catch(() => null);
+  const parsed = pluginInstall.safeParse(body);
+  if (!parsed.success) return { error: "Enter a WordPress.org slug or an http(s) link to a zip", status: 400 };
+  return { payload: parsed.data, siteIds: siteIdList((body as { site_ids?: unknown }).site_ids) };
+}
+
+function siteIdList(value: unknown): number[] {
+  const ids = (Array.isArray(value) ? value : []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0);
+  return [...new Set(ids)].slice(0, 500);
+}
+
+/** Install a plugin on one site. */
+api.post("/sites/:id/plugins/install", async (c) => {
+  const request = await readInstallRequest(c);
+  if ("error" in request) return c.json({ error: request.error }, request.status);
   return pluginRequest(c, async (site) => {
-    const result = await callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, payload);
+    const result = await callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, request.payload);
     c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
     return result;
   });
 });
 
+/** Every site's installed plugins, as last synced, for the Plugins page. */
+api.get("/plugins", async (c) => c.json<FleetPlugins>(await listFleetPlugins(c.env.DB)));
+
+const bulkPluginAction = pluginAction.extend({ site_ids: z.array(z.number().int().positive()).min(1).max(500) });
+
+/** Activate, deactivate or delete one plugin on several sites. */
+api.post("/plugins/bulk", async (c) => {
+  const parsed = bulkPluginAction.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid plugin action" }, 400);
+  const { plugin, action, site_ids } = parsed.data;
+  return c.json({
+    results: await forEachSite(c.env, site_ids, (site) =>
+      callSite(site, "POST", `${REST_NAMESPACE}/plugins/manage`, { plugin, action }),
+    ),
+  });
+});
+
+/** Install one plugin on several sites. */
+api.post("/plugins/install", async (c) => {
+  const request = await readInstallRequest(c);
+  if ("error" in request) return c.json({ error: request.error }, request.status);
+  if (!request.siteIds.length) return c.json({ error: "Choose at least one site" }, 400);
+  return c.json({
+    results: await forEachSite(c.env, request.siteIds, (site) =>
+      callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, request.payload),
+    ),
+  });
+});
+
+/**
+ * Run a plugin request on each site, a few at a time, then sync each one
+ * that changed so the Plugins page shows the result. Per-site failures are
+ * reported, not thrown.
+ */
+async function forEachSite(
+  env: Env,
+  siteIds: number[],
+  request: (site: SiteCredentials) => Promise<unknown>,
+): Promise<BulkPluginResult[]> {
+  const results: BulkPluginResult[] = [];
+  const queue = [...siteIds];
+  const worker = async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      try {
+        const site = await getCredentials(env, id);
+        if (!site) {
+          results.push({ site_id: id, ok: false, error: "Site not found" });
+          continue;
+        }
+        await request(site);
+        await syncSite(env, id);
+        results.push({ site_id: id, ok: true });
+      } catch (error) {
+        if (!(error instanceof SiteRequestError || error instanceof SecretsKeyError)) throw error;
+        results.push({ site_id: id, ok: false, error: error instanceof SiteRequestError ? pluginsError(error) : error.message });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, siteIds.length) }, worker));
+  return results;
+}
 
 async function siteAction(
   c: AppContext,

@@ -120,6 +120,19 @@ filters to skip that one sign-in, for that user and request only (0.6.1);
 plugins that check during password authentication, such as Wordfence, never
 see it. Password logins still get their two-factor prompt. Added in 0.5.0.
 
+## Plugins across sites
+
+Each sync stores the site's installed plugins in `site_plugins` (sites on
+Presser Connect 0.6.0 or later; a failed listing keeps the last rows). The
+Plugins page reads them from `GET /api/plugins`, joined with each site's
+offered update and update job, and groups them by plugin file. Activate,
+deactivate and delete (`POST /api/plugins/bulk`) and installs
+(`POST /api/plugins/install`) call each chosen site directly, six at a time,
+then sync it so the page shows the result; a failure on one site is reported
+for that site and does not stop the others. Updates go through each site's
+update queue, as on the Overview, and skip sites excluded from updates.
+Presser Connect is listed but has no actions.
+
 ## Plugin routes (`presser/v1`)
 
 | Route | Does |
