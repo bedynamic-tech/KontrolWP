@@ -8,6 +8,7 @@ import type {
   FleetUsers,
   NewUser,
   SiteContent,
+  SiteSecurity,
   SiteSitemap,
   SiteUsers,
   UserAction,
@@ -284,3 +285,8 @@ export const fetchBuildLog = (siteId: number, buildId: string, cursor?: string |
   request<BuildLog>(
     `/sites/${siteId}/builds/${encodeURIComponent(buildId)}/logs${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
   );
+
+export const fetchSecurity = (siteId: number) => request<SiteSecurity>(`/sites/${siteId}/security`);
+
+export const refreshVulnerabilityFeed = () =>
+  request<{ updated_at: number | null }>("/security/refresh", { method: "POST" });
