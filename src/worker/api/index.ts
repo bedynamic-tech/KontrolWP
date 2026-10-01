@@ -21,7 +21,11 @@ import type {
   SiteLinks,
   SiteAnalytics,
   SiteAnalyticsDetails,
+  SiteDeployments,
   SitePlugins,
+  BuildLog,
+  CloudflareSettings,
+  CloudflareWorker,
   SiteUsers,
   SyncSettings,
   UmamiSettings,
@@ -30,13 +34,22 @@ import { LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import { linkScanSchedule, loadLinkScanSettings, saveLinkScanSettings, validTimeZone as isTimeZone } from "../sites/link-schedule.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
-import { getCredentials, getSite, listComments, listFleetLinks, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
+import { getCredentials, getSite, listComments, listDeployments, listFleetLinks, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
 import { ignoreLink, listLinks, recheckLink, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
+import { inspectStaticSite, syncStaticSite } from "../sites/static.ts";
+import {
+  CloudflareError,
+  deleteCloudflareToken,
+  fetchBuildLog,
+  listWorkers,
+  loadCloudflareToken,
+  saveCloudflareToken,
+} from "../cloudflare.ts";
 import {
   deleteUmamiConfig,
   listUmamiWebsites,
@@ -114,8 +127,49 @@ async function verifyConnection(url: string, key: ConnectionKey): Promise<string
   return typeof status.name === "string" ? status.name.trim().slice(0, 120) : "";
 }
 
+const staticSiteInput = z.object({
+  kind: z.literal("static"),
+  url: z.string().trim().min(1).max(2000),
+  name: z.string().trim().max(120).optional(),
+  cf_account_id: z.string().trim().max(64).optional(),
+  cf_worker: z.string().trim().max(200).optional(),
+});
+
+/** Add a static website: it only has to answer, and may name the Cloudflare Worker it deploys from. */
+async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInput>) {
+  const url = normalizeSiteUrl(input.url);
+  if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
+  const existing = await c.env.DB.prepare("SELECT id FROM sites WHERE url = ?").bind(url).first<{ id: number }>();
+  if (existing) return c.json({ error: "This site is already in KontrolWP", id: existing.id }, 409);
+  const { error } = await inspectStaticSite(url);
+  if (error) return c.json({ error: `KontrolWP could not open ${url}. ${error}.` }, 400);
+  const worker = input.cf_account_id && input.cf_worker ? input : null;
+  const row = await c.env.DB
+    .prepare("INSERT INTO sites (kind, name, url, secret, cf_account_id, cf_worker) VALUES ('static', ?, ?, '', ?, ?) RETURNING id")
+    .bind(input.name || new URL(url).hostname, url, worker?.cf_account_id ?? null, worker?.cf_worker ?? null)
+    .first<{ id: number }>();
+  await syncStaticSite(c.env, row!.id);
+  return c.json(await getSite(c.env.DB, row!.id), 201);
+}
+
+// A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
+const WORDPRESS_ONLY = /^\/sites\/\d+\/(plugins|users|links|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
+api.use("/sites/:id/*", async (c, next) => {
+  if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
+    const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?").bind(Number(c.req.param("id"))).first<{ kind: string }>();
+    if (row?.kind === "static") return c.json({ error: "This is a static site. It has no WordPress to manage." }, 400);
+  }
+  await next();
+});
+
 api.post("/sites", async (c) => {
-  const parsed = siteInput.safeParse(await c.req.json().catch(() => null));
+  const body = await c.req.json().catch(() => null);
+  if (body && typeof body === "object" && (body as { kind?: unknown }).kind === "static") {
+    const input = staticSiteInput.safeParse(body);
+    if (!input.success) return c.json({ error: "Enter the site's address" }, 400);
+    return addStaticSite(c, input.data);
+  }
+  const parsed = siteInput.safeParse(body);
   if (!parsed.success) return c.json({ error: "Enter the site address and its Connection Key" }, 400);
   const url = normalizeSiteUrl(parsed.data.url);
   if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
@@ -182,6 +236,7 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -913,6 +968,96 @@ api.put("/sites/:id/umami", async (c) => {
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
   return c.json({ ok: true });
 });
+
+/** Run a Cloudflare request, turning its failures into messages for the page. */
+async function cloudflareRequest(c: AppContext, request: (token: string) => Promise<Response>) {
+  try {
+    const token = await loadCloudflareToken(c.env);
+    if (!token) return c.json({ error: "Connect Cloudflare in Settings first", code: "cloudflare_not_configured" }, 409);
+    return await request(token);
+  } catch (error) {
+    if (error instanceof CloudflareError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+}
+
+api.get("/settings/cloudflare", async (c) => {
+  try {
+    return c.json<CloudflareSettings>({ configured: !!(await loadCloudflareToken(c.env)) });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+/** Save the Cloudflare API token after checking that it can list Workers. */
+api.put("/settings/cloudflare", async (c) => {
+  const parsed = z.object({ token: z.string().trim().min(1).max(500) }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter a Cloudflare API token" }, 400);
+  try {
+    const workers = await listWorkers(parsed.data.token);
+    await saveCloudflareToken(c.env, parsed.data.token);
+    return c.json({ configured: true, workers: workers.length });
+  } catch (error) {
+    if (error instanceof CloudflareError) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+api.delete("/settings/cloudflare", async (c) => {
+  await deleteCloudflareToken(c.env);
+  return c.json<CloudflareSettings>({ configured: false });
+});
+
+api.get("/cloudflare/workers", (c) =>
+  cloudflareRequest(c, async (token) => c.json<{ workers: CloudflareWorker[] }>({ workers: await listWorkers(token) })),
+);
+
+/** Choose the Cloudflare Worker a static site deploys from, or none. */
+api.put("/sites/:id/cloudflare", async (c) => {
+  const id = siteId(c);
+  const parsed = z
+    .object({ account_id: z.string().trim().min(1).max(64), worker: z.string().trim().min(1).max(200) })
+    .nullable()
+    .safeParse(await c.req.json().catch(() => undefined));
+  if (!id || !parsed.success) return c.json({ error: "Invalid Worker" }, 400);
+  const result = await c.env.DB
+    .prepare("UPDATE sites SET cf_account_id = ?, cf_worker = ?, cf_worker_tag = NULL, cf_error = NULL WHERE id = ? AND kind = 'static'")
+    .bind(parsed.data?.account_id ?? null, parsed.data?.worker ?? null, id)
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Static site not found" }, 404);
+  await c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id).run();
+  await syncStaticSite(c.env, id);
+  return c.json(await getSite(c.env.DB, id));
+});
+
+api.get("/sites/:id/deployments", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site || site.kind !== "static") return c.json({ error: "Static site not found" }, 404);
+  const [deployments, token] = await Promise.all([
+    listDeployments(c.env.DB, id),
+    loadCloudflareToken(c.env).catch(() => null),
+  ]);
+  return c.json<SiteDeployments>({ configured: !!token, worker: site.cf_worker, error: site.cf_error, deployments });
+});
+
+/** One page of a build's log, read from Cloudflare when asked for. */
+api.get("/sites/:id/builds/:buildId/logs", (c) =>
+  cloudflareRequest(c, async (token) => {
+    const id = siteId(c);
+    const buildId = c.req.param("buildId");
+    const site = id && (await getSite(c.env.DB, id));
+    // Only builds this site listed at its last sync, so a site cannot read another Worker's logs.
+    const known =
+      site &&
+      site.cf_account_id &&
+      (await c.env.DB.prepare("SELECT 1 AS found FROM site_deployments WHERE site_id = ? AND type = 'build' AND ref = ?").bind(id, buildId).first());
+    if (!site || !known) return c.json({ error: "Build not found" }, 404);
+    return c.json<BuildLog>(await fetchBuildLog(token, site.cf_account_id!, buildId, c.req.query("cursor") || undefined));
+  }),
+);
 
 const analyticsRange = z.enum(["24h", "7d", "30d", "90d"]);
 

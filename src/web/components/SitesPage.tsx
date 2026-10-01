@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router";
 import { fetchOverview } from "../api";
-import { hostname, plural } from "../format";
+import { hostname, plural, timeAgo } from "../format";
 import { AddSiteDialog } from "./AddSiteDialog";
 import { CoreAutoUpdateDialog } from "./CoreAutoUpdate";
 import { PageSkeleton } from "./OverviewPage";
@@ -22,7 +22,7 @@ export function SitesPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Sites</h1>
         <div className="flex items-center gap-2">
-          {data.sites.length > 0 && (
+          {data.sites.some((site) => site.kind === "wordpress") && (
             <Button size="sm" variant="outline" onClick={() => setAutoUpdates(true)}>
               WordPress auto-updates
             </Button>
@@ -49,8 +49,21 @@ export function SitesPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{site.updates_excluded ? "Updates excluded" : plural(site.update_count, "update")}</span>
-                    <span>{plural(site.pending_comments, "comment")}</span>
+                    {site.kind === "static" ? (
+                      <>
+                        <span>Static site</span>
+                        <span>
+                          {site.last_deployed_at
+                            ? `Deployed ${timeAgo(site.last_deployed_at).toLowerCase()}`
+                            : "No deployments"}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{site.updates_excluded ? "Updates excluded" : plural(site.update_count, "update")}</span>
+                        <span>{plural(site.pending_comments, "comment")}</span>
+                      </>
+                    )}
                   </div>
                 </Link>
                 {/* Only a site KontrolWP can't reach gets a banner; a connected one shows nothing. */}
@@ -62,7 +75,11 @@ export function SitesPage() {
           </ul>
         )}
       </div>
-      <CoreAutoUpdateDialog sites={data.sites} open={autoUpdates} onOpenChange={setAutoUpdates} />
+      <CoreAutoUpdateDialog
+        sites={data.sites.filter((site) => site.kind === "wordpress")}
+        open={autoUpdates}
+        onOpenChange={setAutoUpdates}
+      />
     </div>
   );
 }

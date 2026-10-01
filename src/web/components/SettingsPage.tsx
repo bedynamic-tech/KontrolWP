@@ -12,7 +12,10 @@ import {
   type UmamiMode,
 } from "../../shared/types";
 import {
+  deleteCloudflareSettings,
   deleteUmamiSettings,
+  fetchCloudflareSettings,
+  saveCloudflareSettings,
   fetchLayoutSettings,
   fetchLinkScanSettings,
   fetchSyncSettings,
@@ -33,6 +36,7 @@ export function SettingsPage() {
       <LinkScanSettingsSection />
       <LayoutSettingsSection />
       <UmamiSettingsSection />
+      <CloudflareSettingsSection />
     </div>
   );
 }
@@ -390,6 +394,94 @@ function UmamiSettingsSection() {
           {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending}>
+              {save.isPending ? "Checking..." : "Save and test"}
+            </Button>
+            {settings.data.configured && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                loading={disconnect.isPending}
+                onClick={() => disconnect.mutate()}
+              >
+                Disconnect
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+    </Section>
+  );
+}
+
+function CloudflareSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["settings", "cloudflare"],
+    queryFn: fetchCloudflareSettings,
+    refetchInterval: false,
+  });
+  const [token, setToken] = useState("");
+  const refresh = (result: { configured: boolean }) => {
+    setToken("");
+    queryClient.setQueryData(["settings", "cloudflare"], { configured: result.configured });
+    queryClient.invalidateQueries({ queryKey: ["cloudflare"] });
+    queryClient.invalidateQueries({ queryKey: ["site"] });
+  };
+  const save = useMutation({ mutationFn: () => saveCloudflareSettings(token.trim()), onSuccess: refresh });
+  const disconnect = useMutation({
+    mutationFn: deleteCloudflareSettings,
+    onSuccess: (result) => {
+      save.reset();
+      refresh(result);
+    },
+  });
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    save.mutate();
+  };
+
+  return (
+    <Section title="Cloudflare">
+      {settings.isPending ? (
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : settings.error ? (
+        <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
+      ) : (
+        <form onSubmit={submit} className="space-y-4 p-4">
+          <p className="text-sm text-muted-foreground">
+            {settings.data.configured
+              ? "Connected. A static site on Cloudflare Workers shows its deployments and build logs once you choose its Worker."
+              : "Connect Cloudflare to show a static site's deployments and build logs. KontrolWP only reads from Cloudflare."}
+          </p>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">API token</span>
+            <Input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={settings.data.configured ? "Saved; enter a new token to replace it" : "Cloudflare API token"}
+              required={!settings.data.configured}
+              autoComplete="off"
+            />
+            <span className="block text-xs text-muted-foreground">
+              Create a user API token in Cloudflare under My Profile, API Tokens, with read access to Account Settings,
+              Workers Scripts and Workers Builds Configuration. It is stored encrypted and never shown again.
+            </span>
+          </label>
+          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+          {save.isSuccess && (
+            <p className="text-sm text-muted-foreground">
+              Connected. Cloudflare lists {save.data.workers} {save.data.workers === 1 ? "Worker" : "Workers"}.
+            </p>
+          )}
+          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" size="sm" loading={save.isPending} disabled={!token.trim()}>
               {save.isPending ? "Checking..." : "Save and test"}
             </Button>
             {settings.data.configured && (
