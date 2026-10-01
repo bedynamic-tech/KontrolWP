@@ -1,11 +1,11 @@
 /**
- * The Presser Connect protocol: how the dashboard signs requests to a site.
+ * The KontrolWP Connect protocol: how the dashboard signs requests to a site.
  *
  * Every request carries four headers. The plugin rebuilds the same canonical
  * string, checks the HMAC with the site's secret, rejects timestamps outside
  * a five minute window and refuses a nonce it has already seen. The plugin
  * creates the secret; it travels once, when the owner pastes the Connection
- * Key from WordPress into Presser.
+ * Key from WordPress into KontrolWP.
  *
  * plugin/presser-connect/includes/class-presser-connect-auth.php is the other
  * half of this file; change both together.
@@ -110,8 +110,8 @@ export function restUrl(siteUrl: string, route: string): string {
 }
 
 /**
- * What Presser Connect shows under Settings, Presser Connect and the owner
- * pastes into Presser: an id for the key and the secret itself. Treat it like
+ * What KontrolWP Connect shows under Settings, KontrolWP Connect and the owner
+ * pastes into KontrolWP: an id for the key and the secret itself. Treat it like
  * a password.
  */
 export interface ConnectionKey {

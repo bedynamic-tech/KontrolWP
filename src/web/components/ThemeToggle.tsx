@@ -2,7 +2,7 @@ import { MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { setTheme, useResolvedTheme } from "../theme";
 
-/** Switches between light and dark. Until first used, Presser follows the device. */
+/** Switches between light and dark. Until first used, KontrolWP follows the device. */
 export function ThemeToggle() {
   const theme = useResolvedTheme();
   const next = theme === "dark" ? "light" : "dark";

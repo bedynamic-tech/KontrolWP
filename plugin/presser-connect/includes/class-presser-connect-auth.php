@@ -1,9 +1,9 @@
 <?php
 /**
  * Owns this site's Connection Key and verifies that REST requests were signed
- * by the Presser dashboard that holds it.
+ * by the KontrolWP dashboard that holds it.
  *
- * This is the PHP half of src/shared/protocol.ts in the Presser repository;
+ * This is the PHP half of src/shared/protocol.ts in the KontrolWP repository;
  * change both together. The dashboard signs
  *
  *     presser-v1 \n METHOD \n ROUTE \n TIMESTAMP \n NONCE \n sha256_hex(BODY)
@@ -38,7 +38,7 @@ class Presser_Connect_Auth {
 
 	/**
 	 * Create a key when none exists yet (on activation, or on first view of
-	 * the settings page). Keys from Presser Connect 0.1 are replaced.
+	 * the settings page). Keys from KontrolWP Connect 0.1 are replaced.
 	 */
 	public static function ensure_credentials() {
 		$credentials = self::credentials();
@@ -46,7 +46,7 @@ class Presser_Connect_Auth {
 	}
 
 	/**
-	 * Replace the key. Presser stops reaching this site until the owner pastes
+	 * Replace the key. KontrolWP stops reaching this site until the owner pastes
 	 * the new Connection Key into the dashboard.
 	 */
 	public static function regenerate() {
@@ -61,7 +61,7 @@ class Presser_Connect_Auth {
 	}
 
 	/**
-	 * What the owner copies into Presser, next to the site's address: the key
+	 * What the owner copies into KontrolWP, next to the site's address: the key
 	 * id and the secret. Treat it like a password.
 	 */
 	public static function connection_key( $credentials = null ) {
@@ -84,7 +84,7 @@ class Presser_Connect_Auth {
 	public static function verify( $request ) {
 		$credentials = self::credentials();
 		if ( ! $credentials ) {
-			return self::deny( __( 'Presser Connect has no Connection Key yet. Open Settings, Presser Connect on this site.', 'presser-connect' ) );
+			return self::deny( __( 'KontrolWP Connect has no Connection Key yet. Open Settings, KontrolWP Connect on this site.', 'presser-connect' ) );
 		}
 
 		$key_id    = (string) $request->get_header( 'X-Presser-Key-Id' );
@@ -93,10 +93,10 @@ class Presser_Connect_Auth {
 		$signature = (string) $request->get_header( 'X-Presser-Signature' );
 
 		if ( '' === $signature || ! ctype_digit( $timestamp ) || ! preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $nonce ) ) {
-			return self::deny( __( 'This request was not signed by Presser.', 'presser-connect' ) );
+			return self::deny( __( 'This request was not signed by KontrolWP.', 'presser-connect' ) );
 		}
 		if ( ! hash_equals( (string) $credentials['key_id'], $key_id ) ) {
-			return self::deny( __( 'This site has a newer Connection Key. Copy it from Settings, Presser Connect and paste it into Presser.', 'presser-connect' ) );
+			return self::deny( __( 'This site has a newer Connection Key. Copy it from Settings, KontrolWP Connect and paste it into KontrolWP.', 'presser-connect' ) );
 		}
 		if ( abs( time() - (int) $timestamp ) > self::MAX_SKEW ) {
 			return self::deny( __( 'The request expired. Check that this server\'s clock is correct.', 'presser-connect' ) );
@@ -115,7 +115,7 @@ class Presser_Connect_Auth {
 		);
 		$expected = self::sign( $credentials['secret'], $canonical );
 		if ( ! hash_equals( $expected, $signature ) ) {
-			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, Presser Connect and paste it into Presser again.', 'presser-connect' ) );
+			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, KontrolWP Connect and paste it into KontrolWP again.', 'presser-connect' ) );
 		}
 
 		// Checked after the signature so unsigned requests cannot fill the store.

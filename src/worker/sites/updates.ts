@@ -57,7 +57,7 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
   await env.DB
     .prepare(
       `UPDATE update_jobs SET status = 'failed',
-         error = 'Presser lost track of this update. Sync the site to see whether it finished.'
+         error = 'KontrolWP lost track of this update. Sync the site to see whether it finished.'
        WHERE site_id = ? AND status = 'running' AND started_at < ?`,
     )
     .bind(siteId, time - STALE_AFTER_SECONDS)
@@ -107,7 +107,7 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
       // Versions before 0.4.0 have no self-update route.
       await finish(
         "failed",
-        "This version of Presser Connect cannot update itself. Install the new version from the sidebar once; later updates come from Presser.",
+        "This version of KontrolWP Connect cannot update itself. Install the new version from the sidebar once; later updates come from KontrolWP.",
       );
       return afterJob(env, siteId);
     }

@@ -105,11 +105,11 @@ api.post("/sites", async (c) => {
   if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
   const key = decodeConnectionKey(parsed.data.connection_key);
   if (!key) {
-    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, Presser Connect on the site." }, 400);
+    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." }, 400);
   }
 
   const existing = await c.env.DB.prepare("SELECT id FROM sites WHERE url = ?").bind(url).first<{ id: number }>();
-  if (existing) return c.json({ error: "This site is already in Presser", id: existing.id }, 409);
+  if (existing) return c.json({ error: "This site is already in KontrolWP", id: existing.id }, 409);
 
   // Refuse before inserting, so a missing encryption key never leaves a half-made site.
   await encryptSecret(c.env.SITE_SECRETS_KEY, 0, key.secret);
@@ -179,7 +179,7 @@ api.post("/sites/:id/connection-key", async (c) => {
   const parsed = siteInput.pick({ connection_key: true }).safeParse(await c.req.json().catch(() => null));
   const key = parsed.success ? decodeConnectionKey(parsed.data.connection_key) : null;
   if (!key) {
-    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, Presser Connect on the site." }, 400);
+    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." }, 400);
   }
   try {
     await verifyConnection(site.url, key);
@@ -245,10 +245,10 @@ api.post("/sites/:id/updates", async (c) => {
   return c.json({ ok: true }, 202);
 });
 
-/** An older Presser Connect has no Magic Login routes; it updates itself on the next sync. */
+/** An older KontrolWP Connect has no Magic Login routes; it updates itself on the next sync. */
 function magicLoginError(error: SiteRequestError): string {
   return error.status === 404 && !error.code
-    ? "Presser Connect on this site is too old for Magic Login. It updates automatically; select Sync now to check."
+    ? "KontrolWP Connect on this site is too old for Magic Login. It updates automatically; select Sync now to check."
     : error.message;
 }
 
@@ -328,7 +328,7 @@ const updatesExcluded = z.object({ excluded: z.boolean() });
 /**
  * Exclude a site from update checks, or include it again. Excluding drops
  * its listed updates and anything still waiting in its queue, except
- * Presser Connect's own update; including it checks right away.
+ * KontrolWP Connect's own update; including it checks right away.
  */
 api.put("/sites/:id/updates-excluded", async (c) => {
   const id = siteId(c);
@@ -341,7 +341,7 @@ api.put("/sites/:id/updates-excluded", async (c) => {
     ...(excluded
       ? [
           c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
-          // Presser Connect's own update is not one the owner excludes.
+          // KontrolWP Connect's own update is not one the owner excludes.
           c.env.DB
             .prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running' AND slug != ?")
             .bind(id, SELF_UPDATE.slug),
@@ -352,14 +352,14 @@ api.put("/sites/:id/updates-excluded", async (c) => {
   return c.json(await getSite(c.env.DB, id));
 });
 
-/** An older Presser Connect has no plugin routes; it updates itself on the next sync. */
+/** An older KontrolWP Connect has no plugin routes; it updates itself on the next sync. */
 function pluginsError(error: SiteRequestError): string {
   if (error.status === 404 && !error.code) {
-    return "Presser Connect on this site is too old to manage plugins. It updates automatically; select Sync now to check.";
+    return "KontrolWP Connect on this site is too old to manage plugins. It updates automatically; select Sync now to check.";
   }
-  // An older Presser Connect rejects actions it does not know, such as auto-updates before 0.7.0.
+  // An older KontrolWP Connect rejects actions it does not know, such as auto-updates before 0.7.0.
   if (error.status === 400 && error.code === "rest_invalid_param") {
-    return "Presser Connect on this site is too old for this. It updates automatically; select Sync now to check.";
+    return "KontrolWP Connect on this site is too old for this. It updates automatically; select Sync now to check.";
   }
   return error.message;
 }

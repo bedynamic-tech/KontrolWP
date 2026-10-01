@@ -4,7 +4,7 @@ import { currentWorkerName, workerDashboardUrl } from "../cloudflare-dashboard";
 import { CopyField } from "./CopyField";
 import { DashLink } from "./DashLink";
 
-/** 32 random bytes, generated in this browser; never sent to Presser. */
+/** 32 random bytes, generated in this browser; never sent to KontrolWP. */
 function newKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -21,9 +21,9 @@ export function SecretsKeySetup(props: { onRetry: () => void; retrying: boolean 
   return (
     <div className="flex h-dvh min-h-[560px] justify-center overflow-y-auto bg-canvas px-4 py-10 text-foreground md:py-16">
       <div className="w-full max-w-[620px]">
-        <h1 className="text-xl font-semibold tracking-tight">Add Presser's encryption key</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Add KontrolWP's encryption key</h1>
         <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-          Presser encrypts each site's secret with a key stored as a Worker secret. This Worker
+          KontrolWP encrypts each site's secret with a key stored as a Worker secret. This Worker
           does not have one yet, usually because it was deployed without{" "}
           <code className="font-mono text-xs">npm run deploy</code>.
         </p>

@@ -42,7 +42,7 @@ export function PluginsSection(props: { site: SiteSummary; updates: SiteUpdate[]
   if (!supported(site)) {
     body = (
       <EmptyRow>
-        Managing plugins needs Presser Connect {PLUGIN_MANAGEMENT_SINCE} or later. This site runs {site.plugin_version};
+        Managing plugins needs KontrolWP Connect {PLUGIN_MANAGEMENT_SINCE} or later. This site runs {site.plugin_version};
         it updates automatically.
       </EmptyRow>
     );
@@ -94,7 +94,7 @@ function SitePluginList(props: {
   siteId: number;
   plugins: InstalledPlugin[];
   canModify: boolean;
-  /** Undefined before Presser Connect 0.7.0; false when the site turns plugin auto-updates off in code. */
+  /** Undefined before KontrolWP Connect 0.7.0; false when the site turns plugin auto-updates off in code. */
   autoUpdates: boolean | undefined;
   updates: SiteUpdate[];
 }) {
@@ -219,7 +219,7 @@ function PluginRow(props: {
       {/* Inactive plugins are dimmed rather than labelled. */}
       <div className={cn("flex min-w-0 flex-1 items-start gap-3 sm:items-center", !plugin.active && "opacity-60")}>
         <RemoteIcon
-          sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)}
+          sources={plugin.protected ? ["/kontrolwp.svg"] : pluginIconSources(plugin.file, plugin.icon_url)}
           name={plugin.name}
           className="size-9 text-sm"
         />

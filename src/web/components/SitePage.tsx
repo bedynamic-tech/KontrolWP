@@ -145,11 +145,11 @@ export function SitePage() {
 
       {site.plugin_version && compareVersions(site.plugin_version, SELF_UPDATING_SINCE) < 0 && (
         <div className="mt-4 rounded-xl border px-4 py-3 text-sm">
-          <p className="font-medium">Install the new Presser Connect once</p>
+          <p className="font-medium">Install the new KontrolWP Connect once</p>
           <p className="mt-1 text-muted-foreground">
-            At its last sync ({timeAgo(site.last_synced_at).toLowerCase()}) this site reported Presser Connect{" "}
-            {site.plugin_version}, which cannot update itself. Install {PRESSER_CONNECT_VERSION} from Presser
-            Connect plugin in the sidebar; later versions install automatically. Already did? Select Sync now.
+            At its last sync ({timeAgo(site.last_synced_at).toLowerCase()}) this site reported KontrolWP Connect{" "}
+            {site.plugin_version}, which cannot update itself. Install {PRESSER_CONNECT_VERSION} from KontrolWP
+            Connect in the sidebar; later versions install automatically. Already did? Select Sync now.
           </p>
         </div>
       )}
@@ -165,7 +165,7 @@ export function SitePage() {
 
       <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Fact label="WordPress" value={site.wp_version} />
-        <Fact label="Presser Connect" value={site.plugin_version} />
+        <Fact label="KontrolWP Connect" value={site.plugin_version} />
         <Fact label="PHP" value={site.php_version} />
         <Fact label="Theme" value={site.theme_name} />
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
@@ -210,8 +210,8 @@ export function SitePage() {
                 <p className="text-sm font-medium">Check for updates</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {site.updates_excluded
-                    ? "Presser does not check for or apply WordPress, plugin or theme updates on this site."
-                    : "Presser lists this site's WordPress, plugin and theme updates."}
+                    ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
+                    : "KontrolWP lists this site's WordPress, plugin and theme updates."}
                 </p>
                 {excludeUpdates.error && <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>}
               </div>
@@ -227,12 +227,12 @@ export function SitePage() {
             <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
               <MagicLoginUserSelect site={site} />
             </SettingRow>
-            <SettingRow title="Connection key" detail="Paste a new key after creating one in Presser Connect.">
+            <SettingRow title="Connection key" detail="Paste a new key after creating one in KontrolWP Connect.">
               <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
                 Change
               </Button>
             </SettingRow>
-            <SettingRow title="Remove site" detail="Presser forgets this site. Nothing changes on the site itself.">
+            <SettingRow title="Remove site" detail="KontrolWP forgets this site. Nothing changes on the site itself.">
               <Button size="sm" variant="destructive" onClick={fromSettings(setConfirmRemove)}>
                 Remove
               </Button>
@@ -270,7 +270,7 @@ export function SitePage() {
             <DialogHeader>
               <DialogTitle>Change connection key</DialogTitle>
               <DialogDescription>
-                If you created a new key in Presser Connect, or reinstalled it, paste the site's current
+                If you created a new key in KontrolWP Connect, or reinstalled it, paste the site's current
                 Connection Key here.
               </DialogDescription>
             </DialogHeader>
@@ -303,8 +303,8 @@ export function SitePage() {
           <DialogHeader>
             <DialogTitle>Remove {site.name}?</DialogTitle>
             <DialogDescription>
-              Presser forgets this site and its Connection Key; nothing changes on the site itself. To shut
-              the door on the site too, deactivate Presser Connect or create a new key there.
+              KontrolWP forgets this site and its Connection Key; nothing changes on the site itself. To shut
+              the door on the site too, deactivate KontrolWP Connect or create a new key there.
             </DialogDescription>
           </DialogHeader>
           {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
@@ -345,7 +345,7 @@ function Fact(props: { label: string; value: string | null }) {
 }
 
 /**
- * Presser Connect updates itself from the dashboard and never shows in the
+ * KontrolWP Connect updates itself from the dashboard and never shows in the
  * updates list, so say here what that update is doing.
  */
 function SelfUpdateNote(props: { site: SiteSummary }) {
@@ -369,7 +369,7 @@ function SelfUpdateNote(props: { site: SiteSummary }) {
       <div className="mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm text-muted-foreground">
         <Spinner className="mt-0.5 size-4" />
         <span>
-          {site.self_update_status === "running" ? "Updating" : "Waiting to update"} Presser Connect from {version} to{" "}
+          {site.self_update_status === "running" ? "Updating" : "Waiting to update"} KontrolWP Connect from {version} to{" "}
           {target}...
           {site.self_update_status === "queued" && site.self_update_error && <> {site.self_update_error}</>}
         </span>
@@ -378,7 +378,7 @@ function SelfUpdateNote(props: { site: SiteSummary }) {
   }
   return (
     <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-      <p className="font-medium text-destructive">Presser Connect did not update to {target}</p>
+      <p className="font-medium text-destructive">KontrolWP Connect did not update to {target}</p>
       <p className="mt-1 text-muted-foreground">
         {site.self_update_status === "failed" && site.self_update_error
           ? site.self_update_error

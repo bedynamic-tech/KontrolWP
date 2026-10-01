@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings, Presser Connect: where the owner copies this site's Connection Key.
+ * Settings, KontrolWP Connect: where the owner copies this site's Connection Key.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -20,8 +20,8 @@ class Presser_Connect_Admin {
 
 	public static function add_page() {
 		add_options_page(
-			__( 'Presser Connect', 'presser-connect' ),
-			__( 'Presser Connect', 'presser-connect' ),
+			__( 'KontrolWP Connect', 'presser-connect' ),
+			__( 'KontrolWP Connect', 'presser-connect' ),
 			'manage_options',
 			self::PAGE,
 			array( __CLASS__, 'render' )
@@ -33,7 +33,7 @@ class Presser_Connect_Admin {
 		return $links;
 	}
 
-	/** On the Plugins screen, point to the key until Presser has connected once. */
+	/** On the Plugins screen, point to the key until KontrolWP has connected once. */
 	public static function notice() {
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! current_user_can( 'manage_options' ) || ! $screen || 'plugins' !== $screen->id || get_option( Presser_Connect_Auth::LAST_SEEN_OPTION ) ) {
@@ -41,9 +41,9 @@ class Presser_Connect_Admin {
 		}
 		printf(
 			'<div class="notice notice-info"><p>%s <a href="%s">%s</a></p></div>',
-			esc_html__( 'Presser Connect is ready.', 'presser-connect' ),
+			esc_html__( 'KontrolWP Connect is ready.', 'presser-connect' ),
 			esc_url( self::page_url() ),
-			esc_html__( 'Copy the Connection Key into Presser', 'presser-connect' )
+			esc_html__( 'Copy the Connection Key into KontrolWP', 'presser-connect' )
 		);
 	}
 
@@ -57,13 +57,13 @@ class Presser_Connect_Admin {
 		$message     = isset( $_GET['presser_message'] ) ? sanitize_key( wp_unslash( $_GET['presser_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'Presser Connect', 'presser-connect' ); ?></h1>
+			<h1><?php esc_html_e( 'KontrolWP Connect', 'presser-connect' ); ?></h1>
 
 			<?php if ( 'regenerated' === $message ) : ?>
-				<div class="notice notice-success"><p><?php esc_html_e( 'New Connection Key created. Paste it into Presser to reconnect this site.', 'presser-connect' ); ?></p></div>
+				<div class="notice notice-success"><p><?php esc_html_e( 'New Connection Key created. Paste it into KontrolWP to reconnect this site.', 'presser-connect' ); ?></p></div>
 			<?php endif; ?>
 
-			<p><?php esc_html_e( 'In Presser, select Add site, enter this site\'s address and paste this Connection Key. Treat it like a password: anyone with it can manage this site through Presser.', 'presser-connect' ); ?></p>
+			<p><?php esc_html_e( 'In KontrolWP, select Add site, enter this site\'s address and paste this Connection Key. Treat it like a password: anyone with it can manage this site through KontrolWP.', 'presser-connect' ); ?></p>
 
 			<table class="form-table" role="presentation">
 				<tr>
@@ -77,7 +77,7 @@ class Presser_Connect_Admin {
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><?php esc_html_e( 'Last contact from Presser', 'presser-connect' ); ?></th>
+					<th scope="row"><?php esc_html_e( 'Last contact from KontrolWP', 'presser-connect' ); ?></th>
 					<td>
 						<?php
 						echo $last_seen
@@ -89,7 +89,7 @@ class Presser_Connect_Admin {
 			</table>
 
 			<h2><?php esc_html_e( 'New Connection Key', 'presser-connect' ); ?></h2>
-			<p><?php esc_html_e( 'Creates a new key and stops the current one from working. Presser cannot reach this site until you paste the new key there.', 'presser-connect' ); ?></p>
+			<p><?php esc_html_e( 'Creates a new key and stops the current one from working. KontrolWP cannot reach this site until you paste the new key there.', 'presser-connect' ); ?></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="presser_connect_regenerate" />
 				<?php wp_nonce_field( 'presser_connect_regenerate' ); ?>

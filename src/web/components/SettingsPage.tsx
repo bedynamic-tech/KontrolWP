@@ -125,7 +125,7 @@ function UmamiSettingsSection() {
           <p className="text-sm text-muted-foreground">
             {settings.data.configured
               ? `Connected to ${settings.data.mode === "cloud" ? "Umami Cloud" : settings.data.url}. Each site's page shows its analytics from the Umami website with the same domain.`
-              : "Connect Umami to see each site's visitors, pageviews and top pages on its page. Presser matches each site to the Umami website with the same domain."}
+              : "Connect Umami to see each site's visitors, pageviews and top pages on its page. KontrolWP matches each site to the Umami website with the same domain."}
           </p>
           <Tabs value={mode} onValueChange={(value) => setMode(value as UmamiMode)}>
             <TabsList>
@@ -183,7 +183,7 @@ function UmamiSettingsSection() {
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                A view-only Umami user is enough. Presser signs in with it each time it loads analytics.
+                A view-only Umami user is enough. KontrolWP signs in with it each time it loads analytics.
               </p>
             </TabsContent>
           </Tabs>

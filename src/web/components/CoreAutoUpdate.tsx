@@ -22,7 +22,7 @@ export const CORE_AUTO_UPDATE_LABELS: Record<CoreAutoUpdate, string> = {
   off: "Off",
 };
 
-/** Presser Connect 0.7.0+ reports and changes WordPress's auto-update settings. */
+/** KontrolWP Connect 0.7.0+ reports and changes WordPress's auto-update settings. */
 export function autoUpdatesSupported(pluginVersion: string | null): boolean {
   return !!pluginVersion && compareVersions(pluginVersion, AUTO_UPDATES_SINCE) >= 0;
 }
@@ -69,8 +69,8 @@ export function CoreAutoUpdateRow(props: { site: SiteSummary; className?: string
   const mode = save.isPending ? save.variables : site.core_auto_update;
 
   let note: string | null = null;
-  if (!supported) note = `Needs Presser Connect ${AUTO_UPDATES_SINCE} or later, which installs itself on the next sync.`;
-  else if (site.core_auto_update_locked) note = "Set in this site's wp-config.php, so Presser cannot change it.";
+  if (!supported) note = `Needs KontrolWP Connect ${AUTO_UPDATES_SINCE} or later, which installs itself on the next sync.`;
+  else if (site.core_auto_update_locked) note = "Set in this site's wp-config.php, so KontrolWP cannot change it.";
   else if (!site.core_auto_update) note = "Shows after the next sync.";
 
   return (
@@ -164,7 +164,7 @@ export function CoreAutoUpdateDialog(props: { sites: SiteSummary[]; open: boolea
           />
           {skipped > 0 && (
             <p className="text-xs text-muted-foreground">
-              {skipped === 1 ? "1 site is" : `${skipped} sites are`} not listed: they need Presser Connect{" "}
+              {skipped === 1 ? "1 site is" : `${skipped} sites are`} not listed: they need KontrolWP Connect{" "}
               {AUTO_UPDATES_SINCE} or set this in wp-config.php.
             </p>
           )}

@@ -88,7 +88,7 @@ export function AddSiteDialog() {
             <DialogHeader>
               <DialogTitle>Add a WordPress site</DialogTitle>
               <DialogDescription>
-                Presser uses the site's own name from WordPress.
+                KontrolWP uses the site's own name from WordPress.
               </DialogDescription>
             </DialogHeader>
             <ConnectionSteps />

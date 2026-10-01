@@ -50,7 +50,7 @@ export function MagicLoginButton(props: { site: SiteSummary; onChooseUser: () =>
         size="sm"
         onClick={open}
         disabled={pending || !magicLoginSupported(site)}
-        title={magicLoginSupported(site) ? undefined : `Needs Presser Connect ${MAGIC_LOGIN_SINCE} or later`}
+        title={magicLoginSupported(site) ? undefined : `Needs KontrolWP Connect ${MAGIC_LOGIN_SINCE} or later`}
       >
         {pending ? <Loader2Icon className="animate-spin" /> : <LogInIcon />}
         {pending ? "Opening..." : "Magic Login"}
@@ -105,7 +105,7 @@ export function MagicLoginUserForm(props: {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Magic Login needs Presser Connect {MAGIC_LOGIN_SINCE} or later. This site runs {site.plugin_version}; it
+          Magic Login needs KontrolWP Connect {MAGIC_LOGIN_SINCE} or later. This site runs {site.plugin_version}; it
           updates automatically, then you can choose an administrator from the site's menu.
         </p>
         <div className="flex gap-2">
@@ -190,7 +190,7 @@ export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) 
   });
 
   if (!supported) {
-    return <p className="text-xs text-muted-foreground">Needs Presser Connect {MAGIC_LOGIN_SINCE} or later</p>;
+    return <p className="text-xs text-muted-foreground">Needs KontrolWP Connect {MAGIC_LOGIN_SINCE} or later</p>;
   }
   const value = save.isPending ? String(save.variables) : site.login_user_id ? String(site.login_user_id) : "";
   return (

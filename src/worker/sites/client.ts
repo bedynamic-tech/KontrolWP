@@ -10,7 +10,7 @@ export interface SiteCredentials {
 /** A failure talking to a site, phrased for the person reading the dashboard. */
 export class SiteRequestError extends Error {
   readonly status?: number;
-  /** The WP_Error code Presser Connect returned, when there is one. */
+  /** The WP_Error code KontrolWP Connect returned, when there is one. */
   readonly code?: string;
   constructor(message: string, status?: number, code?: string) {
     super(message);
@@ -24,7 +24,7 @@ const TIMEOUT_MS = 20_000;
 // database, so give actions longer than reads.
 const ACTION_TIMEOUT_MS = 180_000;
 
-/** Send one signed request to Presser Connect and return its JSON body. */
+/** Send one signed request to KontrolWP Connect and return its JSON body. */
 export async function callSite<T>(
   site: SiteCredentials,
   method: "GET" | "POST",
@@ -44,7 +44,7 @@ export async function callSite<T>(
       headers: {
         ...headers,
         Accept: "application/json",
-        "User-Agent": "Presser",
+        "User-Agent": "KontrolWP",
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body || undefined,
@@ -73,7 +73,7 @@ export async function callSite<T>(
   } catch {
     throw new SiteRequestError(
       response.ok
-        ? "The site did not return JSON. Is Presser Connect active?"
+        ? "The site did not return JSON. Is KontrolWP Connect active?"
         : `The site returned HTTP ${response.status}`,
       response.status,
     );
@@ -81,7 +81,7 @@ export async function callSite<T>(
   if (!response.ok) {
     const code = (json as { code?: string }).code;
     if (code === "rest_no_route") {
-      throw new SiteRequestError("Presser Connect is not installed or not active on this site", 404);
+      throw new SiteRequestError("KontrolWP Connect is not installed or not active on this site", 404);
     }
     const message = (json as { message?: string }).message;
     throw new SiteRequestError(message || `The site returned HTTP ${response.status}`, response.status, code);

@@ -115,7 +115,7 @@ function UnsupportedNote(props: { sites: FleetPlugins["unsupported_sites"] }) {
   return (
     <p className="mt-6 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground">
       {names.length === 1 ? `${names[0]} is` : `${names.length} sites are`} not listed here yet. Managing plugins needs
-      Presser Connect {PLUGIN_MANAGEMENT_SINCE} or later, which installs itself on the next sync.
+      KontrolWP Connect {PLUGIN_MANAGEMENT_SINCE} or later, which installs itself on the next sync.
       {names.length > 1 && <span className="mt-1 block text-xs">{names.join(", ")}</span>}
     </p>
   );
@@ -127,7 +127,7 @@ function autoUpdatable(plugin: FleetPlugin): boolean {
   return autoUpdatesSupported(plugin.site_plugin_version) && plugin.site_plugin_auto_updates;
 }
 
-/** Which checked plugins each action would change; Presser Connect is never checked. */
+/** Which checked plugins each action would change; KontrolWP Connect is never checked. */
 const TARGETS: Record<BulkAction, (plugin: FleetPlugin) => boolean> = {
   activate: (plugin) => !plugin.active,
   deactivate: (plugin) => plugin.active,
@@ -267,7 +267,7 @@ function PluginGroup(props: {
       <div className="flex items-start gap-3 px-4 py-3 sm:items-center">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <RemoteIcon
-            sources={isProtected ? ["/presser.svg"] : pluginIconSources(first.file, plugins.find((p) => p.icon_url)?.icon_url)}
+            sources={isProtected ? ["/kontrolwp.svg"] : pluginIconSources(first.file, plugins.find((p) => p.icon_url)?.icon_url)}
             name={first.name}
             className="size-9 text-sm"
           />
@@ -297,7 +297,7 @@ function PluginGroup(props: {
                 </>
               )}
               {failedJobs > 0 && <span className="text-destructive">{` · ${failedJobs} failed`}</span>}
-              {isProtected && " · Connects each site to Presser"}
+              {isProtected && " · Connects each site to KontrolWP"}
               {!isProtected && checkedCount > 0 && !all && ` · ${checkedCount} of ${plugins.length} sites checked`}
             </p>
           </div>

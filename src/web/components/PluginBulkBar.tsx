@@ -209,7 +209,7 @@ export function PluginBulkBar(props: {
           <DialogHeader>
             <DialogTitle>{props.deleteTitle}</DialogTitle>
             <DialogDescription>
-              Presser deactivates each one where it is active, then deletes its
+              KontrolWP deactivates each one where it is active, then deletes its
               files, as Delete on the Plugins screen does. Their settings may
               stay in the database.
             </DialogDescription>

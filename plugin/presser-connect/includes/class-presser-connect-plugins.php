@@ -3,7 +3,7 @@
  * Plugin management for the dashboard: list installed plugins, activate,
  * deactivate or delete one, and install new ones from WordPress.org, a URL
  * or an uploaded zip. Everything goes through WordPress's own functions and
- * Plugin_Upgrader, as the Plugins screen does. Presser Connect itself can
+ * Plugin_Upgrader, as the Plugins screen does. KontrolWP Connect itself can
  * never be deactivated or deleted this way. Also WordPress's own
  * auto-update settings, for plugins and for core.
  */
@@ -129,10 +129,10 @@ class Presser_Connect_Plugins {
 			return new WP_Error( 'presser_not_found', __( 'That plugin is not installed.', 'presser-connect' ), array( 'status' => 404 ) );
 		}
 		if ( 'enable-auto-update' === $action && plugin_basename( PRESSER_CONNECT_FILE ) === $file ) {
-			return new WP_Error( 'presser_protected', __( 'Presser keeps Presser Connect up to date itself.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'presser_protected', __( 'KontrolWP keeps KontrolWP Connect up to date itself.', 'presser-connect' ), array( 'status' => 409 ) );
 		}
 		if ( 'activate' !== $action && 'disable-auto-update' !== $action && plugin_basename( PRESSER_CONNECT_FILE ) === $file ) {
-			return new WP_Error( 'presser_protected', __( 'Presser Connect cannot deactivate or delete itself from Presser. Do it in wp-admin if you mean to disconnect this site.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'presser_protected', __( 'KontrolWP Connect cannot deactivate or delete itself from KontrolWP. Do it in wp-admin if you mean to disconnect this site.', 'presser-connect' ), array( 'status' => 409 ) );
 		}
 
 		if ( 'enable-auto-update' === $action || 'disable-auto-update' === $action ) {
@@ -325,7 +325,7 @@ class Presser_Connect_Plugins {
 	 */
 	public static function set_core_auto_update( $request ) {
 		if ( self::core_auto_update()['locked'] ) {
-			return new WP_Error( 'presser_auto_updates_locked', __( 'This site\'s wp-config.php sets WordPress auto-updates (WP_AUTO_UPDATE_CORE or AUTOMATIC_UPDATER_DISABLED), so they cannot be changed from Presser.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'presser_auto_updates_locked', __( 'This site\'s wp-config.php sets WordPress auto-updates (WP_AUTO_UPDATE_CORE or AUTOMATIC_UPDATER_DISABLED), so they cannot be changed from KontrolWP.', 'presser-connect' ), array( 'status' => 409 ) );
 		}
 		$mode = $request['mode'];
 		// The same site options the Updates screen sets; minor also covers

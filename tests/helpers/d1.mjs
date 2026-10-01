@@ -9,7 +9,7 @@ export const migrations = readdirSync(migrationsDir)
   .sort()
   .map((name) => ({ name, sql: readFileSync(new URL(name, migrationsDir), "utf8") }));
 
-/** The slice of D1 Presser uses, backed by an in-memory node:sqlite database. */
+/** The slice of D1 KontrolWP uses, backed by an in-memory node:sqlite database. */
 export function fakeD1(sqlite = new DatabaseSync(":memory:")) {
   const statement = (sql, params = []) => ({
     sql,

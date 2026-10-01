@@ -18,15 +18,15 @@ export interface SiteSummary {
   /** The administrator Magic Login signs in as, if one is chosen. */
   login_user_id: number | null;
   login_user_name: string | null;
-  /** Presser Connect's own update job, which never shows in the updates lists. */
+  /** KontrolWP Connect's own update job, which never shows in the updates lists. */
   self_update_status: UpdateJobStatus | null;
   self_update_version: string | null;
   self_update_error: string | null;
   /** The owner excluded the site from update checks. */
   updates_excluded: boolean;
-  /** WordPress's own core auto-updates, from the last sync; null before Presser Connect 0.7.0. */
+  /** WordPress's own core auto-updates, from the last sync; null before KontrolWP Connect 0.7.0. */
   core_auto_update: CoreAutoUpdate | null;
-  /** wp-config.php decides core auto-updates, so Presser cannot change them. */
+  /** wp-config.php decides core auto-updates, so KontrolWP cannot change them. */
   core_auto_update_locked: boolean;
   /** False when the site turns plugin auto-updates off in code. */
   plugin_auto_updates: boolean;
@@ -36,7 +36,7 @@ export interface SiteSummary {
 export type CoreAutoUpdate = "all" | "minor" | "off";
 
 
-/** An administrator on a site, as Presser Connect lists them for Magic Login. */
+/** An administrator on a site, as KontrolWP Connect lists them for Magic Login. */
 export interface SiteAdmin {
   id: number;
   login: string;
@@ -61,7 +61,7 @@ export interface SiteUpdate {
   /** Why the last attempt failed, or a note while it waits to retry. */
   job_error: string | null;
   /**
-   * Presser is still working on it: the job is queued or running, or it just
+   * KontrolWP is still working on it: the job is queued or running, or it just
    * finished and the sync that clears the row has not landed yet.
    */
   job_active: boolean;
@@ -95,7 +95,7 @@ export interface SiteDetail {
   comments: PendingComment[];
 }
 
-/** What Presser Connect reports. Mirrors plugin/presser-connect/includes/class-presser-connect-rest.php. */
+/** What KontrolWP Connect reports. Mirrors plugin/presser-connect/includes/class-presser-connect-rest.php. */
 export interface PluginStatus {
   name: string;
   home_url: string;
@@ -103,13 +103,13 @@ export interface PluginStatus {
   php_version: string;
   plugin_version: string;
   theme: string;
-  /** Presser Connect 0.2.1+: the Site Icon URL, or "" when there is none. */
+  /** KontrolWP Connect 0.2.1+: the Site Icon URL, or "" when there is none. */
   icon_url?: string;
-  /** Presser Connect 0.7.0+. */
+  /** KontrolWP Connect 0.7.0+. */
   core_auto_update?: { mode: CoreAutoUpdate; locked: boolean };
 }
 
-/** `icon_url` arrives from Presser Connect 0.3+. */
+/** `icon_url` arrives from KontrolWP Connect 0.3+. */
 export interface PluginUpdates {
   core: { current: string; new_version: string; icon_url?: string } | null;
   plugins: Array<{ slug: string; name: string; current_version: string; new_version: string; icon_url?: string }>;
@@ -129,7 +129,7 @@ export interface PluginComments {
   }>;
 }
 
-/** A plugin installed on a site, as Presser Connect 0.6.0+ lists it. */
+/** A plugin installed on a site, as KontrolWP Connect 0.6.0+ lists it. */
 export interface InstalledPlugin {
   /** Plugin file relative to wp-content/plugins, such as akismet/akismet.php. */
   file: string;
@@ -138,11 +138,11 @@ export interface InstalledPlugin {
   author: string;
   active: boolean;
   network_active: boolean;
-  /** Presser Connect itself: never deactivated or deleted from Presser. */
+  /** KontrolWP Connect itself: never deactivated or deleted from KontrolWP. */
   protected: boolean;
-  /** Presser Connect 0.7.0+: WordPress updates it automatically. */
+  /** KontrolWP Connect 0.7.0+: WordPress updates it automatically. */
   auto_update?: boolean;
-  /** Presser Connect 0.7.1+: its icon from WordPress's last update check, or "". */
+  /** KontrolWP Connect 0.7.1+: its icon from WordPress's last update check, or "". */
   icon_url?: string;
 }
 
@@ -150,7 +150,7 @@ export interface SitePlugins {
   plugins: InstalledPlugin[];
   /** False when the site sets DISALLOW_FILE_MODS: no installs or deletes. */
   can_modify_files: boolean;
-  /** Presser Connect 0.7.0+: false when the site turns plugin auto-updates off in code. */
+  /** KontrolWP Connect 0.7.0+: false when the site turns plugin auto-updates off in code. */
   auto_updates?: boolean;
 }
 
@@ -183,7 +183,7 @@ export interface FleetPlugin {
 
 export interface FleetPlugins {
   plugins: FleetPlugin[];
-  /** Connected sites whose Presser Connect cannot list plugins yet. */
+  /** Connected sites whose KontrolWP Connect cannot list plugins yet. */
   unsupported_sites: { id: number; name: string; plugin_version: string | null }[];
 }
 
@@ -221,7 +221,7 @@ export interface AnalyticsStat {
 export interface SiteAnalytics {
   /** The Umami website shown, or null when none matches the site. */
   website: UmamiWebsite | null;
-  /** True when the owner chose the website rather than Presser matching it by domain. */
+  /** True when the owner chose the website rather than KontrolWP matching it by domain. */
   chosen: boolean;
   range: AnalyticsRange;
   stats: {
