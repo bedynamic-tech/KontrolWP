@@ -275,6 +275,21 @@ export interface SyncSettings {
   interval_minutes: SyncInterval;
 }
 
+/** How often every site's links are checked, in days, at midnight; 0 is off. */
+export const LINK_SCAN_INTERVALS = [0, 1, 3, 5, 7] as const;
+export type LinkScanInterval = (typeof LINK_SCAN_INTERVALS)[number];
+
+export interface LinkScanSettings {
+  interval_days: LinkScanInterval;
+  /** The IANA time zone midnight is in, such as America/Chicago; null until the dashboard saves the browser's. */
+  time_zone: string | null;
+}
+
+/** The settings, plus when the next scheduled check starts (unix seconds; null when off). */
+export interface LinkScanSchedule extends LinkScanSettings {
+  next_run_at: number | null;
+}
+
 /** One DNS record, as a public resolver answers for it. */
 export interface DnsRecord {
   type: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "TXT" | "CAA" | "SOA";

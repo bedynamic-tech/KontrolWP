@@ -7,7 +7,7 @@ import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
-import { SettingsPage } from "./components/SettingsPage";
+import { SettingsPage, useSaveTimeZoneOnce } from "./components/SettingsPage";
 import { OverviewPage } from "./components/OverviewPage";
 import { PluginsPage } from "./components/PluginsPage";
 import { SitePage } from "./components/SitePage";
@@ -18,6 +18,7 @@ import { UsersPage } from "./components/UsersPage";
 export function App() {
   // The overview doubles as the Access check: every page needs the API.
   const overview = useQuery({ queryKey: ["overview"], queryFn: fetchOverview, retry: false });
+  useSaveTimeZoneOnce(overview.isSuccess);
   const setupError = accessSetupError(overview.error);
   if (setupError) {
     return (

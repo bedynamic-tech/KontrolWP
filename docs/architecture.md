@@ -234,7 +234,14 @@ follows redirects, and gives up after 10 seconds:
 A rescan keeps the last result on each address until it is checked again.
 Messages from a replaced scan are dropped by `scan_id`, and a scan with no
 progress for 15 minutes shows as stopped. Owners can check one link again
-after fixing it, or ignore it; ignored links are never checked again. Check again first asks the site for just the
+after fixing it, or ignore it; ignored links are never checked again.
+Every site's links are also checked on a schedule (Settings > Link checks:
+every 1, 3, 5 or 7 days, 7 by default, or off) at midnight in the owner's
+time zone, which the dashboard saves from the browser the first time it
+loads. The first cron tick in that hour queues one scan per site on
+KontrolWP Connect 0.9.0 or later, two minutes apart through the queue's
+message delay, so sites are checked one after another rather than all at
+once. Check again first asks the site for just the
 posts the link was found in (`post_ids`, 0.9.2), so a link taken out of them
 leaves the list without a full scan; older sites only re-check the address.
 Remove link (0.9.3), per link or for every broken one, asks the site to
