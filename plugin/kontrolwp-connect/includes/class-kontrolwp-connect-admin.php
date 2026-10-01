@@ -183,7 +183,6 @@ class KontrolWP_Connect_Admin {
 			.kwp-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: #18181b; color: #fff; font-size: 20px; font-weight: 700; }
 			.kwp-pill { margin-left: auto; padding: 4px 10px; border-radius: 999px; background: #f0f0f1; color: #50575e; font-size: 12px; font-weight: 500; }
 			.kwp-pill-on { background: #e7f6ec; color: #116329; }
-			.kwp-pill-on::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #1a7f37; vertical-align: 1px; }
 			.kwp-card { margin: 0 0 16px; padding: 20px 24px; border: 1px solid #dcdcde; border-radius: 12px; background: #fff; }
 			.kwp-card h2 { margin: 0 0 4px; font-size: 15px; }
 			.kwp-muted, .kwp-hint { margin: 0; color: #646970; }

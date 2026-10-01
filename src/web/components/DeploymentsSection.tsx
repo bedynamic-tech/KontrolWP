@@ -126,7 +126,7 @@ export function DeploymentsSection(props: { site: SiteSummary; compact?: boolean
     <Section
       title={site.cf_worker ? `Deployments (${site.cf_worker})` : "Deployments"}
       action={
-        site.cf_worker && site.cf_account_id ? (
+        !compact && site.cf_worker && site.cf_account_id ? (
           <a
             href={`https://dash.cloudflare.com/${site.cf_account_id}/workers/services/view/${encodeURIComponent(site.cf_worker)}/production/deployments`}
             target="_blank"
