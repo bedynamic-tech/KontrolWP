@@ -108,7 +108,7 @@ export function PluginBulkBar(props: {
           <span className="mr-auto text-xs text-muted-foreground">
             {busy
               ? PENDING_LABELS[pending]
-              : (props.selection ?? "Check plugins to manage them together.")}
+              : props.selection}
           </span>
           {props.selection && (
             <>
