@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchOverview } from "../api";
-import { AddSiteDialog } from "./AddSiteDialog";
+import { Link } from "react-router";
 import { CommentsList } from "./CommentsList";
 import { Section } from "./Section";
 import { UpdateAllButton, UpdatesList, updatesRefetchInterval } from "./UpdatesList";
@@ -22,10 +22,7 @@ export function OverviewPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
-        <AddSiteDialog />
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
 
       {sites.length === 0 ? (
         <div className="mt-8 rounded-xl border bg-background px-6 py-12 text-center">
@@ -34,6 +31,9 @@ export function OverviewPage() {
             Connect a WordPress site with the Presser Connect plugin, from the sidebar, to see
             its updates and comments here.
           </p>
+          <Link to="/sites" className="mt-4 inline-block text-sm font-medium underline underline-offset-4">
+            Add a site on the Sites page
+          </Link>
         </div>
       ) : (
         <>
