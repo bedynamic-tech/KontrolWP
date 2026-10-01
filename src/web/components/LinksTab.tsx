@@ -1,5 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { EyeOffIcon, ImageIcon, PencilIcon, RefreshCwIcon, SearchIcon, UndoIcon, UnlinkIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  DownloadIcon,
+  EyeOffIcon,
+  ImageIcon,
+  PencilIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  UndoIcon,
+  UnlinkIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +20,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { compareVersions, LINK_CHECK_SINCE, LINK_UNLINK_SINCE, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version";
 import type { LinkRef, LinkScan, LinkUnlinkResult, SiteLink, SiteLinks, SiteSummary } from "../../shared/types";
 import { createMagicLogin, fetchLinks, ignoreLink, recheckLink, scanLinks, unlinkLinks } from "../api";
-import { plural, timeAgo } from "../format";
+import { download, linksTable, toCsv, toXlsx } from "../export";
+import { hostname, plural, timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
 type Filter = "problems" | "broken" | "unresponsive" | "blocked" | "ignored";
@@ -139,6 +156,23 @@ export function LinksTab(props: { site: SiteSummary }) {
   const brokenLinks = data.links.filter((link) => link.status === "broken" && removable(link));
   const onUnlink = canUnlink ? (urls: SiteLink[]) => setUnlinking(urls) : undefined;
 
+  /** Saves the links in the current view, as filtered and searched, in the chosen format. */
+  function exportLinks(format: "csv" | "xlsx") {
+    const view = chips.find((chip) => chip.value === filter)?.label ?? "links";
+    const name = `${hostname(site.url)} ${view} ${new Date().toISOString().slice(0, 10)}`
+      .toLowerCase()
+      .replace(/[^a-z0-9.]+/g, "-");
+    const table = linksTable(shown);
+    if (format === "csv") download(`${name}.csv`, toCsv(table), "text/csv;charset=utf-8");
+    else {
+      download(
+        `${name}.xlsx`,
+        toXlsx(table, view, [18, 12, 40, 60, 20, 40, 60]),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+    }
+  }
+
   const chips: { value: Filter; label: string; count: number }[] = [
     { value: "problems", label: "All problems", count: problems },
     { value: "broken", label: "Broken", count: counts.broken },
@@ -182,6 +216,17 @@ export function LinksTab(props: { site: SiteSummary }) {
               <UnlinkIcon /> Remove broken links ({brokenLinks.length})
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="flex-none" disabled={!shown.length}>
+                <DownloadIcon /> Download <ChevronDownIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => exportLinks("csv")}>CSV</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => exportLinks("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="relative ml-auto w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
