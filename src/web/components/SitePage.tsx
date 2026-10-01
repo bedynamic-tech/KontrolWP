@@ -28,7 +28,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
-import { AnalyticsSection } from "./AnalyticsSection";
+import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
@@ -278,6 +278,14 @@ export function SitePage() {
             <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
               <MagicLoginUserSelect site={site} />
             </SettingRow>
+            {umami.data?.configured && (
+              <SettingRow
+                title="Umami website"
+                detail="Where this site's analytics come from. Match by domain picks the Umami website with the site's domain."
+              >
+                <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
+              </SettingRow>
+            )}
             <SettingRow title="Connection key" detail="Paste a new key after creating one in KontrolWP Connect.">
               <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
                 Change
