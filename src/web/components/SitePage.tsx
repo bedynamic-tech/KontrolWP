@@ -20,6 +20,7 @@ import {
   fetchSite,
   fetchUmamiSettings,
   replaceConnectionKey,
+  setSiteWorker,
   setUpdatesExcluded,
   syncSite,
 } from "../api";
@@ -37,6 +38,8 @@ import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
+import { CloudflareWorkerSelect, type WorkerChoice } from "./CloudflareWorkerSelect";
+import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
 import { LinksTab } from "./LinksTab";
@@ -46,7 +49,9 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const TABS = ["overview", "analytics", "plugins", "users", "links", "domain"];
+const WORDPRESS_TABS = ["overview", "analytics", "plugins", "users", "links", "domain"];
+const STATIC_TABS = ["overview", "analytics", "deployments", "domain"];
+const TABS = [...new Set([...WORDPRESS_TABS, ...STATIC_TABS])];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -112,11 +117,17 @@ export function SitePage() {
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
   const twoColumns = layout.data?.site_columns === 2 && !!umami.data?.configured;
   // The Analytics tab needs Umami connected in Settings.
-  const tab = requestedTab === "analytics" && umami.data && !umami.data.configured ? "overview" : requestedTab;
+  const kind = data?.site.kind;
+  const tabs = kind === "static" ? STATIC_TABS : WORDPRESS_TABS;
+  const tab =
+    (requestedTab === "analytics" && umami.data && !umami.data.configured) || (kind && !tabs.includes(requestedTab))
+      ? "overview"
+      : requestedTab;
 
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   const { site, updates, comments } = data;
+  const isStatic = site.kind === "static";
 
   return (
     <div>
@@ -139,7 +150,7 @@ export function SitePage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2">
-          <MagicLoginButton site={site} onChooseUser={() => setChoosingLoginUser(true)} />
+          {!isStatic && <MagicLoginButton site={site} onChooseUser={() => setChoosingLoginUser(true)} />}
           <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
             <RefreshCwIcon className={sync.isPending ? "animate-spin" : ""} />
             {sync.isPending ? "Syncing..." : "Sync now"}
@@ -172,10 +183,24 @@ export function SitePage() {
       <ConnectionBanner site={site} className="mt-4" />
 
       <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Fact label="WordPress" value={site.wp_version} />
-        <Fact label="KontrolWP Connect" value={site.plugin_version} />
-        <Fact label="Theme" value={site.theme_name} />
-        <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
+        {isStatic ? (
+          <>
+            <Fact label="Type" value="Static site" />
+            <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
+            <Fact
+              label="Last deployed"
+              value={site.last_deployed_at ? timeAgo(site.last_deployed_at) : "No deployments"}
+            />
+            <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
+          </>
+        ) : (
+          <>
+            <Fact label="WordPress" value={site.wp_version} />
+            <Fact label="KontrolWP Connect" value={site.plugin_version} />
+            <Fact label="Theme" value={site.theme_name} />
+            <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
+          </>
+        )}
       </dl>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
@@ -191,22 +216,32 @@ export function SitePage() {
               Analytics
             </TabsTrigger>
           )}
-          <TabsTrigger value="plugins" className="flex-none px-3">
-            Plugins
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex-none px-3">
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="links" className="flex-none px-3">
-            Links
-          </TabsTrigger>
+          {isStatic ? (
+            <TabsTrigger value="deployments" className="flex-none px-3">
+              Deployments
+            </TabsTrigger>
+          ) : (
+            <>
+              <TabsTrigger value="plugins" className="flex-none px-3">
+                Plugins
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex-none px-3">
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="links" className="flex-none px-3">
+                Links
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="domain" className="flex-none px-3">
             Domain
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
-            const main = (
+            const main = isStatic ? (
+              <DeploymentsSection site={site} compact onChooseWorker={() => setSettingsOpen(true)} />
+            ) : (
               <>
                 <SiteUpdatesSection site={site} updates={updates} />
                 <Section title={`Comments awaiting review (${site.pending_comments})`}>
@@ -233,6 +268,9 @@ export function SitePage() {
         <TabsContent value="analytics">
           <AnalyticsTab site={site} />
         </TabsContent>
+        <TabsContent value="deployments" className={TAB_CLASS}>
+          {isStatic && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
+        </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />
         </TabsContent>
@@ -254,31 +292,36 @@ export function SitePage() {
             <DialogDescription>{site.name}</DialogDescription>
           </DialogHeader>
           <div className="divide-y border-y">
-            <CoreAutoUpdateRow site={site} className="py-3" />
-            <label className="flex cursor-pointer items-center gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Check for updates</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {site.updates_excluded
-                    ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
-                    : "KontrolWP lists this site's WordPress, plugin and theme updates."}
-                </p>
-                {excludeUpdates.error && (
-                  <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>
-                )}
-              </div>
-              {excludeUpdates.isPending && <Spinner className="size-4 text-muted-foreground" />}
-              <input
-                type="checkbox"
-                className="size-4 shrink-0 accent-primary"
-                checked={excludeUpdates.isPending ? excludeUpdates.variables === false : !site.updates_excluded}
-                disabled={excludeUpdates.isPending}
-                onChange={(event) => excludeUpdates.mutate(!event.target.checked)}
-              />
-            </label>
-            <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
-              <MagicLoginUserSelect site={site} />
-            </SettingRow>
+            {!isStatic && <CoreAutoUpdateRow site={site} className="py-3" />}
+            {!isStatic && (
+              <label className="flex cursor-pointer items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Check for updates</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {site.updates_excluded
+                      ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
+                      : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                  </p>
+                  {excludeUpdates.error && (
+                    <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>
+                  )}
+                </div>
+                {excludeUpdates.isPending && <Spinner className="size-4 text-muted-foreground" />}
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-primary"
+                  checked={excludeUpdates.isPending ? excludeUpdates.variables === false : !site.updates_excluded}
+                  disabled={excludeUpdates.isPending}
+                  onChange={(event) => excludeUpdates.mutate(!event.target.checked)}
+                />
+              </label>
+            )}
+            {!isStatic && (
+              <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
+                <MagicLoginUserSelect site={site} />
+              </SettingRow>
+            )}
+            {isStatic && <WorkerRow site={site} />}
             {umami.data?.configured && (
               <SettingRow
                 title="Umami website"
@@ -288,11 +331,13 @@ export function SitePage() {
                 <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
               </SettingRow>
             )}
-            <SettingRow title="Connection key" detail="Paste a new key after creating one in KontrolWP Connect.">
-              <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
-                Change
-              </Button>
-            </SettingRow>
+            {!isStatic && (
+              <SettingRow title="Connection key" detail="Paste a new key after creating one in KontrolWP Connect.">
+                <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
+                  Change
+                </Button>
+              </SettingRow>
+            )}
             <SettingRow title="Remove site" detail="KontrolWP forgets this site. Nothing changes on the site itself.">
               <Button size="sm" variant="destructive" onClick={fromSettings(setConfirmRemove)}>
                 Remove
@@ -384,6 +429,34 @@ export function SitePage() {
 }
 
 /** A setting with its control beside it, or below it on the right when `stacked` (for wide controls). */
+/** Which Cloudflare Worker a static site's deployments come from. */
+function WorkerRow(props: { site: SiteSummary }) {
+  const { site } = props;
+  const queryClient = useQueryClient();
+  const choose = useMutation({
+    mutationFn: (worker: WorkerChoice | null) =>
+      setSiteWorker(site.id, worker && { account_id: worker.account_id, worker: worker.worker }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["site", site.id] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+  return (
+    <SettingRow
+      title="Cloudflare Worker"
+      detail="The Worker this site deploys from. KontrolWP lists its deployments and build logs."
+      error={choose.error?.message}
+      stacked
+    >
+      <CloudflareWorkerSelect
+        value={site.cf_worker && site.cf_account_id ? { account_id: site.cf_account_id, worker: site.cf_worker } : null}
+        onChange={(worker) => choose.mutate(worker)}
+        disabled={choose.isPending}
+      />
+    </SettingRow>
+  );
+}
+
 function SettingRow(props: { title: string; detail: string; error?: string; stacked?: boolean; children: ReactNode }) {
   return (
     <div

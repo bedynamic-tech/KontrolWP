@@ -1,14 +1,16 @@
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { FleetLinks, FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
+import type { SiteDeployment, FleetLinks, FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
 import { SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `
-  s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
+  s.id, s.kind, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded,
   s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates, s.umami_website_id,
+  s.cf_account_id, s.cf_worker, s.cf_error,
+  (SELECT MAX(d.created_at) FROM site_deployments d WHERE d.site_id = s.id AND d.type = 'deployment') AS last_deployed_at,
   j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
@@ -43,7 +45,7 @@ const summary = (row: SiteRow): SiteSummary => ({
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
 export async function getCredentials(env: Env, id: number): Promise<SiteCredentials | null> {
   const row = await env.DB
-    .prepare("SELECT id, url, key_id, secret FROM sites WHERE id = ?")
+    .prepare("SELECT id, url, key_id, secret FROM sites WHERE id = ? AND kind = 'wordpress'")
     .bind(id)
     .first<{ id: number; url: string; key_id: string | null; secret: string }>();
   if (!row) return null;
@@ -129,7 +131,7 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
          ORDER BY p.name COLLATE NOCASE, s.name COLLATE NOCASE`,
       )
       .all<Record<string, unknown>>(),
-    db.prepare("SELECT id, name, plugin_version FROM sites ORDER BY name COLLATE NOCASE").all<{
+    db.prepare("SELECT id, name, plugin_version FROM sites WHERE kind = 'wordpress' ORDER BY name COLLATE NOCASE").all<{
       id: number;
       name: string;
       plugin_version: string | null;
@@ -159,7 +161,7 @@ export async function listFleetUsers(db: D1Database): Promise<FleetUsers> {
          ORDER BY LOWER(COALESCE(NULLIF(u.email, ''), u.login)), s.name COLLATE NOCASE`,
       )
       .all<Record<string, unknown>>(),
-    db.prepare("SELECT id, name, plugin_version, user_roles FROM sites ORDER BY name COLLATE NOCASE").all<{
+    db.prepare("SELECT id, name, plugin_version, user_roles FROM sites WHERE kind = 'wordpress' ORDER BY name COLLATE NOCASE").all<{
       id: number;
       name: string;
       plugin_version: string | null;
@@ -188,4 +190,15 @@ export async function listFleetUsers(db: D1Database): Promise<FleetUsers> {
       .filter((site) => !site.plugin_version || compareVersions(site.plugin_version, USER_MANAGEMENT_SINCE) < 0)
       .map(({ id, name, plugin_version }) => ({ id, name, plugin_version })),
   };
+}
+
+const DEPLOYMENT_COLUMNS = "type, ref, created_at, status, message, author, source, branch, commit_hash";
+
+/** A static site's deployments and builds as of the last sync, newest first. */
+export async function listDeployments(db: D1Database, siteId: number): Promise<SiteDeployment[]> {
+  const { results } = await db
+    .prepare(`SELECT ${DEPLOYMENT_COLUMNS} FROM site_deployments WHERE site_id = ? ORDER BY created_at DESC, type`)
+    .bind(siteId)
+    .all<SiteDeployment>();
+  return results;
 }

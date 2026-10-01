@@ -279,3 +279,27 @@ keeps a revision to restore, then re-read so the list matches. A site keeps at m
 - Notifications (email or push) when a site fails to sync or has security
   updates, reusing Mailroom's notification code.
 - Multisite support.
+
+## Static sites and Cloudflare
+
+`sites.kind` is `wordpress` (managed through KontrolWP Connect) or `static`
+(a website on Cloudflare Workers). A static site has an empty `secret`, so
+`getCredentials` returns null for it and nothing can sign a request to it;
+`WORDPRESS_ONLY` routes answer 400 for it. `POST /api/sites` with
+`kind: "static"` takes the address, an optional name and an optional Worker,
+and refuses an address that does not answer.
+
+`syncSite` hands a static site to `syncStaticSite` (src/worker/sites/static.ts),
+which fetches the home page (any non-2xx answer or no answer marks the site
+down; it also finds the icon) and, in parallel, reads the chosen Worker's
+deployments and builds into `site_deployments`, replaced at every sync. A
+failed Cloudflare read only sets `sites.cf_error`; the last rows stay.
+
+Settings stores one Cloudflare API token in the `settings` table, encrypted
+like the Umami secret. src/worker/cloudflare.ts reads, never writes:
+`GET /accounts`, `/accounts/:id/workers/scripts` (names and tags),
+`/workers/scripts/:name/deployments` (the first is live) and the Workers
+Builds API (`/builds/workers/:tag/builds`, `/builds/builds/:uuid/logs`). The
+Builds API needs a user token with Workers Builds Configuration; without it the
+deployments still show. Build logs are read from Cloudflare when opened, one
+cursor page at a time, and only for builds the site listed at its last sync.

@@ -16,6 +16,7 @@ import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
+import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
 
 /** Wait before the second try at an unreachable site. */
@@ -34,6 +35,8 @@ export async function syncSite(
   siteId: number,
   options: { retrySelfUpdate?: boolean; retryDelayMs?: number } = {},
 ): Promise<SyncResult> {
+  const kind = await env.DB.prepare("SELECT kind FROM sites WHERE id = ?").bind(siteId).first<{ kind: string }>();
+  if (kind?.kind === "static") return syncStaticSite(env, siteId);
   let site;
   try {
     site = await getCredentials(env, siteId);

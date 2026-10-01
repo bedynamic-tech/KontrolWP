@@ -1,4 +1,8 @@
 import type {
+  BuildLog,
+  CloudflareSettings,
+  CloudflareWorker,
+  SiteDeployments,
   BulkPluginResult,
   BulkUserResult,
   FleetUsers,
@@ -56,18 +60,14 @@ export function secretsKeyMissing(error: unknown): boolean {
 
 /** The API rejected the request because Cloudflare Access is not set up correctly. */
 export function accessSetupError(error: unknown): ApiError | null {
-  return error instanceof ApiError && error.code && ACCESS_SETUP_CODES.includes(error.code)
-    ? error
-    : null;
+  return error instanceof ApiError && error.code && ACCESS_SETUP_CODES.includes(error.code) ? error : null;
 }
 
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
   const res = await fetch(`/api${path}`, {
     ...rest,
-    ...(json === undefined
-      ? {}
-      : { body: JSON.stringify(json), headers: { "Content-Type": "application/json" } }),
+    ...(json === undefined ? {} : { body: JSON.stringify(json), headers: { "Content-Type": "application/json" } }),
   });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -86,8 +86,11 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
 export const fetchOverview = () => request<Overview>("/overview");
 export const fetchSite = (id: number) => request<SiteDetail>(`/sites/${id}`);
 
-export const createSite = (input: { url: string; connection_key: string }) =>
-  request<SiteSummary>("/sites", { method: "POST", json: input });
+export type NewSite =
+  | { url: string; connection_key: string }
+  | { kind: "static"; url: string; name?: string; cf_account_id?: string; cf_worker?: string };
+
+export const createSite = (input: NewSite) => request<SiteSummary>("/sites", { method: "POST", json: input });
 
 export const updateSiteUrl = (id: number, url: string) =>
   request<SiteSummary>(`/sites/${id}`, { method: "PATCH", json: { url } });
@@ -190,7 +193,9 @@ export const setSiteUmamiWebsite = (siteId: number, websiteId: string | null) =>
 
 export const fetchSiteAnalyticsDetails = (siteId: number, range: AnalyticsRange) => {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return request<SiteAnalyticsDetails>(`/sites/${siteId}/analytics/details?range=${range}&tz=${encodeURIComponent(tz)}`);
+  return request<SiteAnalyticsDetails>(
+    `/sites/${siteId}/analytics/details?range=${range}&tz=${encodeURIComponent(tz)}`,
+  );
 };
 export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -231,11 +236,27 @@ export const manageUser = (siteId: number, userId: number, action: UserAction, r
 
 export const fetchFleetUsers = () => request<FleetUsers>("/users");
 
-export const bulkUserAction = (
-  action: UserAction,
-  targets: { site_id: number; user_id: number }[],
-  role?: string,
-) => request<{ results: BulkUserResult[] }>("/users/bulk", { method: "POST", json: { action, role, targets } });
+export const bulkUserAction = (action: UserAction, targets: { site_id: number; user_id: number }[], role?: string) =>
+  request<{ results: BulkUserResult[] }>("/users/bulk", { method: "POST", json: { action, role, targets } });
 
 export const createUserOnSites = (siteIds: number[], user: NewUser) =>
   request<{ results: BulkPluginResult[] }>("/users", { method: "POST", json: { ...user, site_ids: siteIds } });
+
+export const fetchCloudflareSettings = () => request<CloudflareSettings>("/settings/cloudflare");
+
+export const saveCloudflareSettings = (token: string) =>
+  request<CloudflareSettings & { workers: number }>("/settings/cloudflare", { method: "PUT", json: { token } });
+
+export const deleteCloudflareSettings = () => request<CloudflareSettings>("/settings/cloudflare", { method: "DELETE" });
+
+export const fetchCloudflareWorkers = () => request<{ workers: CloudflareWorker[] }>("/cloudflare/workers");
+
+export const setSiteWorker = (siteId: number, worker: { account_id: string; worker: string } | null) =>
+  request<SiteSummary>(`/sites/${siteId}/cloudflare`, { method: "PUT", json: worker });
+
+export const fetchSiteDeployments = (siteId: number) => request<SiteDeployments>(`/sites/${siteId}/deployments`);
+
+export const fetchBuildLog = (siteId: number, buildId: string, cursor?: string | null) =>
+  request<BuildLog>(
+    `/sites/${siteId}/builds/${encodeURIComponent(buildId)}/logs${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+  );

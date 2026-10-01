@@ -394,7 +394,7 @@ function FleetInstallDialog(props: {
   const overview = useQuery({ queryKey: ["overview"], queryFn: fetchOverview, enabled: props.open });
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const unsupported = new Set(props.unsupported.map((site) => site.id));
-  const sites = (overview.data?.sites ?? []).filter((site) => !unsupported.has(site.id));
+  const sites = (overview.data?.sites ?? []).filter((site) => site.kind === "wordpress" && !unsupported.has(site.id));
   const names = new Map<number, string>(sites.map((site) => [site.id, site.name]));
   const chosen = sites.filter((site) => selected.has(site.id)).map((site) => site.id);
 

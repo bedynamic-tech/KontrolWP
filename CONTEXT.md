@@ -8,6 +8,14 @@ KontrolWP is a dashboard for managing many WordPress sites from one place, runni
 A WordPress install the owner added to KontrolWP, identified by its public https home URL and named after its WordPress title. It is Waiting to connect until its first successful sync, Connected after one, and Needs attention when the latest sync failed.
 _Avoid_: Website, install, instance
 
+**Static site**:
+A static website hosted on Cloudflare Workers, added by its public https address with no plugin. KontrolWP checks that it answers, shows its Umami analytics and Domain, and, when a Cloudflare API token is saved in Settings and the site's Worker is chosen, its Deployments. It has no Updates, Plugins, Users, Links or Magic Login.
+_Avoid_: Jamstack site, Pages site
+
+**Deployment**:
+One entry in a Static site's history, from Cloudflare: a version that went live on its Worker (the newest is Live), or a Workers Builds run with its status and log.
+_Avoid_: Release, build job
+
 **KontrolWP Connect**:
 The WordPress plugin installed on every Site. It answers only requests signed with that Site's secret and never contacts the dashboard on its own.
 _Avoid_: Agent, client, worker plugin

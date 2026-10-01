@@ -1,7 +1,11 @@
 export type SiteStatus = "pending" | "connected" | "error";
 
+/** A WordPress site managed through KontrolWP Connect, or a static website on Cloudflare Workers. */
+export type SiteKind = "wordpress" | "static";
+
 export interface SiteSummary {
   id: number;
+  kind: SiteKind;
   name: string;
   url: string;
   status: SiteStatus;
@@ -32,6 +36,12 @@ export interface SiteSummary {
   plugin_auto_updates: boolean;
   /** The Umami website the owner chose for this site; null matches by domain. */
   umami_website_id: string | null;
+  /** Static sites: the Cloudflare Worker they deploy from, and why reading it last failed. */
+  cf_account_id: string | null;
+  cf_worker: string | null;
+  cf_error: string | null;
+  /** Static sites: when the newest deployment went live, in seconds. */
+  last_deployed_at: number | null;
 }
 
 /** Core auto-updates: every new version, maintenance and security releases only, or none. */
@@ -469,4 +479,50 @@ export interface LinkUnlinkResult {
   buttons_kept: number;
   /** Addresses also used as images, which are left in place. */
   images_kept: number;
+}
+
+/** The Cloudflare connection as Settings shows it; the API token never leaves the Worker. */
+export interface CloudflareSettings {
+  configured: boolean;
+}
+
+/** A Worker the Cloudflare token can see, for choosing a static site's deployments. */
+export interface CloudflareWorker {
+  account_id: string;
+  account_name: string;
+  name: string;
+  tag: string;
+}
+
+export type DeploymentStatus = "live" | "queued" | "building" | "success" | "failed" | "cancelled" | "skipped";
+
+/** One deployment (a version went live) or build (Workers Builds ran) of a static site. */
+export interface SiteDeployment {
+  type: "deployment" | "build";
+  ref: string;
+  created_at: number;
+  status: DeploymentStatus;
+  message: string;
+  author: string;
+  source: string;
+  branch: string;
+  commit_hash: string;
+}
+
+export interface SiteDeployments {
+  /** A Cloudflare token is saved in Settings. */
+  configured: boolean;
+  /** The Worker this site deploys from, if one is chosen. */
+  worker: string | null;
+  /** Why the last read from Cloudflare failed. */
+  error: string | null;
+  deployments: SiteDeployment[];
+}
+
+/** One page of a build's log. */
+export interface BuildLog {
+  lines: { time: number; text: string }[];
+  /** Pass back to read the next page; null at the end. */
+  cursor: string | null;
+  truncated: boolean;
 }
