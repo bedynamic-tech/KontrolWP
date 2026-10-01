@@ -384,6 +384,24 @@ export interface SiteUser {
   registered: number;
 }
 
+/** A page a static site's sitemap lists. */
+export interface SitemapPage {
+  url: string;
+  /** The sitemap's last modified date, as written (a date or a date and time); null when it gives none. */
+  lastmod: string | null;
+}
+
+/** A static site's pages, read from its sitemap. */
+export interface SiteSitemap {
+  /** The sitemap file the pages came from, or null when none was found. */
+  sitemap_url: string | null;
+  items: SitemapPage[];
+  total: number;
+  /** The site lists more pages than KontrolWP keeps. */
+  truncated: boolean;
+  error: string | null;
+}
+
 /** The statuses the Posts and pages tab lists. Trash is left out. */
 export const CONTENT_STATUSES = ["publish", "future", "draft", "pending", "private"] as const;
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];

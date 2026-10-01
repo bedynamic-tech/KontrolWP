@@ -324,3 +324,15 @@ Builds API (`/builds/workers/:tag/builds`, `/builds/builds/:uuid/logs`). The
 Builds API needs a user token with Workers Builds Configuration; without it the
 deployments still show. Build logs are read from Cloudflare when opened, one
 cursor page at a time, and only for builds the site listed at its last sync.
+
+### Pages from the sitemap
+
+A static site's Pages tab (`GET /api/sites/:id/pages`) reads the site's
+sitemap live each time the tab opens, and the page caches it for five minutes.
+The Worker takes the address from `robots.txt` (`Sitemap:` lines), then tries
+`/sitemap.xml` and `/sitemap_index.xml`. A sitemap index is followed into up to
+20 child sitemaps; `.gz` files are decompressed. Only addresses on the site's
+own host (with or without `www.`) are fetched or listed, each file is capped
+at 10 MB, and at most 5,000 pages are kept. Pages are listed newest `lastmod`
+first and searched in the browser. Nothing is stored in D1, and a sitemap
+has no page titles, so rows show the path.

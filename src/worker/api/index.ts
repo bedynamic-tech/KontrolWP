@@ -22,6 +22,7 @@ import type {
   CloudflareSettings,
   CloudflareWorker,
   SiteContent,
+  SiteSitemap,
   SiteUsers,
   SyncSettings,
   UmamiSettings,
@@ -50,6 +51,7 @@ import {
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
+import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
@@ -764,6 +766,15 @@ api.post("/sites/:id/links/ignore", async (c) => {
   if (!(await ignoreLink(c.env.DB, id, parsed.data.url, parsed.data.ignored)))
     return c.json({ error: "Link not found" }, 404);
   return c.json<SiteLinks>(await listLinks(c.env.DB, id));
+});
+
+/** A static site's pages, read live from its sitemap. */
+api.get("/sites/:id/pages", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (site.kind !== "static") return c.json({ error: "Only static sites list their pages from a sitemap." }, 400);
+  return c.json<SiteSitemap>(await readSitemap(site.url));
 });
 
 const PAGE_SIZE = 25;
