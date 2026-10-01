@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.8.0";
+export const KONTROLWP_CONNECT_VERSION = "0.9.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -33,3 +33,6 @@ export const AUTO_UPDATES_SINCE = "0.7.0";
 
 /** The first KontrolWP Connect that can list, add, change and remove users. */
 export const USER_MANAGEMENT_SINCE = "0.8.0";
+
+/** The first KontrolWP Connect that lists its content's links, and opens a post's editor through Magic Login. */
+export const LINK_CHECK_SINCE = "0.9.0";

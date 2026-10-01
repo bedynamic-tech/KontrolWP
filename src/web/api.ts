@@ -21,6 +21,7 @@ import type {
   SitePlugins,
   SiteDetail,
   SiteDomain,
+  SiteLinks,
   SiteSummary,
   SiteUpdate,
 } from "../shared/types";
@@ -116,8 +117,9 @@ export const fetchAdmins = (siteId: number) => request<{ admins: SiteAdmin[] }>(
 export const setMagicLoginUser = (siteId: number, userId: number | null) =>
   request<SiteSummary>(`/sites/${siteId}/magic-login`, { method: "PUT", json: { user_id: userId } });
 
-export const createMagicLogin = (siteId: number) =>
-  request<{ url: string }>(`/sites/${siteId}/magic-login`, { method: "POST" });
+/** A one-time sign-in link; with postId it opens that post's editor. */
+export const createMagicLogin = (siteId: number, postId?: number) =>
+  request<{ url: string }>(`/sites/${siteId}/magic-login`, { method: "POST", json: postId ? { post_id: postId } : {} });
 
 export const setUpdatesExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/updates-excluded`, { method: "PUT", json: { excluded } });
@@ -202,6 +204,12 @@ export const saveLayoutSettings = (layout: LayoutSettings) =>
   request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });
 
 export const fetchDomain = (siteId: number) => request<SiteDomain>(`/sites/${siteId}/domain`);
+export const fetchLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteId}/links`);
+export const scanLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteId}/links/scan`, { method: "POST" });
+export const recheckLink = (siteId: number, url: string) =>
+  request<SiteLinks>(`/sites/${siteId}/links/recheck`, { method: "POST", json: { url } });
+export const ignoreLink = (siteId: number, url: string, ignored: boolean) =>
+  request<SiteLinks>(`/sites/${siteId}/links/ignore`, { method: "POST", json: { url, ignored } });
 export const fetchUsers = (siteId: number) => request<SiteUsers>(`/sites/${siteId}/users`);
 
 export const createUser = (siteId: number, user: NewUser) =>

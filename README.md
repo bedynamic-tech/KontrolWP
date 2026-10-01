@@ -23,6 +23,8 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
   delete and auto-updates, on one site or many at once.
 - **Users.** Every user across all sites, grouped by email: add, change role,
   send a password reset or delete, on one site or many at once.
+- **Links.** Scan a site's published posts and pages for broken and
+  unresponsive links and images, then open each post's editor to fix them.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** Every site is re-checked every hour by default; Settings can make it every 15 minutes up to every 6 hours.

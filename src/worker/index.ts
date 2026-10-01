@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { api } from "./api";
 import { requireWebAccess } from "./api/access.ts";
 import { ensureSchema } from "./db/schema.ts";
+import { checkLinks, collectLinks } from "./sites/links.ts";
 import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate } from "./sites/updates.ts";
 
@@ -21,8 +22,15 @@ export default {
         try {
           // Unreachable sites are recorded on the site, not retried; only
           // unexpected failures (such as D1 errors) go back to the queue.
-          const { siteId } = message.body;
-          if (message.body.type === "update") {
+          const body = message.body;
+          const { siteId } = body;
+          if (body.type === "links-collect") {
+            await collectLinks(env, siteId, body.scanId, body.page);
+          } else if (body.type === "links-check") {
+            if (await checkLinks(env, siteId, body.scanId)) {
+              await env.SYNC_QUEUE.send({ type: "links-check", siteId, scanId: body.scanId });
+            }
+          } else if (body.type === "update") {
             const step = await runNextUpdate(env, siteId);
             if (step.next === "continue") await env.SYNC_QUEUE.send({ type: "update", siteId });
             if (step.next === "retry") {

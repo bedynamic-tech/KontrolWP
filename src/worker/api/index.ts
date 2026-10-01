@@ -17,6 +17,7 @@ import type {
   SiteAdmin,
   SiteDetail,
   SiteDomain,
+  SiteLinks,
   SiteAnalytics,
   SiteAnalyticsDetails,
   SitePlugins,
@@ -30,6 +31,8 @@ import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontr
 import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
+import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
+import { ignoreLink, listLinks, recheckLink, startLinkScan } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import {
@@ -308,9 +311,15 @@ api.put("/sites/:id/magic-login", async (c) => {
   return c.json(await getSite(c.env.DB, id));
 });
 
-/** Ask the site for a one-time link that signs the browser in as the chosen administrator. */
+const magicLoginTarget = z.object({ post_id: z.number().int().positive().optional() }).catch({});
+
+/**
+ * Ask the site for a one-time link that signs the browser in as the chosen
+ * administrator. With post_id, the link opens that post's editor.
+ */
 api.post("/sites/:id/magic-login", async (c) => {
   const id = siteId(c);
+  const target = magicLoginTarget.parse(await c.req.json().catch(() => ({})));
   const summary = id && (await getSite(c.env.DB, id));
   if (!id || !summary) return c.json({ error: "Site not found" }, 404);
   if (!summary.login_user_id) return c.json({ error: "Choose an administrator for Magic Login first" }, 400);
@@ -319,6 +328,7 @@ api.post("/sites/:id/magic-login", async (c) => {
   try {
     const result = await callSite<{ url?: unknown }>(site, "POST", `${REST_NAMESPACE}/login`, {
       user_id: summary.login_user_id,
+      ...(target.post_id ? { post_id: target.post_id } : {}),
     });
     url = typeof result.url === "string" && URL.canParse(result.url) ? new URL(result.url) : null;
   } catch (error) {
@@ -559,6 +569,50 @@ api.get("/sites/:id/domain", async (c) => {
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
   return c.json<SiteDomain>(await lookupDomain(site.url));
+});
+
+/** The link checker's latest scan and the links that need a look. */
+api.get("/sites/:id/links", async (c) => {
+  const id = siteId(c);
+  if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  return c.json<SiteLinks>(await listLinks(c.env.DB, id));
+});
+
+/** Scan the site's published content for broken links, replacing any running scan. */
+api.post("/sites/:id/links/scan", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0) {
+    return c.json(
+      { error: `Checking links needs KontrolWP Connect ${LINK_CHECK_SINCE} or later. It updates automatically; select Sync now to check.` },
+      400,
+    );
+  }
+  await startLinkScan(c.env, id);
+  return c.json<SiteLinks>(await listLinks(c.env.DB, id), 202);
+});
+
+const linkTarget = z.object({ url: z.string().min(1).max(2048) });
+
+/** Check one link again, after fixing it. */
+api.post("/sites/:id/links/recheck", async (c) => {
+  const id = siteId(c);
+  const parsed = linkTarget.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid link" }, 400);
+  if (!(await recheckLink(c.env, id, parsed.data.url))) return c.json({ error: "Link not found" }, 404);
+  return c.json<SiteLinks>(await listLinks(c.env.DB, id));
+});
+
+const linkIgnore = linkTarget.extend({ ignored: z.boolean() });
+
+/** Mark a link as fine (or not), so it leaves the problem list. */
+api.post("/sites/:id/links/ignore", async (c) => {
+  const id = siteId(c);
+  const parsed = linkIgnore.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid link" }, 400);
+  if (!(await ignoreLink(c.env.DB, id, parsed.data.url, parsed.data.ignored))) return c.json({ error: "Link not found" }, 404);
+  return c.json<SiteLinks>(await listLinks(c.env.DB, id));
 });
 
 api.get("/sites/:id/users", (c) => userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)));
