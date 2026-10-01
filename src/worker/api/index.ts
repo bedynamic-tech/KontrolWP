@@ -44,6 +44,7 @@ import {
   listFleetUsers,
   listSites,
   listUpdates,
+  setSiteName,
 } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
@@ -154,12 +155,16 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
   if (existing) return c.json({ error: "This site is already in KontrolWP", id: existing.id }, 409);
   const { error } = await inspectStaticSite(url);
   if (error) return c.json({ error: `KontrolWP could not open ${url}. ${error}.` }, 400);
+  // A static site is named after its domain unless the owner gives it a name.
+  const domain = new URL(url).hostname;
   const worker = input.cloudflare && input.cf_account_id && input.cf_worker ? input : null;
   const row = await c.env.DB.prepare(
-    "INSERT INTO sites (kind, name, url, secret, cf_hosted, cf_account_id, cf_worker) VALUES ('static', ?, ?, '', ?, ?, ?) RETURNING id",
+    "INSERT INTO sites (kind, name, name_custom, default_name, url, secret, cf_hosted, cf_account_id, cf_worker) VALUES ('static', ?, ?, ?, ?, '', ?, ?, ?) RETURNING id",
   )
     .bind(
-      input.name || new URL(url).hostname,
+      input.name || domain,
+      input.name ? 1 : 0,
+      domain,
       url,
       input.cloudflare ? 1 : 0,
       worker?.cf_account_id ?? null,
@@ -247,6 +252,17 @@ api.patch("/sites/:id", async (c) => {
   if (!result) return c.json({ error: "Another site already uses this URL" }, 409);
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
   return c.json(await getSite(c.env.DB, id));
+});
+
+/** Rename a site, or send null to go back to its default name. */
+api.put("/sites/:id/name", async (c) => {
+  const id = siteId(c);
+  const parsed = z
+    .object({ name: z.string().trim().max(120).nullable() })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Enter a name of up to 120 characters" }, 400);
+  const site = await setSiteName(c.env.DB, id, parsed.data.name);
+  return site ? c.json(site) : c.json({ error: "Site not found" }, 404);
 });
 
 api.delete("/sites/:id", async (c) => {

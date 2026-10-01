@@ -5,7 +5,7 @@ KontrolWP is a dashboard for managing many WordPress sites from one place, runni
 ## Language
 
 **Site**:
-A WordPress install the owner added to KontrolWP, identified by its public https home URL and named after its WordPress title. It is Waiting to connect until its first successful sync, Connected after one, and Needs attention when the latest sync failed.
+A WordPress install the owner added to KontrolWP, identified by its public https home URL and named after its WordPress title (a Static site: its domain). The owner can rename any Site from its page; the new name then survives syncs until reset. It is Waiting to connect until its first successful sync, Connected after one, and Needs attention when the latest sync failed.
 _Avoid_: Website, install, instance
 
 **Static site**:

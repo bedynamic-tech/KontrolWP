@@ -5,7 +5,7 @@ import { SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `
-  s.id, s.kind, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
+  s.id, s.kind, s.name, s.name_custom, s.default_name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded,
   s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates, s.umami_website_id,
@@ -32,7 +32,7 @@ export async function getSite(db: D1Database, id: number): Promise<SiteSummary |
   return row && summary(row);
 }
 
-type SiteFlag = "updates_excluded" | "core_auto_update_locked" | "plugin_auto_updates" | "cf_hosted";
+type SiteFlag = "updates_excluded" | "core_auto_update_locked" | "plugin_auto_updates" | "cf_hosted" | "name_custom";
 type SiteRow = Omit<SiteSummary, SiteFlag> & Record<SiteFlag, number>;
 
 const summary = (row: SiteRow): SiteSummary => ({
@@ -41,6 +41,7 @@ const summary = (row: SiteRow): SiteSummary => ({
   core_auto_update_locked: Boolean(row.core_auto_update_locked),
   plugin_auto_updates: Boolean(row.plugin_auto_updates),
   cf_hosted: Boolean(row.cf_hosted),
+  name_custom: Boolean(row.name_custom),
 });
 
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
@@ -202,4 +203,27 @@ export async function listDeployments(db: D1Database, siteId: number): Promise<S
     .bind(siteId)
     .all<SiteDeployment>();
   return results;
+}
+
+/**
+ * Rename a site, or pass null to go back to its default: the WordPress site
+ * title from the last sync, or a static site's domain. Returns the site, or
+ * null when it does not exist.
+ */
+export async function setSiteName(db: D1Database, id: number, name: string | null): Promise<SiteSummary | null> {
+  const row = await db.prepare("SELECT url, default_name FROM sites WHERE id = ?").bind(id).first<{ url: string; default_name: string | null }>();
+  if (!row) return null;
+  const custom = name?.trim().slice(0, 120);
+  if (custom) {
+    await db.prepare("UPDATE sites SET name = ?, name_custom = 1 WHERE id = ?").bind(custom, id).run();
+  } else {
+    let fallback = row.url;
+    try {
+      fallback = new URL(row.url).hostname;
+    } catch {
+      // Keep the address as given.
+    }
+    await db.prepare("UPDATE sites SET name = ?, name_custom = 0 WHERE id = ?").bind(row.default_name || fallback, id).run();
+  }
+  return getSite(db, id);
 }

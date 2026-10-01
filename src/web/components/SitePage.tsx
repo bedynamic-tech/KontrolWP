@@ -38,6 +38,7 @@ import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
+import { SiteName } from "./SiteName";
 import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
 import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
@@ -141,7 +142,7 @@ export function SitePage() {
         <div className="flex min-w-0 items-center gap-3">
           <SiteIcon site={site} className="size-13 text-xl" />
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
+            <SiteName site={site} />
             <a
               href={site.url}
               target="_blank"
