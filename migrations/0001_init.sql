@@ -1,4 +1,4 @@
--- A WordPress site the dashboard manages through Presser Connect.
+-- A WordPress site the dashboard manages through KontrolWP Connect.
 -- `secret` is the HMAC key shared with the plugin through the Connection Key,
 -- encrypted with SITE_SECRETS_KEY (src/worker/sites/secrets.ts).
 CREATE TABLE sites (

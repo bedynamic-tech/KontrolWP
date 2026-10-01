@@ -1,14 +1,19 @@
-// Packages plugin/presser-connect as public/downloads/presser-connect.zip so
+// Packages plugin/kontrolwp-connect as public/downloads/kontrolwp-connect-<version>.zip so
 // the dashboard can offer it for download. No dependencies: a zip is a list
 // of deflated files followed by a central directory.
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const source = join(root, "plugin", "presser-connect");
-const output = join(root, "public", "downloads", "presser-connect.zip");
+const source = join(root, "plugin", "kontrolwp-connect");
+// The version from the plugin header; tests/plugin-lint.test.mjs keeps it
+// equal to KONTROLWP_CONNECT_VERSION, which names the same file for the dashboard.
+const version = /^\s*\*\s*Version:\s*(\S+)/m.exec(readFileSync(join(source, "kontrolwp-connect.php"), "utf8"))?.[1];
+if (!version) throw new Error("No Version: line in plugin/kontrolwp-connect/kontrolwp-connect.php");
+const downloads = join(root, "public", "downloads");
+const output = join(downloads, `kontrolwp-connect-${version}.zip`);
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -82,11 +87,17 @@ export function buildZip(files) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const files = walk(source).map((path) => ({
-    // WordPress expects the plugin folder at the top of the archive.
-    name: ["presser-connect", ...relative(source, path).split(sep)].join("/"),
+    // WordPress expects the plugin folder at the top of the archive. It keeps
+    // one name across versions: WordPress knows a plugin by its folder, so a
+    // versioned folder would install each update as a separate plugin.
+    name: ["kontrolwp-connect", ...relative(source, path).split(sep)].join("/"),
     data: readFileSync(path),
   }));
   mkdirSync(dirname(output), { recursive: true });
+  // Only the current version is served.
+  for (const name of readdirSync(downloads)) {
+    if (/^kontrolwp-connect.*\.zip$/.test(name)) rmSync(join(downloads, name));
+  }
   writeFileSync(output, buildZip(files));
   console.log(`Built ${relative(root, output)} (${files.length} files)`);
 }

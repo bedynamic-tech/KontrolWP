@@ -34,7 +34,7 @@ import { PluginsSection } from "./PluginsSection";
 import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
-import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
+import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { Spinner } from "./Spinner";
@@ -157,7 +157,7 @@ export function SitePage() {
           <p className="font-medium">Install the new KontrolWP Connect once</p>
           <p className="mt-1 text-muted-foreground">
             At its last sync ({timeAgo(site.last_synced_at).toLowerCase()}) this site reported KontrolWP Connect{" "}
-            {site.plugin_version}, which cannot update itself. Install {PRESSER_CONNECT_VERSION} from KontrolWP
+            {site.plugin_version}, which cannot update itself. Install {KONTROLWP_CONNECT_VERSION} from KontrolWP
             Connect in the sidebar; later versions install automatically. Already did? Select Sync now.
           </p>
         </div>
@@ -301,7 +301,7 @@ export function SitePage() {
             <Textarea
               value={connectionKey}
               onChange={(e) => setConnectionKey(e.target.value)}
-              placeholder="presser2...."
+              placeholder="kontrolwp2...."
               className="font-mono text-xs"
               rows={3}
               spellCheck={false}
@@ -377,16 +377,16 @@ function SelfUpdateNote(props: { site: SiteSummary }) {
   if (
     !version ||
     compareVersions(version, SELF_UPDATING_SINCE) < 0 ||
-    compareVersions(version, PRESSER_CONNECT_VERSION) >= 0 ||
+    compareVersions(version, KONTROLWP_CONNECT_VERSION) >= 0 ||
     !site.self_update_status
   ) {
     return null;
   }
-  const target = site.self_update_version ?? PRESSER_CONNECT_VERSION;
+  const target = site.self_update_version ?? KONTROLWP_CONNECT_VERSION;
   const active = site.self_update_status === "queued" || site.self_update_status === "running";
   // A finished job for an older release says nothing about this one; the
   // next sync queues it.
-  if (!active && site.self_update_version !== PRESSER_CONNECT_VERSION) return null;
+  if (!active && site.self_update_version !== KONTROLWP_CONNECT_VERSION) return null;
   if (active) {
     return (
       <div className="mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm text-muted-foreground">

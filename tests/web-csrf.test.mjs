@@ -3,7 +3,7 @@ import test from "node:test";
 import { Hono } from "hono";
 import { requireSameOrigin } from "../src/worker/api/csrf.ts";
 
-const origin = "https://presser.example.com";
+const origin = "https://kontrolwp.example.com";
 
 function fixture() {
   const api = new Hono();
@@ -21,7 +21,7 @@ test("rejects unsafe requests before handlers run, for every write method and bo
   const { app, writes } = fixture();
   for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
     for (const contentType of ["application/json", "application/x-www-form-urlencoded", "multipart/form-data; boundary=test", "text/plain"]) {
-      for (const source of [undefined, "null", "https://attacker.example", "https://other.example.com", `${origin}.attacker.example`, `${origin}/`, "http://presser.example.com"]) {
+      for (const source of [undefined, "null", "https://attacker.example", "https://other.example.com", `${origin}.attacker.example`, `${origin}/`, "http://kontrolwp.example.com"]) {
         const response = await app.request(`${origin}/api/threads/1/reply`, {
           method,
           headers: { "Content-Type": contentType, ...(source === undefined ? {} : { Origin: source }) },

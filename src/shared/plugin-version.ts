@@ -1,9 +1,12 @@
 /**
  * The KontrolWP Connect version this dashboard ships in
- * public/downloads/presser-connect.zip. Sites running an older one are offered
+ * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const PRESSER_CONNECT_VERSION = "0.8.0";
+export const KONTROLWP_CONNECT_VERSION = "0.8.0";
+
+/** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
+export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
 
 /** The first KontrolWP Connect that can take updates from the dashboard. */
 export const SELF_UPDATING_SINCE = "0.4.0";

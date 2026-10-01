@@ -38,7 +38,7 @@ export async function callSite<T>(
     // A unique query string keeps page caches and CDNs in front of the site
     // from answering with a stored copy (the signature covers the route only).
     const url = new URL(restUrl(site.url, route));
-    url.searchParams.set("presser_nonce", headers["X-Presser-Nonce"]);
+    url.searchParams.set("kontrolwp_nonce", headers["X-KontrolWP-Nonce"]);
     response = await fetch(url, {
       method,
       headers: {

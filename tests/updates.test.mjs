@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomToken } from "../src/shared/protocol.ts";
-import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
+import { KONTROLWP_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
@@ -12,7 +12,7 @@ import { fakeD1, migrations } from "./helpers/d1.mjs";
 const SITE = "https://example.com";
 
 /** A database with one site, and a stubbed KontrolWP Connect behind fetch. */
-async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
+async function setup(handleApply, plugin_version = KONTROLWP_CONNECT_VERSION) {
   const db = fakeD1();
   await applyMigrations(db, migrations);
   const key = randomToken(32);
@@ -33,7 +33,7 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
     const route = new URL(url).searchParams.get("rest_route");
     const json = (body, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-    if (route === "/presser/v1/updates/apply" || route === "/presser/v1/self-update") {
+    if (route === "/kontrolwp/v1/updates/apply" || route === "/kontrolwp/v1/self-update") {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       try {
@@ -44,25 +44,25 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
         inFlight--;
       }
     }
-    if (route === "/presser/v1/status") {
+    if (route === "/kontrolwp/v1/status") {
       return json({
         name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version, theme: "T",
         ...(plugin_version >= "0.7.0" ? { core_auto_update: { mode: "all", locked: false } } : {}),
       });
     }
-    if (route === "/presser/v1/updates") return json({ core: null, plugins: [], themes: [] });
-    if (route === "/presser/v1/comments") return json({ pending_count: 0, comments: [] });
-    if (route === "/presser/v1/plugins") {
+    if (route === "/kontrolwp/v1/updates") return json({ core: null, plugins: [], themes: [] });
+    if (route === "/kontrolwp/v1/comments") return json({ pending_count: 0, comments: [] });
+    if (route === "/kontrolwp/v1/plugins") {
       return json({
         plugins: [
           { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false, auto_update: true, icon_url: "https://ps.w.org/akismet/assets/icon.svg" },
-          { file: "presser-connect/presser-connect.php", name: "KontrolWP Connect", version: plugin_version, author: "KontrolWP", active: true, network_active: false, protected: true },
+          { file: "kontrolwp-connect/kontrolwp-connect.php", name: "KontrolWP Connect", version: plugin_version, author: "KontrolWP", active: true, network_active: false, protected: true },
         ],
         can_modify_files: true,
         auto_updates: true,
       });
     }
-    if (route === "/presser/v1/users") {
+    if (route === "/kontrolwp/v1/users") {
       return json({
         users: [
           { id: 2, login: "owner", email: "Owner@Example.com", display_name: "Owner", roles: ["administrator"], registered: 1700000000 },
@@ -72,7 +72,7 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
         total: 2,
       });
     }
-    if (route === "/presser/v1/admins") {
+    if (route === "/kontrolwp/v1/admins") {
       return json({ admins: [{ id: 7, login: "editor-in-chief", display_name: "Chief" }, { id: 2, login: "owner", display_name: "Owner" }] });
     }
     throw new Error(`unexpected ${route}`);
@@ -129,7 +129,7 @@ test("a site in maintenance mode is retried, then reported", async () => {
 
 test("a failed update does not stop the next one", async () => {
   const t = await setup(async (body, json) =>
-    body.slug === "a/a.php" ? json({ code: "presser_update_failed", message: "Download failed." }, 500) : json({ ok: true }),
+    body.slug === "a/a.php" ? json({ code: "kontrolwp_update_failed", message: "Download failed." }, 500) : json({ ok: true }),
   );
   await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "a/a.php" });
   await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "b/b.php" });
@@ -142,14 +142,14 @@ test("an older KontrolWP Connect is updated automatically and never listed", asy
   const t = await setup(async (_body, json) => json({ ok: true }), "0.3.0");
   await syncSite(t.env, 1);
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
-  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
+  assert.deepEqual(t.jobs(), [{ slug: "kontrolwp-connect", status: "queued", error: null }]);
   assert.deepEqual(t.sent.at(-1).body, { type: "update", siteId: 1 });
 
   await syncSite(t.env, 1);
   assert.equal(t.jobs().length, 1, "a second sync does not queue it twice");
 
   await runNextUpdate(t.env, 1);
-  assert.deepEqual(t.applied[0], { version: PRESSER_CONNECT_VERSION, package: "UEsDBA==" });
+  assert.deepEqual(t.applied[0], { version: KONTROLWP_CONNECT_VERSION, package: "UEsDBA==" });
 });
 
 test("a current KontrolWP Connect is left alone", async () => {
@@ -159,31 +159,31 @@ test("a current KontrolWP Connect is left alone", async () => {
 });
 
 test("a failed self-update is not retried by the sync that follows it", async () => {
-  const t = await setup(async (_body, json) => json({ code: "presser_update_failed", message: "Disk full." }, 500), "0.3.9");
+  const t = await setup(async (_body, json) => json({ code: "kontrolwp_update_failed", message: "Disk full." }, 500), "0.3.9");
   await syncSite(t.env, 1);
   const sentBefore = t.sent.length;
   // Fails, then syncs; that sync must not queue it again.
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
-  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "failed", error: "Disk full." }]);
+  assert.deepEqual(t.jobs(), [{ slug: "kontrolwp-connect", status: "failed", error: "Disk full." }]);
   assert.equal(t.sent.length, sentBefore);
 });
 
 test("a KontrolWP Connect too old to update itself says how to fix it", async () => {
   const t = await setup(async (_body, json) => json({ code: "rest_no_route", message: "No route" }, 404), "0.3.0");
-  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "kontrolwp-connect" });
   await runNextUpdate(t.env, 1);
   assert.match(t.jobs()[0].error, /cannot update itself/);
 });
 
 test("a KontrolWP Connect updated by hand since the last sync counts as done", async () => {
   const t = await setup(
-    async (_body, json) => json({ code: "presser_up_to_date", message: "KontrolWP Connect is already up to date." }, 409),
+    async (_body, json) => json({ code: "kontrolwp_up_to_date", message: "KontrolWP Connect is already up to date." }, 409),
     "0.3.0",
   );
   await syncSite(t.env, 1);
-  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "kontrolwp-connect" });
   assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
-  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "done", error: null }], "not queued again right away");
+  assert.deepEqual(t.jobs(), [{ slug: "kontrolwp-connect", status: "done", error: null }], "not queued again right away");
 });
 
 test("updates count as active until the sync after them clears the row", async () => {
@@ -219,15 +219,15 @@ test("a newer KontrolWP Connect is queued at once, even right after the last sel
   // The previous release's self-update finished an hour ago. Jobs from before
   // versions were recorded have none.
   t.env.DB.sqlite
-    .prepare("INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES (1, 'plugin', 'presser-connect', 'done', unixepoch() - 3600)")
+    .prepare("INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES (1, 'plugin', 'kontrolwp-connect', 'done', unixepoch() - 3600)")
     .run();
   await syncSite(t.env, 1);
-  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
+  assert.deepEqual(t.jobs(), [{ slug: "kontrolwp-connect", status: "queued", error: null }]);
   assert.deepEqual(t.sent.at(-1).body, { type: "update", siteId: 1 });
 });
 
 test("Sync now retries a failed self-update; a scheduled sync waits", async () => {
-  const t = await setup(async (_body, json) => json({ code: "presser_update_failed", message: "Disk full." }, 500), "0.0.1");
+  const t = await setup(async (_body, json) => json({ code: "kontrolwp_update_failed", message: "Disk full." }, 500), "0.0.1");
   await syncSite(t.env, 1);
   await runNextUpdate(t.env, 1);
   assert.equal(t.jobs()[0].status, "failed");
@@ -238,17 +238,17 @@ test("Sync now retries a failed self-update; a scheduled sync waits", async () =
   const site = await getSite(t.env.DB, 1);
   assert.equal(site.self_update_status, "failed");
   assert.equal(site.self_update_error, "Disk full.");
-  assert.equal(site.self_update_version, PRESSER_CONNECT_VERSION);
+  assert.equal(site.self_update_version, KONTROLWP_CONNECT_VERSION);
 
   await syncSite(t.env, 1, { retrySelfUpdate: true });
-  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
+  assert.deepEqual(t.jobs(), [{ slug: "kontrolwp-connect", status: "queued", error: null }]);
 });
 
 test("an update to the version already installed is not listed", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }));
   const fetchSite = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    if (new URL(url).searchParams.get("rest_route") === "/presser/v1/updates") {
+    if (new URL(url).searchParams.get("rest_route") === "/kontrolwp/v1/updates") {
       return new Response(
         JSON.stringify({
           core: { current: "7.1.2", new_version: "7.1.2" },
@@ -298,10 +298,10 @@ test("a site excluded from update checks is not asked for updates but still upda
     .prepare("INSERT INTO site_updates (site_id, kind, slug, name, current_version, new_version) VALUES (1, 'plugin', 'a/a.php', 'A', '1', '2')")
     .run();
   await syncSite(t.env, 1);
-  assert.ok(!asked.includes("/presser/v1/updates"));
+  assert.ok(!asked.includes("/kontrolwp/v1/updates"));
   assert.deepEqual(
     t.jobs().map((job) => job.slug),
-    ["presser-connect"],
+    ["kontrolwp-connect"],
     "only KontrolWP Connect's own update",
   );
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
@@ -312,7 +312,7 @@ test("sync keeps each site's plugins for the Plugins page, with their updates", 
   const t = await setup(async (_body, json) => json({ ok: true }));
   const fetchSite = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    if (new URL(url).searchParams.get("rest_route") === "/presser/v1/updates") {
+    if (new URL(url).searchParams.get("rest_route") === "/kontrolwp/v1/updates") {
       return new Response(
         JSON.stringify({ core: null, plugins: [{ slug: "akismet/akismet.php", name: "Akismet", current_version: "5.3", new_version: "5.4" }], themes: [] }),
         { headers: { "Content-Type": "application/json" } },
@@ -326,7 +326,7 @@ test("sync keeps each site's plugins for the Plugins page, with their updates", 
     fleet.plugins.map((p) => [p.file, p.active, p.protected, p.auto_update, p.new_version, p.icon_url, p.site_name]),
     [
       ["akismet/akismet.php", true, false, true, "5.4", "https://ps.w.org/akismet/assets/icon.svg", "Example"],
-      ["presser-connect/presser-connect.php", true, true, false, null, null, "Example"],
+      ["kontrolwp-connect/kontrolwp-connect.php", true, true, false, null, null, "Example"],
     ],
   );
   assert.deepEqual(fleet.unsupported_sites, []);

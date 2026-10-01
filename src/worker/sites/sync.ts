@@ -14,7 +14,7 @@ import {
 } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
-import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./presser-connect.ts";
+import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 

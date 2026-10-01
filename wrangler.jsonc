@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   // Resource names identify this deployment; every instance chooses its own.
-  "name": "presser",
+  "name": "kontrolwp",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-01",
   // global_fetch_strictly_public keeps site requests on the public internet,
@@ -24,7 +24,7 @@
     {
       "binding": "DB",
       // Resolve by name in the deploying Cloudflare account; no account-specific ID.
-      "database_name": "presser",
+      "database_name": "kontrolwp",
       "migrations_dir": "migrations"
     }
   ],
@@ -32,12 +32,12 @@
     "producers": [
       {
         "binding": "SYNC_QUEUE",
-        "queue": "presser-sync"
+        "queue": "kontrolwp-sync"
       }
     ],
     "consumers": [
       {
-        "queue": "presser-sync",
+        "queue": "kontrolwp-sync",
         "max_batch_size": 10,
         "max_batch_timeout": 5,
         "max_retries": 3

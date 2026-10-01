@@ -6,5 +6,5 @@ dist/
 *.log
 *.tsbuildinfo
 
-# Built by `npm run plugin:zip` from plugin/presser-connect.
+# Built by `npm run plugin:zip` from plugin/kontrolwp-connect.
 public/downloads/

@@ -2,7 +2,7 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { UpdateKind } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
 import { SecretsKeyError } from "./secrets.ts";
-import { loadPackage, SELF_UPDATE } from "./presser-connect.ts";
+import { loadPackage, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { getCredentials } from "./store.ts";
 import { syncSite } from "./sync.ts";
 
@@ -98,7 +98,7 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
     }
     await finish("done");
   } catch (error) {
-    if (job.slug === SELF_UPDATE.slug && error instanceof SiteRequestError && error.code === "presser_up_to_date") {
+    if (job.slug === SELF_UPDATE.slug && error instanceof SiteRequestError && error.code === "kontrolwp_up_to_date") {
       // Installed by hand since the last sync; the sync below drops the row.
       await finish("done");
       return afterJob(env, siteId);

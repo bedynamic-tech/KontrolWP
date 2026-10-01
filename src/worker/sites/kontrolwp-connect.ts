@@ -1,4 +1,4 @@
-import { compareVersions, PRESSER_CONNECT_VERSION } from "../../shared/plugin-version.ts";
+import { compareVersions, KONTROLWP_CONNECT_VERSION, KONTROLWP_CONNECT_ZIP } from "../../shared/plugin-version.ts";
 import { SiteRequestError } from "./client.ts";
 
 /**
@@ -6,8 +6,8 @@ import { SiteRequestError } from "./client.ts";
  * queues it on its own; it never appears in the updates lists.
  */
 export const SELF_UPDATE = {
-  slug: "presser-connect",
-  version: PRESSER_CONNECT_VERSION,
+  slug: "kontrolwp-connect",
+  version: KONTROLWP_CONNECT_VERSION,
 } as const;
 
 /**
@@ -66,22 +66,22 @@ export async function queueSelfUpdates(env: Env): Promise<void> {
  */
 export async function queueSelfUpdatesAfterDeploy(env: Env): Promise<void> {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE name = 'self_update_version'").first<{ value: string }>();
-  if (row?.value === PRESSER_CONNECT_VERSION) return;
+  if (row?.value === KONTROLWP_CONNECT_VERSION) return;
   await env.DB
     .prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('self_update_version', ?)")
-    .bind(PRESSER_CONNECT_VERSION)
+    .bind(KONTROLWP_CONNECT_VERSION)
     .run();
   await queueSelfUpdates(env);
 }
 
 /** True when the site runs an older KontrolWP Connect than this dashboard ships. */
 export function needsSelfUpdate(siteVersion: string): boolean {
-  return !!siteVersion && compareVersions(siteVersion, PRESSER_CONNECT_VERSION) < 0;
+  return !!siteVersion && compareVersions(siteVersion, KONTROLWP_CONNECT_VERSION) < 0;
 }
 
 /** The zip the build put in the static assets, base64-encoded for a signed request. */
 export async function loadPackage(env: Env): Promise<string> {
-  const response = await env.ASSETS.fetch("https://assets.invalid/downloads/presser-connect.zip");
+  const response = await env.ASSETS.fetch(`https://assets.invalid/downloads/${KONTROLWP_CONNECT_ZIP}`);
   if (!response.ok) throw new SiteRequestError(`The KontrolWP Connect package is missing from this deployment (HTTP ${response.status})`);
   return base64(new Uint8Array(await response.arrayBuffer()));
 }

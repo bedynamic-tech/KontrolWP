@@ -13,7 +13,7 @@ The WordPress plugin installed on every Site. It answers only requests signed wi
 _Avoid_: Agent, client, worker plugin
 
 **Connection Key**:
-The string (starting `presser2.`) that pairs one Site with the dashboard. KontrolWP Connect creates it and shows it under Settings, KontrolWP Connect; the owner pastes it into KontrolWP with the Site's address. It carries a key id and the secret, and stops working as soon as the plugin creates a new one.
+The string (starting `kontrolwp2.`) that pairs one Site with the dashboard. KontrolWP Connect creates it and shows it under Settings, KontrolWP Connect; the owner pastes it into KontrolWP with the Site's address. It carries a key id and the secret, and stops working as soon as the plugin creates a new one.
 _Avoid_: API key, token, password
 
 **Sync**:

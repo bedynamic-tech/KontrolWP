@@ -9,7 +9,7 @@
  * Author:            KontrolWP
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       presser-connect
+ * Text Domain:       kontrolwp-connect
  */
 
 /*
@@ -28,20 +28,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PRESSER_CONNECT_VERSION', '0.8.0' );
-define( 'PRESSER_CONNECT_FILE', __FILE__ );
+define( 'KONTROLWP_CONNECT_VERSION', '0.8.0' );
+define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
-require_once __DIR__ . '/includes/class-presser-connect-auth.php';
-require_once __DIR__ . '/includes/class-presser-connect-rest.php';
-require_once __DIR__ . '/includes/class-presser-connect-admin.php';
-require_once __DIR__ . '/includes/class-presser-connect-login.php';
-require_once __DIR__ . '/includes/class-presser-connect-plugins.php';
-require_once __DIR__ . '/includes/class-presser-connect-users.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-rest.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-admin.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-plugins.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-users.php';
 
-register_activation_hook( __FILE__, array( 'Presser_Connect_Auth', 'ensure_credentials' ) );
-add_action( 'rest_api_init', array( 'Presser_Connect_Rest', 'register_routes' ) );
-Presser_Connect_Login::init();
+register_activation_hook( __FILE__, array( 'KontrolWP_Connect_Auth', 'ensure_credentials' ) );
+add_action( 'rest_api_init', array( 'KontrolWP_Connect_Rest', 'register_routes' ) );
+KontrolWP_Connect_Login::init();
 
 if ( is_admin() ) {
-	Presser_Connect_Admin::init();
+	KontrolWP_Connect_Admin::init();
 }

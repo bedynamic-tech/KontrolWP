@@ -74,7 +74,7 @@ export async function deployWithSecretsKey({ config, run = runWrangler, log = co
   try {
     const args = ["deploy", ...configArgs];
     if (!hasKey) {
-      temporaryDirectory = await mkdtemp(join(tmpdir(), "presser-secrets-"));
+      temporaryDirectory = await mkdtemp(join(tmpdir(), "kontrolwp-secrets-"));
       const secretsPath = join(temporaryDirectory, "secrets.json");
       await writeFile(secretsPath, JSON.stringify({ [KEY_NAME]: randomBytes(32).toString("base64url") }), { mode: 0o600 });
       args.push("--secrets-file", secretsPath);

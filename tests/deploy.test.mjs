@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 import { deployWithSecretsKey, KEY_NAME, parseSecretList } from "../scripts/deploy.mjs";
 
-const config = { name: "presser-test", configPath: "/project/dist/presser/wrangler.json" };
+const config = { name: "kontrolwp-test", configPath: "/project/dist/kontrolwp/wrangler.json" };
 const json = (value) => ({ status: 0, stdout: JSON.stringify(value), stderr: "" });
 
 function fixture({ listed = json([]), deployStatus = 0 } = {}) {
@@ -41,7 +41,7 @@ test("the first deploy creates a 32-byte key and removes the temporary file", as
 
 test("a brand new Worker also gets a key", async () => {
   const f = fixture({
-    listed: { status: 1, stdout: "", stderr: `Worker "presser-test" not found. If this is a new Worker, run \`wrangler deploy\` first to create it.` },
+    listed: { status: 1, stdout: "", stderr: `Worker "kontrolwp-test" not found. If this is a new Worker, run \`wrangler deploy\` first to create it.` },
   });
   await f.deploy();
   assert.ok(f.uploaded[KEY_NAME]);
