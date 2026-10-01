@@ -17,7 +17,7 @@
 | D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below). |
-| Cron Trigger | | `0 */6 * * *` (every 6 hours) enqueues every site. |
+| Cron Trigger | | `*/15 * * * *` checks whether a sync is due and, once the Background sync interval (Settings; every hour by default) has passed since the last run, enqueues every site. |
 
 KontrolWP only makes outbound requests to sites. Sites never call the
 dashboard, so nothing needs an Access bypass, and the dashboard can sit on a
@@ -97,7 +97,10 @@ theme updates only.
 The dashboard ships the plugin it was built with (`src/shared/plugin-version.ts`,
 checked against the plugin header by `tests/plugin-lint.test.mjs`). When a
 sync finds a site on an older version, it queues KontrolWP Connect's own update
-in the site's update queue; it never appears in the updates lists. The
+in the site's update queue; it never appears in the updates lists. It does
+not wait for a sync either: the first dashboard load after a deploy that ships
+a new version, and every 15-minute cron tick, queue it on each site whose last
+sync reported an older version. The
 dashboard is behind Access, so WordPress cannot download from it; the job
 reads the zip from the Worker's static assets and sends it to `/self-update`.
 A finished or failed self-update is not queued again for 6 hours, so a site

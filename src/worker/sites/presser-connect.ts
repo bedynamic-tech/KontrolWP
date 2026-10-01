@@ -45,6 +45,35 @@ export async function queueSelfUpdate(env: Env, siteId: number, siteVersion: str
   if (queued) await env.SYNC_QUEUE.send({ type: "update", siteId });
 }
 
+/**
+ * Queue the self-update on every site whose last sync reported an older
+ * KontrolWP Connect, without waiting for its next sync. Runs on each cron
+ * tick and when the dashboard first loads after a deploy; queueSelfUpdate
+ * skips sites already updating or that failed recently.
+ */
+export async function queueSelfUpdates(env: Env): Promise<void> {
+  const { results } = await env.DB
+    .prepare("SELECT id, plugin_version FROM sites WHERE plugin_version IS NOT NULL")
+    .all<{ id: number; plugin_version: string }>();
+  for (const site of results) {
+    if (needsSelfUpdate(site.plugin_version)) await queueSelfUpdate(env, site.id, site.plugin_version);
+  }
+}
+
+/**
+ * The first dashboard load after a deploy that ships a new KontrolWP Connect
+ * queues it on every site at once. Remembers the version it did this for.
+ */
+export async function queueSelfUpdatesAfterDeploy(env: Env): Promise<void> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = 'self_update_version'").first<{ value: string }>();
+  if (row?.value === PRESSER_CONNECT_VERSION) return;
+  await env.DB
+    .prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('self_update_version', ?)")
+    .bind(PRESSER_CONNECT_VERSION)
+    .run();
+  await queueSelfUpdates(env);
+}
+
 /** True when the site runs an older KontrolWP Connect than this dashboard ships. */
 export function needsSelfUpdate(siteVersion: string): boolean {
   return !!siteVersion && compareVersions(siteVersion, PRESSER_CONNECT_VERSION) < 0;

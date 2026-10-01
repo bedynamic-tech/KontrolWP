@@ -19,13 +19,15 @@ import type {
   SiteAnalytics,
   SitePlugins,
   SiteUsers,
+  SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
+import { SYNC_INTERVALS } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
-import { base64, SELF_UPDATE } from "../sites/presser-connect.ts";
+import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/presser-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
-import { coreAutoUpdate, syncSite } from "../sites/sync.ts";
+import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import {
   deleteUmamiConfig,
@@ -73,6 +75,7 @@ api.use("*", async (c, next) => {
 });
 
 api.get("/overview", async (c) => {
+  c.executionCtx.waitUntil(queueSelfUpdatesAfterDeploy(c.env).catch((error) => console.error("self-update after deploy", error)));
   const [sites, updates, comments] = await Promise.all([
     listSites(c.env.DB),
     listUpdates(c.env.DB),
@@ -863,6 +866,17 @@ async function loadLayout(env: Env): Promise<LayoutSettings> {
     return DEFAULT_LAYOUT;
   }
 }
+
+api.get("/settings/sync", async (c) => c.json(await loadSyncSettings(c.env)));
+
+api.put("/settings/sync", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { interval_minutes?: unknown } | null;
+  const interval = SYNC_INTERVALS.find((minutes) => minutes === body?.interval_minutes);
+  if (!interval) return c.json({ error: "Choose one of the offered intervals" }, 400);
+  const settings: SyncSettings = { interval_minutes: interval };
+  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', ?)").bind(JSON.stringify(settings)).run();
+  return c.json(settings);
+});
 
 api.get("/settings/layout", async (c) => c.json(await loadLayout(c.env)));
 

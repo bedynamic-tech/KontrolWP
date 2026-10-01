@@ -1,9 +1,20 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { CoreAutoUpdate, PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins, SiteUsers } from "../../shared/types.ts";
+import {
+  SYNC_INTERVALS,
+  type CoreAutoUpdate,
+  type PluginComments,
+  type PluginStatus,
+  type PluginUpdates,
+  type SiteAdmin,
+  type SitePlugins,
+  type SiteUsers,
+  type SyncInterval,
+  type SyncSettings,
+} from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
-import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
+import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./presser-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
@@ -282,8 +293,37 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
+export const DEFAULT_SYNC_INTERVAL: SyncInterval = 60;
+
+export async function loadSyncSettings(env: Env): Promise<SyncSettings> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = 'sync'").first<{ value: string }>();
+  try {
+    const value = row ? (JSON.parse(row.value) as Partial<SyncSettings>) : {};
+    const interval = SYNC_INTERVALS.find((minutes) => minutes === value.interval_minutes) ?? DEFAULT_SYNC_INTERVAL;
+    return { interval_minutes: interval };
+  } catch {
+    return { interval_minutes: DEFAULT_SYNC_INTERVAL };
+  }
+}
+
 /**
- * Queue one sync per site; called by the cron trigger. Sites with updates
+ * Called by the cron trigger every 15 minutes: syncs every site once the
+ * Background sync interval has passed since the last run. A couple of
+ * minutes' slack keeps a run that started late from skipping a tick.
+ */
+export async function runScheduledSync(env: Env, now = Math.floor(Date.now() / 1000)): Promise<boolean> {
+  // A new KontrolWP Connect never waits for the full sync.
+  await queueSelfUpdates(env);
+  const { interval_minutes } = await loadSyncSettings(env);
+  const last = await env.DB.prepare("SELECT value FROM settings WHERE name = 'sync_last_run'").first<{ value: string }>();
+  if (last && now - Number(last.value) < interval_minutes * 60 - 120) return false;
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync_last_run', ?)").bind(String(now)).run();
+  await enqueueAllSites(env);
+  return true;
+}
+
+/**
+ * Queue one sync per site; called by the scheduled sync. Sites with updates
  * still waiting also get an update message, in case their queue stalled.
  */
 export async function enqueueAllSites(env: Env): Promise<void> {

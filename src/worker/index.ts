@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { api } from "./api";
 import { requireWebAccess } from "./api/access.ts";
 import { ensureSchema } from "./db/schema.ts";
-import { enqueueAllSites, syncSite } from "./sites/sync.ts";
+import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate } from "./sites/updates.ts";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -12,7 +12,7 @@ app.route("/api", api);
 export default {
   fetch: app.fetch,
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(ensureSchema(env.DB).then(() => enqueueAllSites(env)));
+    ctx.waitUntil(ensureSchema(env.DB).then(() => runScheduledSync(env)));
   },
   async queue(batch, env) {
     await ensureSchema(env.DB);
