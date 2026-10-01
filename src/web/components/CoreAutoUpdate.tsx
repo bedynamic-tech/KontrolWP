@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -52,8 +53,8 @@ function ModeSelect(props: { id?: string; value: CoreAutoUpdate | ""; onChange: 
   );
 }
 
-/** One site's WordPress core auto-updates, for its Updates section. */
-export function CoreAutoUpdateRow(props: { site: SiteSummary }) {
+/** One site's WordPress core auto-updates, for its settings. */
+export function CoreAutoUpdateRow(props: { site: SiteSummary; className?: string }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const save = useMutation({
@@ -73,7 +74,7 @@ export function CoreAutoUpdateRow(props: { site: SiteSummary }) {
   else if (!site.core_auto_update) note = "Shows after the next sync.";
 
   return (
-    <div className="flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
+    <div className={cn("flex flex-col gap-2 sm:flex-row sm:items-center", props.className ?? "border-b px-4 py-3")}>
       <div className="min-w-0 flex-1">
         <label htmlFor="core-auto-update" className="text-sm font-medium">
           Automatic WordPress updates
