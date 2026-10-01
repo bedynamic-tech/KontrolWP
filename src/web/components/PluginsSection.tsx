@@ -14,8 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version";
-import type { InstalledPlugin, PluginAction, SiteSummary } from "../../shared/types";
-import { fetchPlugins, installPlugin, managePlugin, type PluginInstall } from "../api";
+import type { InstalledPlugin, SiteSummary, SiteUpdate } from "../../shared/types";
+import { applyUpdate, fetchPlugins, installPlugin, managePlugin, type PluginInstall } from "../api";
+import { PluginBulkBar, SelectBox, type BulkAction } from "./PluginBulkBar";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 
@@ -24,7 +25,7 @@ function supported(site: SiteSummary): boolean {
 }
 
 /** The site's installed plugins, read live from the site. */
-export function PluginsSection(props: { site: SiteSummary }) {
+export function PluginsSection(props: { site: SiteSummary; updates: SiteUpdate[] }) {
   const { site } = props;
   const [installing, setInstalling] = useState(false);
   const plugins = useQuery({
@@ -51,17 +52,13 @@ export function PluginsSection(props: { site: SiteSummary }) {
     body = <EmptyRow>No plugins are installed.</EmptyRow>;
   } else {
     body = (
-      <ul className="divide-y">
-        {plugins.data.plugins.map((plugin) => (
-          <PluginRow
-            key={plugin.file}
-            siteId={site.id}
-            plugin={plugin}
-            canDelete={canModify}
-            autoUpdates={plugins.data.auto_updates}
-          />
-        ))}
-      </ul>
+      <SitePluginList
+        siteId={site.id}
+        plugins={plugins.data.plugins}
+        canModify={canModify}
+        autoUpdates={plugins.data.auto_updates}
+        updates={props.updates}
+      />
     );
   }
 
@@ -88,111 +85,159 @@ export function PluginsSection(props: { site: SiteSummary }) {
   );
 }
 
-const ACTION_LABELS: Record<PluginAction, string> = {
-  activate: "Activating...",
-  deactivate: "Deactivating...",
-  delete: "Deleting...",
-  "enable-auto-update": "Turning on auto-updates...",
-  "disable-auto-update": "Turning off auto-updates...",
-};
+type Result = { file: string; ok: boolean; error?: string };
 
-function PluginRow(props: {
+/** The site's plugins with checkboxes, and one action bar for everything checked. */
+function SitePluginList(props: {
   siteId: number;
-  plugin: InstalledPlugin;
-  canDelete: boolean;
+  plugins: InstalledPlugin[];
+  canModify: boolean;
   /** Undefined before Presser Connect 0.7.0; false when the site turns plugin auto-updates off in code. */
   autoUpdates: boolean | undefined;
+  updates: SiteUpdate[];
 }) {
-  const { siteId, plugin } = props;
+  const { siteId } = props;
   const queryClient = useQueryClient();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Map<string, string>>(new Map());
+
+  const offers = new Map(
+    props.updates
+      .filter((update) => update.kind === "plugin" && (update.job_status === null || update.job_status === "failed"))
+      .map((update) => [update.slug, update]),
+  );
+  const autoUpdatable = (plugin: InstalledPlugin) => !!props.autoUpdates && plugin.auto_update !== undefined;
+  const targets: Record<BulkAction, (plugin: InstalledPlugin) => boolean> = {
+    activate: (plugin) => !plugin.active,
+    deactivate: (plugin) => plugin.active,
+    update: (plugin) => offers.has(plugin.file),
+    "enable-auto-update": (plugin) => autoUpdatable(plugin) && !plugin.auto_update,
+    "disable-auto-update": (plugin) => autoUpdatable(plugin) && !!plugin.auto_update,
+    delete: () => props.canModify,
+  };
+  const selectable = props.plugins.filter((plugin) => !plugin.protected);
+  const selected = selectable.filter((plugin) => checked.has(plugin.file));
+  const counts = Object.fromEntries(
+    (Object.keys(targets) as BulkAction[]).map((action) => [action, selected.filter(targets[action]).length]),
+  ) as Record<BulkAction, number>;
+  const allChecked = selectable.length > 0 && selected.length === selectable.length;
+
   const action = useMutation({
-    mutationFn: (next: PluginAction) => managePlugin(siteId, plugin.file, next),
-    onSuccess: () => setConfirmDelete(false),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", siteId, "plugins"] }),
+    mutationFn: async (next: BulkAction): Promise<Result[]> => {
+      const results: Result[] = [];
+      // One at a time: WordPress changes plugins one request after another.
+      for (const plugin of selected.filter(targets[next])) {
+        try {
+          if (next === "update") await applyUpdate(siteId, offers.get(plugin.file)!);
+          else await managePlugin(siteId, plugin.file, next);
+          results.push({ file: plugin.file, ok: true });
+        } catch (err) {
+          results.push({ file: plugin.file, ok: false, error: (err as Error).message });
+        }
+      }
+      return results;
+    },
+    onMutate: () => setErrors(new Map()),
+    onSuccess: (results) => {
+      const failed = results.filter((result) => !result.ok);
+      setErrors(new Map(failed.map((result) => [result.file, result.error ?? "Failed"])));
+      setChecked(new Set(failed.map((result) => result.file)));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["site", siteId] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      queryClient.invalidateQueries({ queryKey: ["fleet-plugins"] });
+    },
   });
 
-  return (
-    <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 flex-1 items-start gap-3">
-        <RemoteIcon sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)} name={plugin.name} className="size-9 text-sm" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-medium">{plugin.name}</p>
-            {plugin.active ? (
-              <Badge variant="secondary">{plugin.network_active ? "Network active" : "Active"}</Badge>
-            ) : (
-              <Badge variant="outline">Inactive</Badge>
-            )}
-          </div>
-          <p className="truncate text-xs text-muted-foreground">
-            {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
-            {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
-            {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined && (
-              <>
-                {` · Auto-updates ${plugin.auto_update ? "on" : "off"} · `}
-                <button
-                  type="button"
-                  className="hover:text-foreground hover:underline disabled:opacity-60"
-                  disabled={action.isPending}
-                  onClick={() => action.mutate(plugin.auto_update ? "disable-auto-update" : "enable-auto-update")}
-                >
-                  {plugin.auto_update ? "Disable" : "Enable"}
-                </button>
-              </>
-            )}
-          </p>
-          {action.error && <p className="mt-1 text-xs text-destructive">{action.error.message}</p>}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {action.isPending && <span className="text-xs text-muted-foreground">{ACTION_LABELS[action.variables]}</span>}
-        {plugin.protected ? (
-          <span className="text-xs text-muted-foreground">Connects this site to Presser</span>
-        ) : (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={action.isPending}
-              onClick={() => action.mutate(plugin.active ? "deactivate" : "activate")}
-            >
-              {plugin.active ? "Deactivate" : "Activate"}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              disabled={action.isPending || !props.canDelete}
-              title={props.canDelete ? undefined : "File changes are disabled on this site (DISALLOW_FILE_MODS)"}
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete
-            </Button>
-          </>
-        )}
-      </div>
+  const toggle = (file: string) => {
+    const next = new Set(checked);
+    if (next.has(file)) next.delete(file);
+    else next.add(file);
+    setChecked(next);
+  };
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete {plugin.name}?</DialogTitle>
-            <DialogDescription>
-              {plugin.active ? "Presser deactivates it, then deletes" : "Presser deletes"} its files from the site, as
-              Delete on the Plugins screen does. Its settings may stay in the database.
-            </DialogDescription>
-          </DialogHeader>
-          {action.error && <p className="text-sm text-destructive">{action.error.message}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={() => action.mutate("delete")} disabled={action.isPending}>
-              {action.isPending ? "Deleting..." : "Delete plugin"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+  return (
+    <>
+      <PluginBulkBar
+        counts={counts}
+        selection={selected.length ? `${selected.length} ${selected.length === 1 ? "plugin" : "plugins"} checked` : null}
+        allChecked={allChecked}
+        someChecked={selected.length > 0}
+        canSelectAll={selectable.length > 0}
+        onToggleAll={() => setChecked(allChecked ? new Set() : new Set(selectable.map((plugin) => plugin.file)))}
+        onRun={(next) => action.mutate(next)}
+        pending={action.isPending ? action.variables : null}
+        deleteTitle={selected.length === 1 ? `Delete ${selected[0].name}?` : `Delete ${selected.length} plugins?`}
+        error={
+          action.error?.message ??
+          (errors.size ? `${errors.size} ${errors.size === 1 ? "change" : "changes"} failed. Those plugins stay checked.` : null)
+        }
+      />
+      <ul className="divide-y">
+        {props.plugins.map((plugin) => (
+          <PluginRow
+            key={plugin.file}
+            plugin={plugin}
+            autoUpdates={props.autoUpdates}
+            update={offers.get(plugin.file) ?? props.updates.find((u) => u.kind === "plugin" && u.slug === plugin.file) ?? null}
+            checked={checked.has(plugin.file)}
+            onToggle={() => toggle(plugin.file)}
+            error={errors.get(plugin.file) ?? null}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function PluginRow(props: {
+  plugin: InstalledPlugin;
+  autoUpdates: boolean | undefined;
+  update: SiteUpdate | null;
+  checked: boolean;
+  onToggle: () => void;
+  error: string | null;
+}) {
+  const { plugin, update } = props;
+  return (
+    <li className="flex items-start gap-3 px-4 py-3 sm:items-center">
+      <RemoteIcon
+        sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)}
+        name={plugin.name}
+        className="size-9 text-sm"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-medium">{plugin.name}</p>
+          {plugin.active ? (
+            <Badge variant="secondary">{plugin.network_active ? "Network active" : "Active"}</Badge>
+          ) : (
+            <Badge variant="outline">Inactive</Badge>
+          )}
+          {update && !plugin.protected && <Badge variant="secondary">Update to {update.new_version}</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
+          {plugin.protected && " · Connects this site to Presser"}
+          {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
+          {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined &&
+            ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`}
+          {update?.job_status && update.job_status !== "failed" && ` · Update ${update.job_status === "running" ? "running" : update.job_status}`}
+        </p>
+        {update?.job_status === "failed" && update.job_error && (
+          <p className="mt-1 text-xs text-destructive">{update.job_error}</p>
+        )}
+        {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
+      </div>
+      {!plugin.protected && (
+        <SelectBox
+          className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
+          checked={props.checked}
+          onChange={props.onToggle}
+          label={`Check ${plugin.name}`}
+        />
+      )}
     </li>
   );
 }

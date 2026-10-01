@@ -188,7 +188,7 @@ export function SitePage() {
           <UpdatesList updates={updates} showSite={false} />
         </Section>
       )}
-      <PluginsSection site={site} />
+      <PluginsSection site={site} updates={updates} />
       <Section title={`Comments awaiting review (${site.pending_comments})`}>
         <CommentsList comments={comments} showSite={false} />
       </Section>
