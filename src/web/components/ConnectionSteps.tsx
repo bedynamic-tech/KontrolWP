@@ -1,6 +1,6 @@
 /** Where the Connection Key comes from: KontrolWP Connect, on the site. */
 export function ConnectionSteps(props: { siteUrl?: string }) {
-  const settings = props.siteUrl ? `${props.siteUrl}/wp-admin/options-general.php?page=presser-connect` : null;
+  const settings = props.siteUrl ? `${props.siteUrl}/wp-admin/options-general.php?page=kontrolwp-connect` : null;
   return (
     <ol className="min-w-0 space-y-3 text-sm">
       <li>

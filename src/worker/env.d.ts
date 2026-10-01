@@ -10,7 +10,7 @@ interface Env {
   /** base64url of 32 random bytes; encrypts site secrets. Created by scripts/deploy.mjs. */
   SITE_SECRETS_KEY?: string;
   DB: D1Database;
-  /** The built dashboard, including downloads/presser-connect.zip. */
+  /** The built dashboard, including downloads/kontrolwp-connect-<version>.zip. */
   ASSETS: Fetcher;
   SYNC_QUEUE: Queue<SyncMessage>;
 }

@@ -10,7 +10,7 @@ import { base64UrlDecode, base64UrlEncode } from "../../shared/protocol.ts";
 const VERSION = "v1";
 const encoder = new TextEncoder();
 // Binds each ciphertext to its site, so rows cannot be swapped between sites.
-const aad = (siteId: number) => encoder.encode(`presser-site-secret:${siteId}`);
+const aad = (siteId: number) => encoder.encode(`kontrolwp-site-secret:${siteId}`);
 
 export class SecretsKeyError extends Error {
   constructor(
@@ -55,7 +55,7 @@ export function decryptSecret(keyValue: string | undefined, siteId: number, stor
 }
 
 // Dashboard settings, such as the Umami API key, are bound to their name.
-const settingAad = (name: string) => encoder.encode(`presser-setting:${name}`);
+const settingAad = (name: string) => encoder.encode(`kontrolwp-setting:${name}`);
 
 export function encryptSetting(keyValue: string | undefined, name: string, secret: string): Promise<string> {
   return seal(keyValue, settingAad(name), secret);

@@ -25,7 +25,7 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   const { site } = props;
   const [range, setRange] = useState<AnalyticsRange>(() => {
     try {
-      const saved = localStorage.getItem("presser:analytics-range");
+      const saved = localStorage.getItem("kontrolwp:analytics-range");
       return saved && saved in RANGE_LABELS ? (saved as AnalyticsRange) : "7d";
     } catch {
       return "7d";
@@ -45,7 +45,7 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   const chooseRange = (next: AnalyticsRange) => {
     setRange(next);
     try {
-      localStorage.setItem("presser:analytics-range", next);
+      localStorage.setItem("kontrolwp:analytics-range", next);
     } catch {
       // Remembering the range is only a convenience.
     }

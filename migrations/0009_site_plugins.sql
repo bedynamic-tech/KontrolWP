@@ -1,4 +1,4 @@
--- Installed plugins per site, as Presser Connect 0.6.0+ lists them, for the
+-- Installed plugins per site, as KontrolWP Connect 0.6.0+ lists them, for the
 -- fleet-wide Plugins page. Replaced at every sync.
 CREATE TABLE site_plugins (
   site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,

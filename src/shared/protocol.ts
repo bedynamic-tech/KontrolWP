@@ -7,19 +7,19 @@
  * creates the secret; it travels once, when the owner pastes the Connection
  * Key from WordPress into KontrolWP.
  *
- * plugin/presser-connect/includes/class-presser-connect-auth.php is the other
+ * plugin/kontrolwp-connect/includes/class-kontrolwp-connect-auth.php is the other
  * half of this file; change both together.
  */
 
-export const PROTOCOL_VERSION = "presser-v1";
-export const REST_NAMESPACE = "/presser/v1";
+export const PROTOCOL_VERSION = "kontrolwp-v1";
+export const REST_NAMESPACE = "/kontrolwp/v1";
 export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 export const HEADERS = {
-  keyId: "X-Presser-Key-Id",
-  timestamp: "X-Presser-Timestamp",
-  nonce: "X-Presser-Nonce",
-  signature: "X-Presser-Signature",
+  keyId: "X-KontrolWP-Key-Id",
+  timestamp: "X-KontrolWP-Timestamp",
+  nonce: "X-KontrolWP-Nonce",
+  signature: "X-KontrolWP-Signature",
 } as const;
 
 const encoder = new TextEncoder();
@@ -45,7 +45,7 @@ async function sha256Hex(body: string): Promise<string> {
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** The exact string both sides sign. `route` is the REST route, such as `/presser/v1/status`. */
+/** The exact string both sides sign. `route` is the REST route, such as `/kontrolwp/v1/status`. */
 export async function canonicalRequest(input: {
   method: string;
   route: string;
@@ -119,7 +119,7 @@ export interface ConnectionKey {
   secret: string;
 }
 
-const CONNECTION_KEY_PREFIX = "presser2.";
+const CONNECTION_KEY_PREFIX = "kontrolwp2.";
 
 export function encodeConnectionKey(key: ConnectionKey): string {
   return CONNECTION_KEY_PREFIX + base64UrlEncode(encoder.encode(JSON.stringify({ i: key.keyId, k: key.secret })));

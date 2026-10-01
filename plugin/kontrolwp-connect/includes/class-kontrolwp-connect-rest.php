@@ -1,19 +1,19 @@
 <?php
 /**
  * The REST routes the KontrolWP dashboard calls. Every route requires a
- * signature from Presser_Connect_Auth; none are reachable by site visitors.
+ * signature from KontrolWP_Connect_Auth; none are reachable by site visitors.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Presser_Connect_Rest {
+class KontrolWP_Connect_Rest {
 
-	const NAMESPACE_V1 = 'presser/v1';
+	const NAMESPACE_V1 = 'kontrolwp/v1';
 
 	public static function register_routes() {
-		$auth = array( 'Presser_Connect_Auth', 'verify' );
+		$auth = array( 'KontrolWP_Connect_Auth', 'verify' );
 		add_filter( 'rest_post_dispatch', array( __CLASS__, 'no_store' ), 10, 3 );
 
 		register_rest_route(
@@ -79,14 +79,14 @@ class Presser_Connect_Rest {
 				),
 			)
 		);
-		Presser_Connect_Plugins::register_routes( $auth );
-		Presser_Connect_Users::register_routes( $auth );
+		KontrolWP_Connect_Plugins::register_routes( $auth );
+		KontrolWP_Connect_Users::register_routes( $auth );
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/admins',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( 'Presser_Connect_Login', 'admins' ),
+				'callback'            => array( 'KontrolWP_Connect_Login', 'admins' ),
 				'permission_callback' => $auth,
 			)
 		);
@@ -95,7 +95,7 @@ class Presser_Connect_Rest {
 			'/login',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( 'Presser_Connect_Login', 'create' ),
+				'callback'            => array( 'KontrolWP_Connect_Login', 'create' ),
 				'permission_callback' => $auth,
 				'args'                => array(
 					'user_id' => array(
@@ -144,10 +144,10 @@ class Presser_Connect_Rest {
 			'home_url'         => home_url( '/' ),
 			'wp_version'       => get_bloginfo( 'version' ),
 			'php_version'      => PHP_VERSION,
-			'plugin_version'   => PRESSER_CONNECT_VERSION,
+			'plugin_version'   => KONTROLWP_CONNECT_VERSION,
 			'theme'            => wp_get_theme()->get( 'Name' ),
 			'icon_url'         => get_site_icon_url( 128 ),
-			'core_auto_update' => Presser_Connect_Plugins::core_auto_update(),
+			'core_auto_update' => KontrolWP_Connect_Plugins::core_auto_update(),
 		);
 	}
 
@@ -249,9 +249,9 @@ class Presser_Connect_Rest {
 		$kind = $request['kind'];
 		$slug = (string) $request['slug'];
 
-		$context = 'core' === $kind ? 'capability_update_core' : 'presser_connect_update';
+		$context = 'core' === $kind ? 'capability_update_core' : 'kontrolwp_connect_update';
 		if ( ! wp_is_file_mod_allowed( $context ) ) {
-			return new WP_Error( 'presser_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'kontrolwp_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 		self::load_admin_includes();
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
@@ -266,12 +266,12 @@ class Presser_Connect_Rest {
 
 		if ( 'plugin' === $kind ) {
 			if ( ! array_key_exists( $slug, get_plugins() ) ) {
-				return new WP_Error( 'presser_not_found', __( 'That plugin is not installed.', 'presser-connect' ), array( 'status' => 404 ) );
+				return new WP_Error( 'kontrolwp_not_found', __( 'That plugin is not installed.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 			}
 			wp_update_plugins();
 		} else {
 			if ( ! wp_get_theme( $slug )->exists() ) {
-				return new WP_Error( 'presser_not_found', __( 'That theme is not installed.', 'presser-connect' ), array( 'status' => 404 ) );
+				return new WP_Error( 'kontrolwp_not_found', __( 'That theme is not installed.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 			}
 			wp_update_themes();
 		}
@@ -294,17 +294,17 @@ class Presser_Connect_Rest {
 		ob_end_clean();
 
 		if ( $skin->get_errors()->has_errors() ) {
-			return new WP_Error( 'presser_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
 		}
 		if ( false === $results ) {
 			return self::filesystem_error();
 		}
 		$result = isset( $results[ $slug ] ) ? $results[ $slug ] : null;
 		if ( is_wp_error( $result ) ) {
-			return new WP_Error( 'presser_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
 		}
 		if ( ! $result ) {
-			return new WP_Error( 'presser_update_failed', __( 'The update did not complete.', 'presser-connect' ), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_update_failed', __( 'The update did not complete.', 'kontrolwp-connect' ), array( 'status' => 500 ) );
 		}
 		return array( 'ok' => true );
 	}
@@ -319,16 +319,16 @@ class Presser_Connect_Rest {
 	 * @param WP_REST_Request $request Incoming request.
 	 */
 	public static function self_update( $request ) {
-		if ( ! wp_is_file_mod_allowed( 'presser_connect_update' ) ) {
-			return new WP_Error( 'presser_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'presser-connect' ), array( 'status' => 409 ) );
+		if ( ! wp_is_file_mod_allowed( 'kontrolwp_connect_update' ) ) {
+			return new WP_Error( 'kontrolwp_file_mods_disabled', __( 'File changes are disabled on this site (DISALLOW_FILE_MODS).', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 		$version = (string) $request['version'];
-		if ( version_compare( $version, PRESSER_CONNECT_VERSION, '<=' ) ) {
-			return new WP_Error( 'presser_up_to_date', __( 'KontrolWP Connect is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
+		if ( version_compare( $version, KONTROLWP_CONNECT_VERSION, '<=' ) ) {
+			return new WP_Error( 'kontrolwp_up_to_date', __( 'KontrolWP Connect is already up to date.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 		$package = base64_decode( (string) $request['package'], true );
 		if ( false === $package || 'PK' !== substr( $package, 0, 2 ) ) {
-			return new WP_Error( 'presser_bad_package', __( 'The update package is not a zip file.', 'presser-connect' ), array( 'status' => 400 ) );
+			return new WP_Error( 'kontrolwp_bad_package', __( 'The update package is not a zip file.', 'kontrolwp-connect' ), array( 'status' => 400 ) );
 		}
 
 		self::load_admin_includes();
@@ -337,13 +337,13 @@ class Presser_Connect_Rest {
 			@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 
-		$file = wp_tempnam( 'presser-connect.zip' );
+		$file = wp_tempnam( 'kontrolwp-connect.zip' );
 		if ( ! $file || false === file_put_contents( $file, $package ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			return self::filesystem_error();
 		}
 
 		// WordPress downloads a package given as a local path by using it as is.
-		$basename = plugin_basename( PRESSER_CONNECT_FILE );
+		$basename = plugin_basename( KONTROLWP_CONNECT_FILE );
 		$updates  = get_site_transient( 'update_plugins' );
 		if ( ! is_object( $updates ) ) {
 			$updates = new stdClass();
@@ -352,7 +352,7 @@ class Presser_Connect_Rest {
 			$updates->response = array();
 		}
 		$updates->response[ $basename ] = (object) array(
-			'slug'        => 'presser-connect',
+			'slug'        => 'kontrolwp-connect',
 			'plugin'      => $basename,
 			'new_version' => $version,
 			'package'     => $file,
@@ -394,13 +394,13 @@ class Presser_Connect_Rest {
 			}
 		}
 		if ( ! $offer ) {
-			return new WP_Error( 'presser_up_to_date', __( 'WordPress is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'kontrolwp_up_to_date', __( 'WordPress is already up to date.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 		if ( '' !== $version && $offer->current !== $version ) {
 			return new WP_Error(
-				'presser_version_changed',
+				'kontrolwp_version_changed',
 				/* translators: %s: WordPress version now offered */
-				sprintf( __( 'WordPress now offers version %s. Sync the site and try again.', 'presser-connect' ), $offer->current ),
+				sprintf( __( 'WordPress now offers version %s. Sync the site and try again.', 'kontrolwp-connect' ), $offer->current ),
 				array( 'status' => 409 )
 			);
 		}
@@ -412,10 +412,10 @@ class Presser_Connect_Rest {
 		ob_end_clean();
 
 		if ( is_wp_error( $result ) ) {
-			return new WP_Error( 'presser_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
 		}
 		if ( $skin->get_errors()->has_errors() ) {
-			return new WP_Error( 'presser_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
 		}
 		if ( ! $result ) {
 			return self::filesystem_error();
@@ -427,7 +427,7 @@ class Presser_Connect_Rest {
 	}
 
 	private static function filesystem_error() {
-		return new WP_Error( 'presser_update_failed', __( 'WordPress could not write to its files. Check file permissions or FS_METHOD.', 'presser-connect' ), array( 'status' => 500 ) );
+		return new WP_Error( 'kontrolwp_update_failed', __( 'WordPress could not write to its files. Check file permissions or FS_METHOD.', 'kontrolwp-connect' ), array( 'status' => 500 ) );
 	}
 
 	public static function comments() {
@@ -467,7 +467,7 @@ class Presser_Connect_Rest {
 	public static function moderate_comment( $request ) {
 		$comment = get_comment( (int) $request['id'] );
 		if ( ! $comment ) {
-			return new WP_Error( 'presser_not_found', __( 'That comment no longer exists.', 'presser-connect' ), array( 'status' => 404 ) );
+			return new WP_Error( 'kontrolwp_not_found', __( 'That comment no longer exists.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 		}
 		switch ( $request['action'] ) {
 			case 'approve':
@@ -480,7 +480,7 @@ class Presser_Connect_Rest {
 				$done = wp_trash_comment( $comment );
 		}
 		if ( is_wp_error( $done ) || ! $done ) {
-			return new WP_Error( 'presser_moderation_failed', __( 'WordPress could not update that comment.', 'presser-connect' ), array( 'status' => 500 ) );
+			return new WP_Error( 'kontrolwp_moderation_failed', __( 'WordPress could not update that comment.', 'kontrolwp-connect' ), array( 'status' => 500 ) );
 		}
 		return array( 'ok' => true );
 	}

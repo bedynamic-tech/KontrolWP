@@ -1,7 +1,7 @@
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
 import type { FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
-import { SELF_UPDATE } from "./presser-connect.ts";
+import { SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `

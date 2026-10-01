@@ -26,30 +26,30 @@ private hostname.
 ## The dashboard to plugin protocol
 
 Source of truth: `src/shared/protocol.ts` and
-`plugin/presser-connect/includes/class-presser-connect-auth.php`. They are
+`plugin/kontrolwp-connect/includes/class-kontrolwp-connect-auth.php`. They are
 tested against each other in `tests/protocol.test.mjs`.
 
 **Pairing.** KontrolWP Connect creates the key when it is activated: a random
 key id and a random 32-byte secret for that site only. **Settings, KontrolWP
-Connect** shows them as a Connection Key (`presser2.` + base64url JSON of the
+Connect** shows them as a Connection Key (`kontrolwp2.` + base64url JSON of the
 key id and secret). In KontrolWP, **Add site** takes the site's address and
 that key, checks both by calling `/status` before saving anything, and takes
 the site's name from WordPress. The name is refreshed on every sync.
 
 **Requests.** The dashboard calls the plugin's REST routes at
-`https://site/?rest_route=/presser/v1/...` (works with or without pretty
+`https://site/?rest_route=/kontrolwp/v1/...` (works with or without pretty
 permalinks) and signs each request with HMAC-SHA256 over:
 
 ```
-presser-v1
+kontrolwp-v1
 METHOD
-/presser/v1/route
+/kontrolwp/v1/route
 unix timestamp
 random nonce
 sha256 hex of the body
 ```
 
-Requests carry the key id in `X-Presser-Key-Id`. The plugin rejects a
+Requests carry the key id in `X-KontrolWP-Key-Id`. The plugin rejects a
 request unless the key id matches, the timestamp is
 within five minutes, the signature matches (constant-time compare) and the
 nonce has not been used before. Only after the signature checks out is the
@@ -189,7 +189,7 @@ Umami 2's stats format (`{value, prev}`) and later versions' (numbers plus
 `comparison`), and asks for the `path` metric, falling back to Umami 2's `url`.
 Nothing is stored; the page refreshes it every five minutes.
 
-## Plugin routes (`presser/v1`)
+## Plugin routes (`kontrolwp/v1`)
 
 | Route | Does |
 | --- | --- |
@@ -198,7 +198,7 @@ Nothing is stored; the page refreshes it every five minutes.
 | `POST /updates/apply` | `{kind: core, plugin or theme, slug, version}`. Runs the same upgraders the Updates screen uses; core also runs the database upgrade. For core, `version` must match the offer the dashboard showed, so a site never installs a version the owner did not see. Refuses when `DISALLOW_FILE_MODS` is set. |
 | `POST /self-update` | `{version, package}`. Installs the KontrolWP Connect zip the dashboard ships (base64 in the signed body, so the signature covers it) through WordPress's plugin upgrader, keeping the plugin's folder. Refuses a version that is not newer. Added in 0.4.0. |
 | `GET /admins` | Users who can `manage_options`, for the Magic Login setting. Added in 0.5.0. |
-| `POST /login` | `{user_id}`. A one-time `wp-login.php?action=presser_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
+| `POST /login` | `{user_id}`. A one-time `wp-login.php?action=kontrolwp_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
 | `GET /plugins` | Installed plugins with version, author and active state, and whether file changes are allowed. Added in 0.6.0; auto-update state in 0.7.0; each plugin's icon from WordPress's last update check in 0.7.1. |
 | `POST /plugins/manage` | `{plugin, action: activate, deactivate, delete, enable-auto-update or disable-auto-update}`. Delete deactivates first, then uses `delete_plugins`. KontrolWP Connect refuses to deactivate or delete itself. Added in 0.6.0; auto-update actions in 0.7.0. |
 | `POST /core/auto-update` | `{mode: all, minor or off}`. Sets WordPress core auto-updates; refuses when wp-config.php decides them. Added in 0.7.0. |

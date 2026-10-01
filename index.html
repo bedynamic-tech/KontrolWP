@@ -13,7 +13,7 @@
       (function () {
         var choice = null;
         try {
-          choice = localStorage.getItem("presser.theme");
+          choice = localStorage.getItem("kontrolwp.theme");
         } catch (error) {}
         var dark = choice === "dark" || (choice !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);

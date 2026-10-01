@@ -107,7 +107,7 @@ export function AddSiteDialog() {
               <Textarea
                 value={connectionKey}
                 onChange={(e) => setConnectionKey(e.target.value)}
-                placeholder="presser2...."
+                placeholder="kontrolwp2...."
                 className="font-mono text-xs"
                 rows={3}
                 spellCheck={false}

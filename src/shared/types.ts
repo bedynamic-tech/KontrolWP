@@ -95,7 +95,7 @@ export interface SiteDetail {
   comments: PendingComment[];
 }
 
-/** What KontrolWP Connect reports. Mirrors plugin/presser-connect/includes/class-presser-connect-rest.php. */
+/** What KontrolWP Connect reports. Mirrors plugin/kontrolwp-connect/includes/class-kontrolwp-connect-rest.php. */
 export interface PluginStatus {
   name: string;
   home_url: string;

@@ -8,7 +8,7 @@ import { requireSameOrigin } from "../src/worker/api/csrf.ts";
 const issuer = "https://test.cloudflareaccess.com";
 const audience = "web-application-aud";
 const env = { WEB_ACCESS_TEAM_DOMAIN: issuer, WEB_ACCESS_AUD: audience };
-const origin = "https://presser.example.com";
+const origin = "https://kontrolwp.example.com";
 const key = await generateKeyPair("RS256");
 const publicJwk = { ...await exportJWK(key.publicKey), kid: "test-key", alg: "RS256", use: "sig" };
 

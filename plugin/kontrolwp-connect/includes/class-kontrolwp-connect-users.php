@@ -11,14 +11,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Presser_Connect_Users {
+class KontrolWP_Connect_Users {
 
 	/** Most users one list returns; the dashboard keeps up to this many. */
 	const MAX_USERS = 2000;
 
 	public static function register_routes( $auth ) {
 		register_rest_route(
-			Presser_Connect_Rest::NAMESPACE_V1,
+			KontrolWP_Connect_Rest::NAMESPACE_V1,
 			'/users',
 			array(
 				'methods'             => 'GET',
@@ -27,7 +27,7 @@ class Presser_Connect_Users {
 			)
 		);
 		register_rest_route(
-			Presser_Connect_Rest::NAMESPACE_V1,
+			KontrolWP_Connect_Rest::NAMESPACE_V1,
 			'/users/create',
 			array(
 				'methods'             => 'POST',
@@ -58,7 +58,7 @@ class Presser_Connect_Users {
 			)
 		);
 		register_rest_route(
-			Presser_Connect_Rest::NAMESPACE_V1,
+			KontrolWP_Connect_Rest::NAMESPACE_V1,
 			'/users/manage',
 			array(
 				'methods'             => 'POST',
@@ -123,19 +123,19 @@ class Presser_Connect_Users {
 		$role  = (string) $request['role'];
 
 		if ( '' === $login ) {
-			return self::bad_request( __( 'Enter a username.', 'presser-connect' ) );
+			return self::bad_request( __( 'Enter a username.', 'kontrolwp-connect' ) );
 		}
 		if ( ! is_email( $email ) ) {
-			return self::bad_request( __( 'Enter a valid email address.', 'presser-connect' ) );
+			return self::bad_request( __( 'Enter a valid email address.', 'kontrolwp-connect' ) );
 		}
 		if ( ! wp_roles()->is_role( $role ) ) {
-			return self::bad_request( __( 'That role does not exist on this site.', 'presser-connect' ) );
+			return self::bad_request( __( 'That role does not exist on this site.', 'kontrolwp-connect' ) );
 		}
 		if ( username_exists( $login ) ) {
-			return new WP_Error( 'presser_user_exists', __( 'A user with that username already exists.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'kontrolwp_user_exists', __( 'A user with that username already exists.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 		if ( email_exists( $email ) ) {
-			return new WP_Error( 'presser_user_exists', __( 'A user with that email address already exists.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'kontrolwp_user_exists', __( 'A user with that email address already exists.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 		}
 
 		$password = (string) $request['password'];
@@ -150,7 +150,7 @@ class Presser_Connect_Users {
 			)
 		);
 		if ( is_wp_error( $user_id ) ) {
-			return new WP_Error( 'presser_user_failed', $user_id->get_error_message(), array( 'status' => 400 ) );
+			return new WP_Error( 'kontrolwp_user_failed', $user_id->get_error_message(), array( 'status' => 400 ) );
 		}
 		if ( is_multisite() ) {
 			add_user_to_blog( get_current_blog_id(), $user_id, $role );
@@ -172,14 +172,14 @@ class Presser_Connect_Users {
 		require_once ABSPATH . 'wp-admin/includes/user.php';
 		$user = get_userdata( (int) $request['user_id'] );
 		if ( ! $user || ( is_multisite() && ! is_user_member_of_blog( $user->ID ) ) ) {
-			return new WP_Error( 'presser_not_found', __( 'That user does not exist on this site.', 'presser-connect' ), array( 'status' => 404 ) );
+			return new WP_Error( 'kontrolwp_not_found', __( 'That user does not exist on this site.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 		}
 
 		switch ( $request['action'] ) {
 			case 'set-role':
 				$role = (string) $request['role'];
 				if ( ! wp_roles()->is_role( $role ) ) {
-					return self::bad_request( __( 'That role does not exist on this site.', 'presser-connect' ) );
+					return self::bad_request( __( 'That role does not exist on this site.', 'kontrolwp-connect' ) );
 				}
 				if ( 'administrator' !== $role && self::is_last_admin( $user ) ) {
 					return self::last_admin();
@@ -190,7 +190,7 @@ class Presser_Connect_Users {
 			case 'reset-password':
 				$result = retrieve_password( $user->user_login );
 				if ( is_wp_error( $result ) ) {
-					return new WP_Error( 'presser_user_failed', wp_strip_all_tags( $result->get_error_message() ), array( 'status' => 500 ) );
+					return new WP_Error( 'kontrolwp_user_failed', wp_strip_all_tags( $result->get_error_message() ), array( 'status' => 500 ) );
 				}
 				return array( 'ok' => true );
 
@@ -200,13 +200,13 @@ class Presser_Connect_Users {
 				}
 				$reassign = self::reassign_to( $user->ID );
 				if ( ! $reassign ) {
-					return new WP_Error( 'presser_user_failed', __( 'There is no other administrator to give this user\'s content to.', 'presser-connect' ), array( 'status' => 409 ) );
+					return new WP_Error( 'kontrolwp_user_failed', __( 'There is no other administrator to give this user\'s content to.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 				}
 				$deleted = is_multisite()
 					? remove_user_from_blog( $user->ID, get_current_blog_id(), $reassign )
 					: wp_delete_user( $user->ID, $reassign );
 				if ( ! $deleted || is_wp_error( $deleted ) ) {
-					return new WP_Error( 'presser_user_failed', __( 'WordPress could not delete that user.', 'presser-connect' ), array( 'status' => 500 ) );
+					return new WP_Error( 'kontrolwp_user_failed', __( 'WordPress could not delete that user.', 'kontrolwp-connect' ), array( 'status' => 500 ) );
 				}
 				return array( 'ok' => true );
 		}
@@ -243,10 +243,10 @@ class Presser_Connect_Users {
 	}
 
 	private static function last_admin() {
-		return new WP_Error( 'presser_last_admin', __( 'This is the site\'s only administrator, so it cannot be removed or given another role.', 'presser-connect' ), array( 'status' => 409 ) );
+		return new WP_Error( 'kontrolwp_last_admin', __( 'This is the site\'s only administrator, so it cannot be removed or given another role.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
 	}
 
 	private static function bad_request( $message ) {
-		return new WP_Error( 'presser_bad_request', $message, array( 'status' => 400 ) );
+		return new WP_Error( 'kontrolwp_bad_request', $message, array( 'status' => 400 ) );
 	}
 }

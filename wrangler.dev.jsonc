@@ -2,7 +2,7 @@
 // be used on localhost. Deploys use wrangler.jsonc.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "presser",
+  "name": "kontrolwp",
   "main": "src/worker/dev.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -15,7 +15,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "presser",
+      "database_name": "kontrolwp",
       "migrations_dir": "migrations"
     }
   ],
@@ -23,12 +23,12 @@
     "producers": [
       {
         "binding": "SYNC_QUEUE",
-        "queue": "presser-sync-dev"
+        "queue": "kontrolwp-sync-dev"
       }
     ],
     "consumers": [
       {
-        "queue": "presser-sync-dev",
+        "queue": "kontrolwp-sync-dev",
         "max_batch_size": 10,
         "max_batch_timeout": 1,
         "max_retries": 1

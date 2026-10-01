@@ -1,5 +1,5 @@
 <?php
-// Runs Presser_Connect_Auth::verify outside WordPress with minimal stubs.
+// Runs KontrolWP_Connect_Auth::verify outside WordPress with minimal stubs.
 // Input (JSON on stdin), one of:
 //   { "create_key": true, "requests": [...] }  the plugin makes a key, then
 //                                              verifies requests signed with it
@@ -45,18 +45,18 @@ class Request {
 	public function get_body() { return $this->input['body']; }
 }
 
-require dirname( __DIR__, 2 ) . '/plugin/presser-connect/includes/class-presser-connect-auth.php';
+require dirname( __DIR__, 2 ) . '/plugin/kontrolwp-connect/includes/class-kontrolwp-connect-auth.php';
 
 $input = json_decode( stream_get_contents( STDIN ), true );
 $output = array();
 if ( ! empty( $input['create_key'] ) ) {
-	$output['connection_key'] = Presser_Connect_Auth::connection_key();
+	$output['connection_key'] = KontrolWP_Connect_Auth::connection_key();
 } else {
-	$GLOBALS['options']['presser_connect'] = $input['credentials'];
+	$GLOBALS['options']['kontrolwp_connect'] = $input['credentials'];
 }
 $output['results'] = array();
 foreach ( $input['requests'] ?? array() as $request ) {
-	$result                = Presser_Connect_Auth::verify( new Request( $request ) );
+	$result                = KontrolWP_Connect_Auth::verify( new Request( $request ) );
 	$output['results'][] = true === $result ? 'ok' : $result->message;
 }
 echo json_encode( $output );

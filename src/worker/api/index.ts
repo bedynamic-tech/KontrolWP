@@ -24,7 +24,7 @@ import type {
 } from "../../shared/types.ts";
 import { SYNC_INTERVALS } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
-import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/presser-connect.ts";
+import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";

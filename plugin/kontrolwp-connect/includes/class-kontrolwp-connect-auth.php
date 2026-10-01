@@ -6,7 +6,7 @@
  * This is the PHP half of src/shared/protocol.ts in the KontrolWP repository;
  * change both together. The dashboard signs
  *
- *     presser-v1 \n METHOD \n ROUTE \n TIMESTAMP \n NONCE \n sha256_hex(BODY)
+ *     kontrolwp-v1 \n METHOD \n ROUTE \n TIMESTAMP \n NONCE \n sha256_hex(BODY)
  *
  * with HMAC-SHA256 and the secret from this site's Connection Key.
  */
@@ -15,12 +15,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Presser_Connect_Auth {
+class KontrolWP_Connect_Auth {
 
-	const OPTION           = 'presser_connect';
-	const LAST_SEEN_OPTION = 'presser_connect_last_seen';
-	const PROTOCOL         = 'presser-v1';
-	const KEY_PREFIX       = 'presser2.';
+	const OPTION           = 'kontrolwp_connect';
+	const LAST_SEEN_OPTION = 'kontrolwp_connect_last_seen';
+	const PROTOCOL         = 'kontrolwp-v1';
+	const KEY_PREFIX       = 'kontrolwp2.';
 	const MAX_SKEW         = 300;
 
 	/**
@@ -84,22 +84,22 @@ class Presser_Connect_Auth {
 	public static function verify( $request ) {
 		$credentials = self::credentials();
 		if ( ! $credentials ) {
-			return self::deny( __( 'KontrolWP Connect has no Connection Key yet. Open Settings, KontrolWP Connect on this site.', 'presser-connect' ) );
+			return self::deny( __( 'KontrolWP Connect has no Connection Key yet. Open Settings, KontrolWP Connect on this site.', 'kontrolwp-connect' ) );
 		}
 
-		$key_id    = (string) $request->get_header( 'X-Presser-Key-Id' );
-		$timestamp = (string) $request->get_header( 'X-Presser-Timestamp' );
-		$nonce     = (string) $request->get_header( 'X-Presser-Nonce' );
-		$signature = (string) $request->get_header( 'X-Presser-Signature' );
+		$key_id    = (string) $request->get_header( 'X-KontrolWP-Key-Id' );
+		$timestamp = (string) $request->get_header( 'X-KontrolWP-Timestamp' );
+		$nonce     = (string) $request->get_header( 'X-KontrolWP-Nonce' );
+		$signature = (string) $request->get_header( 'X-KontrolWP-Signature' );
 
 		if ( '' === $signature || ! ctype_digit( $timestamp ) || ! preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $nonce ) ) {
-			return self::deny( __( 'This request was not signed by KontrolWP.', 'presser-connect' ) );
+			return self::deny( __( 'This request was not signed by KontrolWP.', 'kontrolwp-connect' ) );
 		}
 		if ( ! hash_equals( (string) $credentials['key_id'], $key_id ) ) {
-			return self::deny( __( 'This site has a newer Connection Key. Copy it from Settings, KontrolWP Connect and paste it into KontrolWP.', 'presser-connect' ) );
+			return self::deny( __( 'This site has a newer Connection Key. Copy it from Settings, KontrolWP Connect and paste it into KontrolWP.', 'kontrolwp-connect' ) );
 		}
 		if ( abs( time() - (int) $timestamp ) > self::MAX_SKEW ) {
-			return self::deny( __( 'The request expired. Check that this server\'s clock is correct.', 'presser-connect' ) );
+			return self::deny( __( 'The request expired. Check that this server\'s clock is correct.', 'kontrolwp-connect' ) );
 		}
 
 		$canonical = implode(
@@ -115,13 +115,13 @@ class Presser_Connect_Auth {
 		);
 		$expected = self::sign( $credentials['secret'], $canonical );
 		if ( ! hash_equals( $expected, $signature ) ) {
-			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, KontrolWP Connect and paste it into KontrolWP again.', 'presser-connect' ) );
+			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, KontrolWP Connect and paste it into KontrolWP again.', 'kontrolwp-connect' ) );
 		}
 
 		// Checked after the signature so unsigned requests cannot fill the store.
-		$nonce_key = 'presser_nonce_' . md5( $nonce );
+		$nonce_key = 'kontrolwp_nonce_' . md5( $nonce );
 		if ( false !== get_transient( $nonce_key ) ) {
-			return self::deny( __( 'This request was already used.', 'presser-connect' ) );
+			return self::deny( __( 'This request was already used.', 'kontrolwp-connect' ) );
 		}
 		set_transient( $nonce_key, 1, 2 * self::MAX_SKEW );
 
@@ -153,6 +153,6 @@ class Presser_Connect_Auth {
 	}
 
 	private static function deny( $message ) {
-		return new WP_Error( 'presser_unauthorized', $message, array( 'status' => 401 ) );
+		return new WP_Error( 'kontrolwp_unauthorized', $message, array( 'status' => 401 ) );
 	}
 }

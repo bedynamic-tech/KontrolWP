@@ -23,7 +23,7 @@ subject to Cloudflare's quotas and billing.
 
 ## 1. Deploy the dashboard
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/Presser)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/KontrolWP)
 
 1. Sign in to Cloudflare and connect GitHub when prompted. The source
    repository must be public for other people to use this button.
@@ -78,7 +78,7 @@ two variables across deploys.
 
 ## 3. Connect a site
 
-Download `presser-connect.zip` from the dashboard (the sidebar or the Sites
+Download `kontrolwp-connect-<version>.zip` from the dashboard (the sidebar or the Sites
 page), then install and activate it on the site. Under **Settings, KontrolWP
 Connect** on the site, copy the Connection Key. In KontrolWP, select **Add
 site** and enter the site's https address and the key. KontrolWP checks the
@@ -89,8 +89,8 @@ connection, names the site after its WordPress title and syncs it.
 ```sh
 npm install
 npx wrangler login
-npx wrangler d1 create presser
-npx wrangler queues create presser-sync
+npx wrangler d1 create kontrolwp
+npx wrangler queues create kontrolwp-sync
 npm run deploy
 ```
 
@@ -108,6 +108,22 @@ Your repository does not follow upstream on its own. To bring in changes, add
 this repository as a remote, merge its `main` into yours, keep your own
 resource names in `wrangler.jsonc`, and push. The deploy command applies any
 new migrations before the new Worker goes live.
+
+## Moving from a Presser deployment
+
+KontrolWP was called Presser, and every name changed with it: the Worker
+(`kontrolwp`), the D1 database (`kontrolwp`), the queue (`kontrolwp-sync`),
+the plugin (`kontrolwp-connect`) and its REST routes (`kontrolwp/v1`). A
+deployment made as Presser does not carry over:
+
+1. Deploy as usual. If Workers Builds deploys a Worker still named `presser`,
+   rename it to `kontrolwp` under the Worker's **Settings** first; renaming
+   keeps its variables and secrets. Otherwise the deploy creates a new
+   `kontrolwp` Worker. Either way the database and queue are new and empty.
+2. Turn on Access for the new `kontrolwp` hostname, as in step 2 above.
+3. On each site, deactivate and delete Presser Connect, install KontrolWP
+   Connect, and add the site again with its new Connection Key.
+4. Delete the old `presser` database, queue and Worker when nothing needs them.
 
 ## Troubleshooting
 
@@ -133,5 +149,5 @@ new migrations before the new Worker goes live.
 - **"KontrolWP could not decrypt this site's secret":** the key changed since
   the site was added. Copy the Connection Key from Settings, KontrolWP Connect
   on the site and use **Replace connection key** on the site's page.
-- **Sites never sync on their own:** check that the `presser-sync` queue
+- **Sites never sync on their own:** check that the `kontrolwp-sync` queue
   exists and that the Worker's **Settings, Triggers** shows the cron schedule.

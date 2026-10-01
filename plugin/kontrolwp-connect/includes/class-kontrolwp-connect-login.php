@@ -10,10 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class Presser_Connect_Login {
+class KontrolWP_Connect_Login {
 
-	const ACTION        = 'presser_login';
-	const OPTION_PREFIX = 'presser_connect_login_';
+	const ACTION        = 'kontrolwp_login';
+	const OPTION_PREFIX = 'kontrolwp_connect_login_';
 	const LIFETIME      = 60;
 
 	public static function init() {
@@ -48,7 +48,7 @@ class Presser_Connect_Login {
 	public static function create( $request ) {
 		$user = get_userdata( (int) $request['user_id'] );
 		if ( ! $user || ! user_can( $user, 'manage_options' ) ) {
-			return new WP_Error( 'presser_not_admin', __( 'That user is no longer an administrator on this site. Choose another one for Magic Login.', 'presser-connect' ), array( 'status' => 404 ) );
+			return new WP_Error( 'kontrolwp_not_admin', __( 'That user is no longer an administrator on this site. Choose another one for Magic Login.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 		}
 
 		self::delete_expired();
@@ -76,7 +76,7 @@ class Presser_Connect_Login {
 		);
 	}
 
-	/** Runs on wp-login.php?action=presser_login. */
+	/** Runs on wp-login.php?action=kontrolwp_login. */
 	public static function consume() {
 		nocache_headers();
 		header( 'Referrer-Policy: no-referrer' );
@@ -90,12 +90,12 @@ class Presser_Connect_Login {
 
 		if ( ! $spent || (int) $grant['expires'] < time() || ! $user || ! user_can( $user, 'manage_options' ) ) {
 			wp_die(
-				esc_html__( 'This Magic Login link has expired or was already used. Start Magic Login again from KontrolWP.', 'presser-connect' ),
-				esc_html__( 'Magic Login', 'presser-connect' ),
+				esc_html__( 'This Magic Login link has expired or was already used. Start Magic Login again from KontrolWP.', 'kontrolwp-connect' ),
+				esc_html__( 'Magic Login', 'kontrolwp-connect' ),
 				array(
 					'response'  => 403,
 					'link_url'  => wp_login_url(),
-					'link_text' => esc_html__( 'Log in', 'presser-connect' ),
+					'link_text' => esc_html__( 'Log in', 'kontrolwp-connect' ),
 				)
 			);
 		}

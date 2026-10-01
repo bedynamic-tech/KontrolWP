@@ -21,12 +21,12 @@ function php(input) {
 test("connection keys round-trip and reject anything else", () => {
   const key = { keyId: randomToken(9), secret: randomToken(32) };
   const encoded = encodeConnectionKey(key);
-  assert.match(encoded, /^presser2\.[A-Za-z0-9_-]+$/);
+  assert.match(encoded, /^kontrolwp2\.[A-Za-z0-9_-]+$/);
   assert.deepEqual(decodeConnectionKey(`  ${encoded}\n`), key);
   // Copying out of a wrapped textarea can add line breaks.
   assert.deepEqual(decodeConnectionKey(encoded.slice(0, 20) + "\n" + encoded.slice(20)), key);
-  assert.equal(decodeConnectionKey("presser2.not-json"), null);
-  assert.equal(decodeConnectionKey(encoded.slice("presser2.".length)), null);
+  assert.equal(decodeConnectionKey("kontrolwp2.not-json"), null);
+  assert.equal(decodeConnectionKey(encoded.slice("kontrolwp2.".length)), null);
   assert.equal(decodeConnectionKey(encodeConnectionKey({ keyId: key.keyId, secret: randomToken(16) })), null);
   assert.equal(decodeConnectionKey(encodeConnectionKey({ keyId: "bad id!", secret: key.secret })), null);
 });
@@ -40,8 +40,8 @@ test("site URLs must be public https addresses", () => {
 });
 
 test("REST URLs use rest_route so any permalink setting works", () => {
-  assert.equal(restUrl("https://example.com", "/presser/v1/status"), "https://example.com/?rest_route=%2Fpresser%2Fv1%2Fstatus");
-  assert.equal(restUrl("https://example.com/blog", "/presser/v1/status"), "https://example.com/blog/?rest_route=%2Fpresser%2Fv1%2Fstatus");
+  assert.equal(restUrl("https://example.com", "/kontrolwp/v1/status"), "https://example.com/?rest_route=%2Fkontrolwp%2Fv1%2Fstatus");
+  assert.equal(restUrl("https://example.com/blog", "/kontrolwp/v1/status"), "https://example.com/blog/?rest_route=%2Fkontrolwp%2Fv1%2Fstatus");
 });
 
 test("the dashboard reads keys the plugin makes", { skip: !hasPhp && "php is not installed" }, async () => {
@@ -55,7 +55,7 @@ test("the plugin accepts dashboard signatures and rejects tampering", { skip: !h
   const keyId = randomToken(9);
   const secret = randomToken(32);
   const credentials = { key_id: keyId, secret, created_at: 0 };
-  const route = "/presser/v1/comments/moderate";
+  const route = "/kontrolwp/v1/comments/moderate";
   const body = JSON.stringify({ id: 12, action: "approve" });
   const sign = (overrides = {}) => signedHeaders({ keyId, secret, method: "POST", route, body, ...overrides });
 
@@ -66,7 +66,7 @@ test("the plugin accepts dashboard signatures and rejects tampering", { skip: !h
       { method: "POST", route, body, headers: valid },
       { method: "POST", route, body, headers: { ...valid } },
       { method: "POST", route, body: body.replace("approve", "trash"), headers: await sign() },
-      { method: "POST", route: "/presser/v1/updates/apply", body, headers: await sign() },
+      { method: "POST", route: "/kontrolwp/v1/updates/apply", body, headers: await sign() },
       { method: "GET", route, body, headers: await sign() },
       { method: "POST", route, body, headers: await sign({ now: Math.floor(Date.now() / 1000) - 600 }) },
       { method: "POST", route, body, headers: await sign({ keyId: randomToken(9) }) },
@@ -84,7 +84,7 @@ test("the plugin accepts dashboard signatures and rejects tampering", { skip: !h
 });
 
 test("the plugin refuses everything before it has a key", { skip: !hasPhp && "php is not installed" }, async () => {
-  const route = "/presser/v1/status";
+  const route = "/kontrolwp/v1/status";
   const headers = await signedHeaders({ keyId: randomToken(9), secret: randomToken(32), method: "GET", route, body: "" });
   const { results } = php({ credentials: null, requests: [{ method: "GET", route, body: "", headers }] });
   assert.match(results[0], /no Connection Key/);
