@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { UmamiMode } from "../../shared/types";
+import { SYNC_INTERVALS, type SyncInterval, type UmamiMode } from "../../shared/types";
 import {
   deleteUmamiSettings,
   fetchLayoutSettings,
+  fetchSyncSettings,
   fetchUmamiSettings,
   saveLayoutSettings,
+  saveSyncSettings,
   saveUmamiSettings,
 } from "../api";
 import { Section } from "./Section";
@@ -19,9 +21,56 @@ export function SettingsPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+      <SyncSettingsSection />
       <LayoutSettingsSection />
       <UmamiSettingsSection />
     </div>
+  );
+}
+
+const SYNC_LABELS: Record<SyncInterval, string> = {
+  15: "Every 15 minutes",
+  30: "Every 30 minutes",
+  60: "Every hour",
+  180: "Every 3 hours",
+  360: "Every 6 hours",
+};
+
+function SyncSettingsSection() {
+  const queryClient = useQueryClient();
+  const sync = useQuery({ queryKey: ["settings", "sync"], queryFn: fetchSyncSettings, refetchInterval: false });
+  const save = useMutation({
+    mutationFn: saveSyncSettings,
+    onMutate: (next) => queryClient.setQueryData(["settings", "sync"], next),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings", "sync"] }),
+  });
+  return (
+    <Section title="Background sync" action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}>
+      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          <span className="block text-sm font-medium">Check every site</span>
+          <span className="block text-xs text-muted-foreground">
+            Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at once.
+          </span>
+        </span>
+        <select
+          aria-label="Background sync interval"
+          className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          value={sync.data?.interval_minutes ?? 60}
+          disabled={sync.isPending}
+          onChange={(e) => save.mutate({ interval_minutes: Number(e.target.value) as SyncInterval })}
+        >
+          {SYNC_INTERVALS.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {SYNC_LABELS[minutes]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {(sync.error || save.error) && (
+        <p className="px-4 pb-3 text-sm text-destructive">{(sync.error ?? save.error)!.message}</p>
+      )}
+    </Section>
   );
 }
 
@@ -53,11 +102,11 @@ function LayoutSettingsSection() {
   return (
     <Section title="Site page layout" action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}>
       <div className="divide-y">
-        {option(1, "One column", "Analytics, Updates, Plugins and Comments one below the other.")}
+        {option(1, "One column", "On a site's Overview tab, Analytics, Updates and Comments one below the other.")}
         {option(
           2,
           "Two columns",
-          "Updates, Plugins and Comments on the left, Analytics on the right. Needs Umami connected below, and a wide enough window; narrow screens keep one column.",
+          "On a site's Overview tab, Updates and Comments on the left, Analytics on the right. Needs Umami connected below, and a wide enough window; narrow screens keep one column.",
         )}
       </div>
       {(layout.error || save.error) && (

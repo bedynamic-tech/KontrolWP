@@ -25,7 +25,7 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
   send a password reset or delete, on one site or many at once.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
-- **Background sync.** every site is re-checked every 6 hours.
+- **Background sync.** Every site is re-checked every hour by default; Settings can make it every 15 minutes up to every 6 hours.
 
 ## Get started
 

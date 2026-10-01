@@ -44,10 +44,11 @@
       }
     ]
   },
-  // Sync every connected site every 6 hours. Each site is its own queue
-  // message, so one slow or broken site never delays the others.
+  // Checks every 15 minutes whether a sync is due; how often one runs is
+  // the Background sync setting (every hour unless changed). Each site is its
+  // own queue message, so one slow or broken site never delays the others.
   "triggers": {
-    "crons": ["0 */6 * * *"]
+    "crons": ["*/15 * * * *"]
   },
   "observability": {
     "enabled": true
