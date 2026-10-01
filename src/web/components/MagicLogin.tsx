@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version";
 import type { SiteSummary } from "../../shared/types";
 import { createMagicLogin, fetchAdmins, setMagicLoginUser } from "../api";
+import { Spinner } from "./Spinner";
 
 export function magicLoginSupported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, MAGIC_LOGIN_SINCE) >= 0;
@@ -162,5 +163,67 @@ export function MagicLoginUserForm(props: {
         {secondary}
       </div>
     </form>
+  );
+}
+
+const ADMIN_SELECT_CLASS =
+  "h-8 max-w-56 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
+
+/** The Magic Login administrator as a dropdown that saves when changed. */
+export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) {
+  const { site } = props;
+  const queryClient = useQueryClient();
+  const supported = magicLoginSupported(site);
+  const admins = useQuery({
+    queryKey: ["site", site.id, "admins"],
+    queryFn: () => fetchAdmins(site.id),
+    enabled: supported,
+    refetchInterval: false,
+    staleTime: 0,
+  });
+  const save = useMutation({
+    mutationFn: (userId: number) => setMagicLoginUser(site.id, userId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["site", site.id] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+
+  if (!supported) {
+    return <p className="text-xs text-muted-foreground">Needs Presser Connect {MAGIC_LOGIN_SINCE} or later</p>;
+  }
+  const value = save.isPending ? String(save.variables) : site.login_user_id ? String(site.login_user_id) : "";
+  return (
+    <div className="flex flex-col items-start gap-1 sm:items-end">
+      <div className="flex items-center gap-2">
+        {(save.isPending || admins.isPending) && <Spinner className="size-4 text-muted-foreground" />}
+        <select
+          id={props.id}
+          aria-label="Magic Login administrator"
+          value={value}
+          disabled={admins.isPending || !!admins.error || save.isPending}
+          onChange={(event) => save.mutate(Number(event.target.value))}
+          className={ADMIN_SELECT_CLASS}
+        >
+          <option value="" disabled>
+            {admins.isPending ? "Loading..." : "Choose an administrator"}
+          </option>
+          {/* Keep the saved choice showing while the list loads. */}
+          {admins.isPending && site.login_user_id && (
+            <option value={site.login_user_id}>{site.login_user_name ?? "Saved administrator"}</option>
+          )}
+          {admins.data?.admins.map((admin) => (
+            <option key={admin.id} value={admin.id}>
+              {admin.display_name && admin.display_name !== admin.login
+                ? `${admin.display_name} (${admin.login})`
+                : admin.login}
+            </option>
+          ))}
+        </select>
+      </div>
+      {(admins.error || save.error) && (
+        <p className="text-xs text-destructive">{(admins.error ?? save.error)!.message}</p>
+      )}
+    </div>
   );
 }

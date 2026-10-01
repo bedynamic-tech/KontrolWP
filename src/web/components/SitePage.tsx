@@ -26,7 +26,7 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
-import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
+import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
 import { AnalyticsSection } from "./AnalyticsSection";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
@@ -205,31 +205,27 @@ export function SitePage() {
           </DialogHeader>
           <div className="divide-y border-y">
             <CoreAutoUpdateRow site={site} className="py-3" />
-            <SettingRow
-              title="Update checks"
-              detail={
-                site.updates_excluded
-                  ? "Excluded. Presser does not check for or apply WordPress, plugin or theme updates here. Presser Connect still updates itself."
-                  : "Included. Presser lists this site's WordPress, plugin and theme updates."
-              }
-              error={excludeUpdates.error?.message}
-            >
-              <Button
-                size="sm"
-                variant="outline"
-                loading={excludeUpdates.isPending}
-                onClick={() => excludeUpdates.mutate(!site.updates_excluded)}
-              >
-                {site.updates_excluded ? "Include" : "Exclude"}
-              </Button>
-            </SettingRow>
-            <SettingRow
-              title="Magic Login administrator"
-              detail={site.login_user_name ? `Signs you in as ${site.login_user_name}.` : "Not chosen yet."}
-            >
-              <Button size="sm" variant="outline" onClick={fromSettings(setChoosingLoginUser)}>
-                Change
-              </Button>
+            <label className="flex cursor-pointer items-center gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Check for updates</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {site.updates_excluded
+                    ? "Presser does not check for or apply WordPress, plugin or theme updates on this site."
+                    : "Presser lists this site's WordPress, plugin and theme updates."}
+                </p>
+                {excludeUpdates.error && <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>}
+              </div>
+              {excludeUpdates.isPending && <Spinner className="size-4 text-muted-foreground" />}
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-primary"
+                checked={excludeUpdates.isPending ? excludeUpdates.variables === false : !site.updates_excluded}
+                disabled={excludeUpdates.isPending}
+                onChange={(event) => excludeUpdates.mutate(!event.target.checked)}
+              />
+            </label>
+            <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
+              <MagicLoginUserSelect site={site} />
             </SettingRow>
             <SettingRow title="Connection key" detail="Paste a new key after creating one in Presser Connect.">
               <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
