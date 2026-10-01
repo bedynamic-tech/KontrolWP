@@ -1,5 +1,7 @@
 import type {
+  BulkPluginResult,
   CommentAction,
+  FleetPlugins,
   Overview,
   PluginAction,
   SiteAdmin,
@@ -123,4 +125,24 @@ export function installPlugin(siteId: number, install: PluginInstall) {
   form.set("file", install.file);
   form.set("activate", String(install.activate));
   return request<{ ok: true; plugin: string }>(path, { method: "POST", body: form });
+}
+
+export const fetchFleetPlugins = () => request<FleetPlugins>("/plugins");
+
+export const bulkPluginAction = (plugin: string, action: PluginAction, siteIds: number[]) =>
+  request<{ results: BulkPluginResult[] }>("/plugins/bulk", {
+    method: "POST",
+    json: { plugin, action, site_ids: siteIds },
+  });
+
+export function installPluginOnSites(siteIds: number[], install: PluginInstall) {
+  const path = "/plugins/install";
+  if (install.source !== "zip") {
+    return request<{ results: BulkPluginResult[] }>(path, { method: "POST", json: { ...install, site_ids: siteIds } });
+  }
+  const form = new FormData();
+  form.set("file", install.file);
+  form.set("activate", String(install.activate));
+  form.set("site_ids", siteIds.join(","));
+  return request<{ results: BulkPluginResult[] }>(path, { method: "POST", body: form });
 }

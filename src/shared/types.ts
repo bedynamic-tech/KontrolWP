@@ -137,3 +137,36 @@ export interface SitePlugins {
 }
 
 export type PluginAction = "activate" | "deactivate" | "delete";
+
+/** One plugin on one site, as last synced, for the fleet-wide Plugins page. */
+export interface FleetPlugin {
+  site_id: number;
+  site_name: string;
+  site_url: string;
+  site_icon_url: string | null;
+  updates_excluded: boolean;
+  file: string;
+  name: string;
+  version: string;
+  author: string;
+  active: boolean;
+  network_active: boolean;
+  protected: boolean;
+  /** The version WordPress offers, when an update is available. */
+  new_version: string | null;
+  icon_url: string | null;
+  job_status: UpdateJobStatus | null;
+  job_error: string | null;
+}
+
+export interface FleetPlugins {
+  plugins: FleetPlugin[];
+  /** Connected sites whose Presser Connect cannot list plugins yet. */
+  unsupported_sites: { id: number; name: string; plugin_version: string | null }[];
+}
+
+export interface BulkPluginResult {
+  site_id: number;
+  ok: boolean;
+  error?: string;
+}

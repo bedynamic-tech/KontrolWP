@@ -1,6 +1,6 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version.ts";
-import type { PluginComments, PluginStatus, PluginUpdates, SiteAdmin } from "../../shared/types.ts";
+import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
+import type { PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
@@ -133,9 +133,45 @@ export async function syncSite(
 
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
+  await storePlugins(env, site, text(status.plugin_version));
   // Presser Connect's own update comes from this dashboard and runs by itself.
   if (checkUpdates) await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };
+}
+
+/**
+ * Keep the site's installed plugins for the Plugins page. Best effort: when
+ * the list cannot be read, the last one stays.
+ */
+async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: string): Promise<void> {
+  if (!pluginVersion || compareVersions(pluginVersion, PLUGIN_MANAGEMENT_SINCE) < 0) return;
+  let list: SitePlugins;
+  try {
+    list = await callSite<SitePlugins>(site, "GET", `${REST_NAMESPACE}/plugins`);
+  } catch (error) {
+    if (error instanceof SiteRequestError) return;
+    throw error;
+  }
+  const insert = env.DB.prepare(
+    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const plugins = (Array.isArray(list.plugins) ? list.plugins : []).slice(0, 500).filter((p) => text(p.file));
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(site.id),
+    ...plugins.map((p) =>
+      insert.bind(
+        site.id,
+        text(p.file).slice(0, 300),
+        text(p.name).slice(0, 200) || text(p.file),
+        text(p.version).slice(0, 40),
+        text(p.author).slice(0, 200),
+        p.active ? 1 : 0,
+        p.network_active ? 1 : 0,
+        p.protected ? 1 : 0,
+      ),
+    ),
+  ]);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,7 +76,7 @@ export function PluginsSection(props: { site: SiteSummary }) {
       }
     >
       {body}
-      <InstallDialog site={site} open={installing} onOpenChange={setInstalling} />
+      <SiteInstallDialog site={site} open={installing} onOpenChange={setInstalling} />
     </Section>
   );
 }
@@ -167,9 +167,34 @@ function PluginRow(props: { siteId: number; plugin: InstalledPlugin; canDelete: 
 
 type Source = PluginInstall["source"];
 
-function InstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: (open: boolean) => void }) {
+function SiteInstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { site } = props;
   const queryClient = useQueryClient();
+  return (
+    <InstallDialog
+      title={`Add a plugin to ${site.name}`}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      install={(request) => installPlugin(site.id, request)}
+      onSettled={() => queryClient.invalidateQueries({ queryKey: ["site", site.id, "plugins"] })}
+    />
+  );
+}
+
+/**
+ * Choose a plugin from WordPress.org, a link or a zip. The fleet page adds a
+ * site picker as children; install throws to keep the dialog open with its
+ * message.
+ */
+export function InstallDialog(props: {
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  install: (request: PluginInstall) => Promise<unknown>;
+  onSettled: () => void;
+  children?: ReactNode;
+  canSubmit?: boolean;
+}) {
   const [source, setSource] = useState<Source>("wordpress.org");
   const [slug, setSlug] = useState("");
   const [url, setUrl] = useState("");
@@ -177,9 +202,9 @@ function InstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: 
   const [activate, setActivate] = useState(true);
 
   const install = useMutation({
-    mutationFn: (request: PluginInstall) => installPlugin(site.id, request),
+    mutationFn: props.install,
     onSuccess: () => close(false),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "plugins"] }),
+    onSettled: props.onSettled,
   });
 
   const close = (open: boolean) => {
@@ -204,7 +229,7 @@ function InstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: 
       <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
         <form onSubmit={submit} className="min-w-0 space-y-4">
           <DialogHeader>
-            <DialogTitle>Add a plugin to {site.name}</DialogTitle>
+            <DialogTitle>{props.title}</DialogTitle>
             <DialogDescription>WordPress installs it the same way the Add Plugins screen does.</DialogDescription>
           </DialogHeader>
           <Tabs value={source} onValueChange={(value) => setSource(value as Source)}>
@@ -239,7 +264,7 @@ function InstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: 
                   type="url"
                   required={source === "url"}
                 />
-                <span className="block text-xs text-muted-foreground">The site downloads it directly.</span>
+                <span className="block text-xs text-muted-foreground">Each site downloads it directly.</span>
               </label>
             </TabsContent>
             <TabsContent value="zip" className="pt-3">
@@ -254,16 +279,17 @@ function InstallDialog(props: { site: SiteSummary; open: boolean; onOpenChange: 
               </label>
             </TabsContent>
           </Tabs>
+          {props.children}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={activate} onChange={(e) => setActivate(e.target.checked)} />
             Activate after installing
           </label>
-          {install.error && <p className="text-sm text-destructive">{install.error.message}</p>}
+          {install.error && <p className="whitespace-pre-line text-sm text-destructive">{install.error.message}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => close(false)} disabled={install.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={install.isPending}>
+            <Button type="submit" disabled={install.isPending || props.canSubmit === false}>
               {install.isPending ? "Installing..." : "Install"}
             </Button>
           </DialogFooter>

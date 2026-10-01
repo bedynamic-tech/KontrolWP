@@ -1,4 +1,5 @@
-import type { PendingComment, SiteSummary, SiteUpdate } from "../../shared/types.ts";
+import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
+import type { FleetPlugin, FleetPlugins, PendingComment, SiteSummary, SiteUpdate } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
 import { SELF_UPDATE } from "./presser-connect.ts";
 import { decryptSecret } from "./secrets.ts";
@@ -84,4 +85,36 @@ export async function listComments(db: D1Database, siteId?: number, limit = 100)
   );
   const { results } = await (siteId === undefined ? statement : statement.bind(siteId)).all<PendingComment>();
   return results;
+}
+
+export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
+  const [{ results }, { results: sites }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT p.site_id, s.name AS site_name, s.url AS site_url, s.icon_url AS site_icon_url, s.updates_excluded,
+                p.file, p.name, p.version, p.author, p.active, p.network_active, p.protected,
+                u.new_version, u.icon_url, j.status AS job_status, j.error AS job_error
+         FROM site_plugins p JOIN sites s ON s.id = p.site_id
+         LEFT JOIN site_updates u ON u.site_id = p.site_id AND u.kind = 'plugin' AND u.slug = p.file
+         LEFT JOIN update_jobs j ON j.site_id = p.site_id AND j.kind = 'plugin' AND j.slug = p.file
+         ORDER BY p.name COLLATE NOCASE, s.name COLLATE NOCASE`,
+      )
+      .all<Record<string, unknown>>(),
+    db.prepare("SELECT id, name, plugin_version FROM sites ORDER BY name COLLATE NOCASE").all<{
+      id: number;
+      name: string;
+      plugin_version: string | null;
+    }>(),
+  ]);
+  const flags = ["updates_excluded", "active", "network_active", "protected"] as const;
+  return {
+    plugins: results.map((row) => {
+      const plugin = { ...row } as unknown as FleetPlugin;
+      for (const flag of flags) plugin[flag] = Boolean(row[flag]);
+      return plugin;
+    }),
+    unsupported_sites: sites.filter(
+      (site) => !site.plugin_version || compareVersions(site.plugin_version, PLUGIN_MANAGEMENT_SINCE) < 0,
+    ),
+  };
 }
