@@ -11,26 +11,36 @@ export const SELF_UPDATE = {
 } as const;
 
 /**
- * A finished or failed self-update waits this long before sync tries again,
- * so a site that keeps reporting the old version never loops.
+ * A finished or failed self-update of the same version waits this long before
+ * a scheduled sync tries again, so a site that keeps reporting the old version
+ * never loops. A newer version, or the owner's Sync now, goes ahead at once.
  */
 const RETRY_FAILED_AFTER_SECONDS = 6 * 60 * 60;
 
 /**
  * Queue Presser Connect's own update when the site runs an older one, unless
- * it is already queued, running, or failed recently.
+ * it is already queued or running, or this version finished or failed
+ * recently. `retry` (Sync now) skips the wait.
  */
-export async function queueSelfUpdate(env: Env, siteId: number, siteVersion: string): Promise<void> {
+export async function queueSelfUpdate(env: Env, siteId: number, siteVersion: string, retry = false): Promise<void> {
   if (!needsSelfUpdate(siteVersion)) return;
   const queued = await env.DB
     .prepare(
-      `INSERT INTO update_jobs (site_id, kind, slug) VALUES (?, 'plugin', ?)
+      `INSERT INTO update_jobs (site_id, kind, slug, version) VALUES (?, 'plugin', ?, ?)
        ON CONFLICT (site_id, kind, slug) DO UPDATE SET
-         status = 'queued', error = NULL, attempts = 0, created_at = unixepoch(), started_at = NULL
-       WHERE update_jobs.status IN ('done', 'failed') AND COALESCE(update_jobs.started_at, 0) < ?
+         status = 'queued', version = excluded.version, error = NULL, attempts = 0,
+         created_at = unixepoch(), started_at = NULL
+       WHERE update_jobs.status IN ('done', 'failed')
+         AND (? OR update_jobs.version IS NOT excluded.version OR COALESCE(update_jobs.started_at, 0) < ?)
        RETURNING id`,
     )
-    .bind(siteId, SELF_UPDATE.slug, Math.floor(Date.now() / 1000) - RETRY_FAILED_AFTER_SECONDS)
+    .bind(
+      siteId,
+      SELF_UPDATE.slug,
+      SELF_UPDATE.version,
+      retry ? 1 : 0,
+      Math.floor(Date.now() / 1000) - RETRY_FAILED_AFTER_SECONDS,
+    )
     .first();
   if (queued) await env.SYNC_QUEUE.send({ type: "update", siteId });
 }

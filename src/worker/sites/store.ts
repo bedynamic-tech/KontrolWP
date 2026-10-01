@@ -1,22 +1,27 @@
 import type { PendingComment, SiteSummary, SiteUpdate } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
+import { SELF_UPDATE } from "./presser-connect.ts";
 import { decryptSecret } from "./secrets.ts";
 
 const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name,
+  j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
+
+const SELF_UPDATE_JOIN = `LEFT JOIN update_jobs j
+  ON j.site_id = s.id AND j.kind = 'plugin' AND j.slug = '${SELF_UPDATE.slug}'`;
 
 export async function listSites(db: D1Database): Promise<SiteSummary[]> {
   const { results } = await db
-    .prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ORDER BY s.name COLLATE NOCASE`)
+    .prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ${SELF_UPDATE_JOIN} ORDER BY s.name COLLATE NOCASE`)
     .all<SiteSummary>();
   return results;
 }
 
 export async function getSite(db: D1Database, id: number): Promise<SiteSummary | null> {
-  return db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s WHERE s.id = ?`).bind(id).first<SiteSummary>();
+  return db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ${SELF_UPDATE_JOIN} WHERE s.id = ?`).bind(id).first<SiteSummary>();
 }
 
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */

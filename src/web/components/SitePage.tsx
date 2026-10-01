@@ -3,6 +3,7 @@ import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import type { SiteSummary } from "../../shared/types";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -36,7 +37,10 @@ export function SitePage() {
   const { data, error, isPending } = useQuery({
     queryKey: ["site", id],
     queryFn: () => fetchSite(id),
-    refetchInterval: (query) => updatesRefetchInterval(query.state.data?.updates),
+    refetchInterval: (query) => {
+      const job = query.state.data?.site.self_update_status;
+      return job === "queued" || job === "running" ? 3_000 : updatesRefetchInterval(query.state.data?.updates);
+    },
   });
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["site", id] });
@@ -117,6 +121,8 @@ export function SitePage() {
           </p>
         </div>
       )}
+
+      <SelfUpdateNote site={site} />
 
       {site.last_error && (
         <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
@@ -227,6 +233,48 @@ function Fact(props: { label: string; value: string | null }) {
     <div className="rounded-xl border bg-background px-4 py-3">
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
       <dd className="mt-1 truncate text-sm font-medium">{props.value || "Unknown"}</dd>
+    </div>
+  );
+}
+
+/**
+ * Presser Connect updates itself from the dashboard and never shows in the
+ * updates list, so say here what that update is doing.
+ */
+function SelfUpdateNote(props: { site: SiteSummary }) {
+  const { site } = props;
+  const version = site.plugin_version;
+  if (
+    !version ||
+    compareVersions(version, SELF_UPDATING_SINCE) < 0 ||
+    compareVersions(version, PRESSER_CONNECT_VERSION) >= 0 ||
+    !site.self_update_status
+  ) {
+    return null;
+  }
+  const target = site.self_update_version ?? PRESSER_CONNECT_VERSION;
+  const active = site.self_update_status === "queued" || site.self_update_status === "running";
+  // A finished job for an older release says nothing about this one; the
+  // next sync queues it.
+  if (!active && site.self_update_version !== PRESSER_CONNECT_VERSION) return null;
+  if (active) {
+    return (
+      <div className="mt-4 rounded-xl border px-4 py-3 text-sm text-muted-foreground">
+        {site.self_update_status === "running" ? "Updating" : "Waiting to update"} Presser Connect from {version} to{" "}
+        {target}...
+        {site.self_update_status === "queued" && site.self_update_error && <> {site.self_update_error}</>}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+      <p className="font-medium text-destructive">Presser Connect did not update to {target}</p>
+      <p className="mt-1 text-muted-foreground">
+        {site.self_update_status === "failed" && site.self_update_error
+          ? site.self_update_error
+          : `The update reported success, but the site still runs ${version}.`}{" "}
+        Select Sync now to try again.
+      </p>
     </div>
   );
 }

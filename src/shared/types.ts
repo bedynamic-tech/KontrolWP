@@ -18,6 +18,10 @@ export interface SiteSummary {
   /** The administrator Magic Login signs in as, if one is chosen. */
   login_user_id: number | null;
   login_user_name: string | null;
+  /** Presser Connect's own update job, which never shows in the updates lists. */
+  self_update_status: UpdateJobStatus | null;
+  self_update_version: string | null;
+  self_update_error: string | null;
 }
 
 /** An administrator on a site, as Presser Connect lists them for Magic Login. */

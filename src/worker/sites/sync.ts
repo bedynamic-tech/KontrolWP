@@ -12,8 +12,13 @@ export type SyncResult = { ok: true } | { ok: false; error: string };
  * Pull status, available updates and pending comments from one site and
  * replace its stored snapshot. A failure is recorded on the site rather than
  * thrown, so the dashboard shows it; only unexpected errors throw.
+ * `retrySelfUpdate` (Sync now) retries a failed Presser Connect update at once.
  */
-export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
+export async function syncSite(
+  env: Env,
+  siteId: number,
+  options: { retrySelfUpdate?: boolean } = {},
+): Promise<SyncResult> {
   let site;
   try {
     site = await getCredentials(env, siteId);
@@ -115,7 +120,7 @@ export async function syncSite(env: Env, siteId: number): Promise<SyncResult> {
 
   await env.DB.batch(statements);
   // Presser Connect's own update comes from this dashboard and runs by itself.
-  await queueSelfUpdate(env, siteId, text(status.plugin_version));
+  await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };
 }
 
