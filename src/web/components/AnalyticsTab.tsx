@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { FileDownIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
@@ -14,6 +16,7 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
+import { AnalyticsReport, reportTitle, useLightThemeWhilePrinting } from "./AnalyticsReport";
 import { Section } from "./Section";
 
 const regionNames = (() => {
@@ -37,7 +40,13 @@ function countryName(code: string): string {
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 /** Each breakdown's card, in the order they appear. */
-const CARDS: { key: AnalyticsBreakdown; title: string; unit: string; empty: string; format?: (label: string) => string }[] = [
+const CARDS: {
+  key: AnalyticsBreakdown;
+  title: string;
+  unit: string;
+  empty: string;
+  format?: (label: string) => string;
+}[] = [
   { key: "pages", title: "Pages", unit: "Views", empty: "No pageviews in this period." },
   { key: "entry", title: "Entry pages", unit: "Visits", empty: "No visits in this period." },
   { key: "exit", title: "Exit pages", unit: "Visits", empty: "No visits in this period." },
@@ -61,10 +70,24 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
     placeholderData: (previous) => previous,
   });
 
+  useLightThemeWhilePrinting(reportTitle(site, range));
+  const printable = !!details.data?.website && !!details.data.breakdowns && !details.isPlaceholderData;
+
   const header = (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <ActiveNow data={details.data} />
-      <RangeSelect range={range} onChange={chooseRange} />
+      <div className="flex items-center gap-2">
+        <RangeSelect range={range} onChange={chooseRange} />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!printable}
+          title="Save these analytics as a PDF"
+          onClick={() => window.print()}
+        >
+          <FileDownIcon /> Export PDF
+        </Button>
+      </div>
     </div>
   );
 
@@ -115,6 +138,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
   return (
     <div className={cn(details.isPlaceholderData && "opacity-60 transition-opacity")}>
       {header}
+      <AnalyticsReport site={site} data={data} range={range} cards={CARDS} />
       <div className="@container mt-3 overflow-hidden rounded-xl border bg-background">
         <StatsRow data={data} />
         <TrendChart data={data} tall />
@@ -145,7 +169,12 @@ function ActiveNow(props: { data: SiteAnalyticsDetails | undefined }) {
     <span className="flex items-center gap-2 text-sm text-muted-foreground" title="Visitors in the last five minutes">
       <span className="relative flex size-2">
         {active > 0 && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60" />}
-        <span className={cn("relative inline-flex size-2 rounded-full", active > 0 ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+        <span
+          className={cn(
+            "relative inline-flex size-2 rounded-full",
+            active > 0 ? "bg-emerald-500" : "bg-muted-foreground/40",
+          )}
+        />
       </span>
       <span>
         <span className="font-medium text-foreground tabular-nums">{count(active)}</span>{" "}

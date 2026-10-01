@@ -246,3 +246,30 @@
     animation-duration: 3s !important;
   }
 }
+
+/* Printing from a site's Analytics tab saves a report: the dashboard is hidden
+   and only the AnalyticsReport drawn into the body (see AnalyticsReport.tsx) shows. */
+#print-report {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > #root {
+    display: none !important;
+  }
+  #print-report {
+    display: block;
+    padding: 1px;
+  }
+  #print-report,
+  #print-report * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
