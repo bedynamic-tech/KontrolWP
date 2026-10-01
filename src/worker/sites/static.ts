@@ -34,6 +34,7 @@ export async function inspectStaticSite(url: string): Promise<{ error: string | 
 interface StaticRow {
   id: number;
   url: string;
+  cf_hosted: number;
   cf_account_id: string | null;
   cf_worker: string | null;
   cf_worker_tag: string | null;
@@ -47,7 +48,7 @@ interface StaticRow {
  */
 export async function syncStaticSite(env: Env, siteId: number): Promise<SyncResult> {
   const site = await env.DB.prepare(
-    "SELECT id, url, cf_account_id, cf_worker, cf_worker_tag FROM sites WHERE id = ? AND kind = 'static'",
+    "SELECT id, url, cf_hosted, cf_account_id, cf_worker, cf_worker_tag FROM sites WHERE id = ? AND kind = 'static'",
   )
     .bind(siteId)
     .first<StaticRow>();
@@ -68,7 +69,8 @@ export async function syncStaticSite(env: Env, siteId: number): Promise<SyncResu
 
 /** Read the chosen Worker's deployments and builds; the outcome lands in `cf_error`. */
 async function syncDeployments(env: Env, site: StaticRow): Promise<void> {
-  if (!site.cf_worker || !site.cf_account_id) return;
+  // A site hosted elsewhere is never looked up on Cloudflare.
+  if (!site.cf_hosted || !site.cf_worker || !site.cf_account_id) return;
   const setError = (message: string | null) =>
     env.DB.prepare("UPDATE sites SET cf_error = ? WHERE id = ?").bind(message, site.id).run();
   try {

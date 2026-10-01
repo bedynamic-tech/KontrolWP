@@ -9,7 +9,7 @@ A WordPress install the owner added to KontrolWP, identified by its public https
 _Avoid_: Website, install, instance
 
 **Static site**:
-A static website hosted on Cloudflare Workers, added by its public https address with no plugin. KontrolWP checks that it answers, shows its Umami analytics and Domain, and, when a Cloudflare API token is saved in Settings and the site's Worker is chosen, its Deployments. It has no Updates, Plugins, Users, Links or Magic Login.
+A static website hosted on Cloudflare Workers, added by its public https address with no plugin. KontrolWP checks that it answers, shows its Umami analytics and Domain, and, only when the owner says it is hosted on Cloudflare Workers, a Cloudflare API token is saved in Settings and its Worker is chosen, its Deployments. A static site hosted elsewhere gets no Cloudflare features. It has no Updates, Plugins, Users, Links or Magic Login.
 _Avoid_: Jamstack site, Pages site
 
 **Deployment**:

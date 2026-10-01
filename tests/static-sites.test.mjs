@@ -11,16 +11,16 @@ const cf = (result) =>
   new Response(JSON.stringify({ success: true, result }), { headers: { "Content-Type": "application/json" } });
 
 /** A static site that deploys from the Worker "web" in account "acc", with Cloudflare answering from `routes`. */
-async function setup({ siteStatus = 200, routes = {} } = {}) {
+async function setup({ siteStatus = 200, routes = {}, hosted = true } = {}) {
   const db = fakeD1();
   await applyMigrations(db, migrations);
   const key = randomToken(32);
   const env = { DB: db, SITE_SECRETS_KEY: key, SYNC_QUEUE: { send: async () => {} } };
   db.sqlite
     .prepare(
-      "INSERT INTO sites (id, kind, name, url, secret, cf_account_id, cf_worker) VALUES (1, 'static', 'Docs', 'https://docs.example.com', '', 'acc', 'web')",
+      "INSERT INTO sites (id, kind, name, url, secret, cf_hosted, cf_account_id, cf_worker) VALUES (1, 'static', 'Docs', 'https://docs.example.com', '', ?, 'acc', 'web')",
     )
-    .run();
+    .run(hosted ? 1 : 0);
   await saveCloudflareToken(env, "cf-token");
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
@@ -99,6 +99,17 @@ test("a static site is checked over HTTP and its deployments and builds are stor
   assert.ok(cloudflare.every((call) => call.init.headers.Authorization === "Bearer cf-token"));
   // A static site has no connection key, so nothing can sign requests to it.
   assert.equal(await getCredentials(env, 1), null);
+});
+
+test("a static site not hosted on Cloudflare is checked but never looked up there", async () => {
+  const { env, db, calls } = await setup({ hosted: false, routes: WORKER_ROUTES });
+  assert.deepEqual(await syncSite(env, 1), { ok: true });
+  const site = await getSite(db, 1);
+  assert.equal(site.cf_hosted, false);
+  assert.equal(site.status, "connected");
+  assert.equal(site.cf_error, null);
+  assert.deepEqual(await listDeployments(db, 1), []);
+  assert.equal(calls.filter((call) => call.url.hostname === "api.cloudflare.com").length, 0);
 });
 
 test("a site that answers with an error is marked down, and the Cloudflare data still loads", async () => {

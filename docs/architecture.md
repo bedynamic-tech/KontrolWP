@@ -282,6 +282,11 @@ keeps a revision to restore, then re-read so the list matches. A site keeps at m
 
 ## Static sites and Cloudflare
 
+`sites.cf_hosted` says whether a static site is hosted on Cloudflare Workers
+(chosen by the owner, off by default); only then does a sync read Cloudflare,
+and only then do the Deployments tab, Worker setting and deployment routes
+exist. A site hosted elsewhere never contacts Cloudflare.
+
 `sites.kind` is `wordpress` (managed through KontrolWP Connect) or `static`
 (a website on Cloudflare Workers). A static site has an empty `secret`, so
 `getCredentials` returns null for it and nothing can sign a request to it;
