@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import type { SiteSummary } from "../../shared/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -39,8 +40,18 @@ import { StatusBadge } from "./StatusBadge";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
+/** The first section in a tab sits closer to the tabs than sections sit to each other. */
+const TAB_CLASS = "[&>section:first-child]:mt-6";
+
+const TABS = ["overview", "plugins", "users"];
+
 export function SitePage() {
   const id = Number(useParams().siteId);
+  // The tab lives in the address, so a refresh or a shared link opens the same one.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = TABS.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
+  const setTab = (next: string) =>
+    setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [connectionKey, setConnectionKey] = useState("");
@@ -172,32 +183,51 @@ export function SitePage() {
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
 
-      {(() => {
-        const main = (
-          <>
-            <SiteUpdatesSection site={site} updates={updates} />
-            <PluginsSection site={site} updates={updates} />
-            <UsersSection site={site} />
-            <Section title={`Comments awaiting review (${site.pending_comments})`}>
-              <CommentsList comments={comments} showSite={false} />
-            </Section>
-          </>
-        );
-        // Two columns only when there is analytics to put on the right.
-        return twoColumns ? (
-          <div className="grid items-start gap-x-6 lg:grid-cols-2">
-            <div className="min-w-0">{main}</div>
-            <div className="min-w-0">
-              <AnalyticsSection site={site} />
-            </div>
-          </div>
-        ) : (
-          <>
-            <AnalyticsSection site={site} />
-            {main}
-          </>
-        );
-      })()}
+      <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
+        <TabsList variant="line" className="w-full justify-start border-b pb-1">
+          <TabsTrigger value="overview" className="flex-none px-3">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="plugins" className="flex-none px-3">
+            Plugins
+          </TabsTrigger>
+          <TabsTrigger value="users" className="flex-none px-3">
+            Users
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className={TAB_CLASS}>
+          {(() => {
+            const main = (
+              <>
+                <SiteUpdatesSection site={site} updates={updates} />
+                <Section title={`Comments awaiting review (${site.pending_comments})`}>
+                  <CommentsList comments={comments} showSite={false} />
+                </Section>
+              </>
+            );
+            // Two columns only when there is analytics to put on the right.
+            return twoColumns ? (
+              <div className="grid items-start gap-x-6 lg:grid-cols-2">
+                <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
+                <div className={`min-w-0 ${TAB_CLASS}`}>
+                  <AnalyticsSection site={site} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <AnalyticsSection site={site} />
+                {main}
+              </>
+            );
+          })()}
+        </TabsContent>
+        <TabsContent value="plugins" className={TAB_CLASS}>
+          <PluginsSection site={site} updates={updates} />
+        </TabsContent>
+        <TabsContent value="users" className={TAB_CLASS}>
+          <UsersSection site={site} />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-xl [&>*]:min-w-0">
