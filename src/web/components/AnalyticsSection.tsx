@@ -114,7 +114,6 @@ function AnalyticsBody(props: { data: SiteAnalytics }) {
   return (
     <div>
       <StatsRow data={data} />
-      <TrendChart data={data} />
     </div>
   );
 }

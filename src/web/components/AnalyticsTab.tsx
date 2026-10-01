@@ -1,6 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileDownIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
@@ -16,7 +14,6 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
-import { AnalyticsReport, reportTitle, useLightThemeWhilePrinting } from "./AnalyticsReport";
 import { Section } from "./Section";
 
 const regionNames = (() => {
@@ -70,24 +67,10 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
     placeholderData: (previous) => previous,
   });
 
-  useLightThemeWhilePrinting(reportTitle(site, range));
-  const printable = !!details.data?.website && !!details.data.breakdowns && !details.isPlaceholderData;
-
   const header = (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <ActiveNow data={details.data} />
-      <div className="flex items-center gap-2">
-        <RangeSelect range={range} onChange={chooseRange} />
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!printable}
-          title="Save these analytics as a PDF"
-          onClick={() => window.print()}
-        >
-          <FileDownIcon /> Export PDF
-        </Button>
-      </div>
+      <RangeSelect range={range} onChange={chooseRange} />
     </div>
   );
 
@@ -138,7 +121,6 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
   return (
     <div className={cn(details.isPlaceholderData && "opacity-60 transition-opacity")}>
       {header}
-      <AnalyticsReport site={site} data={data} range={range} cards={CARDS} />
       <div className="@container mt-3 overflow-hidden rounded-xl border bg-background">
         <StatsRow data={data} />
         <TrendChart data={data} tall />
