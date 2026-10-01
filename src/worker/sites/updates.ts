@@ -83,6 +83,8 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
     const site = await getCredentials(env, siteId);
     if (!site) return { next: "idle" };
     if (job.kind === "plugin" && job.slug === SELF_UPDATE.slug) {
+      // Record the version tried, so sync waits before trying it again.
+      await env.DB.prepare("UPDATE update_jobs SET version = ? WHERE id = ?").bind(SELF_UPDATE.version, job.id).run();
       await callSite(site, "POST", `${REST_NAMESPACE}/self-update`, {
         version: SELF_UPDATE.version,
         package: await loadPackage(env),

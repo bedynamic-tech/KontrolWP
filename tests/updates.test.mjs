@@ -5,7 +5,7 @@ import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
-import { listUpdates } from "../src/worker/sites/store.ts";
+import { getSite, listUpdates } from "../src/worker/sites/store.ts";
 import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
@@ -186,4 +186,34 @@ test("updates count as active until the sync after them clears the row", async (
     failed: false,
   });
   assert.equal((await listUpdates(db, 1)).length, 6);
+});
+
+test("a newer Presser Connect is queued at once, even right after the last self-update", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }), "0.0.1");
+  // The previous release's self-update finished an hour ago. Jobs from before
+  // versions were recorded have none.
+  t.env.DB.sqlite
+    .prepare("INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES (1, 'plugin', 'presser-connect', 'done', unixepoch() - 3600)")
+    .run();
+  await syncSite(t.env, 1);
+  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
+  assert.deepEqual(t.sent.at(-1).body, { type: "update", siteId: 1 });
+});
+
+test("Sync now retries a failed self-update; a scheduled sync waits", async () => {
+  const t = await setup(async (_body, json) => json({ code: "presser_update_failed", message: "Disk full." }, 500), "0.0.1");
+  await syncSite(t.env, 1);
+  await runNextUpdate(t.env, 1);
+  assert.equal(t.jobs()[0].status, "failed");
+
+  await syncSite(t.env, 1);
+  assert.equal(t.jobs()[0].status, "failed", "a scheduled sync leaves it");
+
+  const site = await getSite(t.env.DB, 1);
+  assert.equal(site.self_update_status, "failed");
+  assert.equal(site.self_update_error, "Disk full.");
+  assert.equal(site.self_update_version, PRESSER_CONNECT_VERSION);
+
+  await syncSite(t.env, 1, { retrySelfUpdate: true });
+  assert.deepEqual(t.jobs(), [{ slug: "presser-connect", status: "queued", error: null }]);
 });

@@ -174,7 +174,7 @@ api.post("/sites/:id/connection-key", async (c) => {
 api.post("/sites/:id/sync", async (c) => {
   const id = siteId(c);
   if (!id) return c.json({ error: "Site not found" }, 404);
-  const result = await syncSite(c.env, id);
+  const result = await syncSite(c.env, id, { retrySelfUpdate: true });
   return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, 502);
 });
 
