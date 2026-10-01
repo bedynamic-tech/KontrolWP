@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomToken } from "../src/shared/protocol.ts";
-import { KONTROLWP_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
+import { compareVersions, KONTROLWP_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
@@ -47,7 +47,7 @@ async function setup(handleApply, plugin_version = KONTROLWP_CONNECT_VERSION) {
     if (route === "/kontrolwp/v1/status") {
       return json({
         name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version, theme: "T",
-        ...(plugin_version >= "0.7.0" ? { core_auto_update: { mode: "all", locked: false } } : {}),
+        ...(compareVersions(plugin_version, "0.7.0") >= 0 ? { core_auto_update: { mode: "all", locked: false } } : {}),
       });
     }
     if (route === "/kontrolwp/v1/updates") return json({ core: null, plugins: [], themes: [] });

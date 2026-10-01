@@ -54,7 +54,6 @@ export interface SiteSummary {
 /** Core auto-updates: every new version, maintenance and security releases only, or none. */
 export type CoreAutoUpdate = "all" | "minor" | "off";
 
-
 /** An administrator on a site, as KontrolWP Connect lists them for Magic Login. */
 export interface SiteAdmin {
   id: number;
@@ -381,6 +380,31 @@ export interface SiteUser {
   roles: string[];
   /** Unix seconds. */
   registered: number;
+}
+
+/** The statuses the Posts and pages tab lists. Trash is left out. */
+export const CONTENT_STATUSES = ["publish", "future", "draft", "pending", "private"] as const;
+export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+
+export type ContentType = "post" | "page";
+
+/** A post or page, as the site lists it. Dates are seconds since the epoch, in UTC. */
+export interface SiteContentItem {
+  id: number;
+  title: string;
+  type: ContentType;
+  status: ContentStatus;
+  author: string;
+  date: number;
+  modified: number;
+  permalink: string;
+}
+
+/** One page of a site's posts and pages, with how many there are of each status for the chosen type. */
+export interface SiteContent {
+  items: SiteContentItem[];
+  counts: Record<ContentStatus, number>;
+  total: number;
 }
 
 export interface SiteUsers {

@@ -7,6 +7,7 @@ import type {
   BulkUserResult,
   FleetUsers,
   NewUser,
+  SiteContent,
   SiteUsers,
   UserAction,
   CommentAction,
@@ -133,6 +134,18 @@ export const createMagicLogin = (siteId: number, postId?: number) =>
 
 export const setUpdatesExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/updates-excluded`, { method: "PUT", json: { excluded } });
+
+export interface ContentFilter {
+  type: "all" | "post" | "page";
+  status: "all" | "publish" | "future" | "draft" | "pending" | "private";
+  search: string;
+  page: number;
+}
+
+export const fetchContent = (siteId: number, filter: ContentFilter) => {
+  const query = new URLSearchParams({ ...filter, page: String(filter.page) });
+  return request<SiteContent>(`/sites/${siteId}/content?${query}`);
+};
 
 export const fetchPlugins = (siteId: number) => request<SitePlugins>(`/sites/${siteId}/plugins`);
 
