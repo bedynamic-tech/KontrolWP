@@ -53,8 +53,7 @@ export function SitePage() {
   // The tab lives in the address, so a refresh or a shared link opens the same one.
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = TABS.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
-  const setTab = (next: string) =>
-    setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
+  const setTab = (next: string) => setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [connectionKey, setConnectionKey] = useState("");
@@ -264,7 +263,9 @@ export function SitePage() {
                     ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
                     : "KontrolWP lists this site's WordPress, plugin and theme updates."}
                 </p>
-                {excludeUpdates.error && <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>}
+                {excludeUpdates.error && (
+                  <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>
+                )}
               </div>
               {excludeUpdates.isPending && <Spinner className="size-4 text-muted-foreground" />}
               <input
@@ -282,6 +283,7 @@ export function SitePage() {
               <SettingRow
                 title="Umami website"
                 detail="Where this site's analytics come from. Match by domain picks the Umami website with the site's domain."
+                stacked
               >
                 <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
               </SettingRow>
@@ -329,8 +331,8 @@ export function SitePage() {
             <DialogHeader>
               <DialogTitle>Change connection key</DialogTitle>
               <DialogDescription>
-                If you created a new key in KontrolWP Connect, or reinstalled it, paste the site's current
-                Connection Key here.
+                If you created a new key in KontrolWP Connect, or reinstalled it, paste the site's current Connection
+                Key here.
               </DialogDescription>
             </DialogHeader>
             <ConnectionSteps siteUrl={site.url} />
@@ -362,8 +364,8 @@ export function SitePage() {
           <DialogHeader>
             <DialogTitle>Remove {site.name}?</DialogTitle>
             <DialogDescription>
-              KontrolWP forgets this site and its Connection Key; nothing changes on the site itself. To shut
-              the door on the site too, deactivate KontrolWP Connect or create a new key there.
+              KontrolWP forgets this site and its Connection Key; nothing changes on the site itself. To shut the door
+              on the site too, deactivate KontrolWP Connect or create a new key there.
             </DialogDescription>
           </DialogHeader>
           {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
@@ -381,9 +383,12 @@ export function SitePage() {
   );
 }
 
-function SettingRow(props: { title: string; detail: string; error?: string; children: ReactNode }) {
+/** A setting with its control beside it, or below it when `stacked` (for wide controls). */
+function SettingRow(props: { title: string; detail: string; error?: string; stacked?: boolean; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
+    <div
+      className={props.stacked ? "flex flex-col gap-2 py-3" : "flex flex-col gap-2 py-3 sm:flex-row sm:items-center"}
+    >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{props.title}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>
