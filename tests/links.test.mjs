@@ -266,3 +266,25 @@ test("Remove link takes links out of their posts and drops them from the list", 
     ["https://pic.test/a.png", ["Home:image"]],
   ]);
 });
+
+test("ignored links are not checked again by a scan or Check again", async () => {
+  const pages = [{ items: [post(1, "Home", [{ url: "https://gone.test/", text: "", kind: "link" }, { url: "https://ok.test/", text: "", kind: "link" }])], page: 1, total_pages: 1, total_posts: 1 }];
+  const { env } = await setup(pages);
+  const first = await startLinkScan(env, 1);
+  await collectLinks(env, 1, first, 1);
+  await checkLinks(env, 1, first, web({ "https://gone.test/": 404 }));
+  await ignoreLink(env.DB, 1, "https://gone.test/", true);
+
+  const calls = [];
+  const second = await startLinkScan(env, 1);
+  await collectLinks(env, 1, second, 1);
+  assert.equal(await checkLinks(env, 1, second, web({}, calls)), false);
+  assert.deepEqual(calls, ["HEAD https://ok.test/"]);
+  const result = await listLinks(env.DB, 1);
+  assert.equal(result.scan.status, "done");
+  assert.equal(result.scan.total_urls, 1);
+  assert.deepEqual(result.links.map((link) => [link.url, link.status, link.ignored]), [["https://gone.test/", "broken", true]]);
+
+  assert.equal(await recheckLink(env, 1, "https://gone.test/", web({}, calls)), true);
+  assert.equal(calls.length, 1);
+});

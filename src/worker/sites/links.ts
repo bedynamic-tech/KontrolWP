@@ -150,9 +150,10 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
     return;
   }
 
-  // Every page is in: drop links no longer in the content, then check the rest.
+  // Every page is in: drop links no longer in the content, then check the rest
+  // (ignored links stay listed but are never checked again).
   await env.DB.prepare("DELETE FROM site_links WHERE site_id = ? AND scan_id <> ?").bind(siteId, scanId).run();
-  const total = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ?")
+  const total = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND ignored = 0")
     .bind(siteId)
     .first<{ n: number }>();
   const totalUrls = total?.n ?? 0;
@@ -170,7 +171,7 @@ export async function checkLinks(env: Env, siteId: number, scanId: number, fetch
   const scan = await loadScan(env.DB, siteId);
   if (!scan || scan.scan_id !== scanId || scan.status !== "checking") return false;
   const { results } = await env.DB.prepare(
-    "SELECT url FROM site_links WHERE site_id = ? AND checked_scan < ? ORDER BY url LIMIT ?",
+    "SELECT url FROM site_links WHERE site_id = ? AND checked_scan < ? AND ignored = 0 ORDER BY url LIMIT ?",
   )
     .bind(siteId, scanId, URLS_PER_CHECK)
     .all<{ url: string }>();
@@ -187,7 +188,7 @@ export async function checkLinks(env: Env, siteId: number, scanId: number, fetch
     ),
   );
 
-  const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND checked_scan < ?")
+  const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND checked_scan < ? AND ignored = 0")
     .bind(siteId, scanId)
     .first<{ n: number }>();
   const remaining = left?.n ?? 0;
@@ -349,10 +350,12 @@ export async function listLinks(db: D1Database, siteId: number, now = nowSeconds
  * instead of being checked. Returns false if the site has no such link.
  */
 export async function recheckLink(env: Env, siteId: number, url: string, fetcher: typeof fetch = fetch): Promise<boolean> {
-  const exists = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
+  const row = await env.DB.prepare("SELECT ignored FROM site_links WHERE site_id = ? AND url = ?")
     .bind(siteId, url)
-    .first();
-  if (!exists) return false;
+    .first<{ ignored: number }>();
+  if (!row) return false;
+  // Ignored links are never checked again.
+  if (row.ignored) return true;
   if (!(await stillLinked(env, siteId, url))) return true;
   const check = await checkUrl(url, fetcher);
   await env.DB.prepare("UPDATE site_links SET status = ?, http_status = ?, error = ?, checked_at = ? WHERE site_id = ? AND url = ?")

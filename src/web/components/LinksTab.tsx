@@ -577,16 +577,19 @@ function Actions(props: {
   return (
     <div className="flex flex-col items-start gap-1 md:items-end">
       <div className="flex gap-1">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => recheck.mutate()}
-          loading={recheck.isPending}
-          title="Check this link again now"
-        >
-          {!recheck.isPending && <RefreshCwIcon />}
-          Check again
-        </Button>
+        {/* Ignored links are never checked again. */}
+        {!link.ignored && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => recheck.mutate()}
+            loading={recheck.isPending}
+            title="Check this link again now"
+          >
+            {!recheck.isPending && <RefreshCwIcon />}
+            Check again
+          </Button>
+        )}
         {props.onUnlink && removable(link) && (
           <Button
             size="sm"
@@ -609,7 +612,7 @@ function Actions(props: {
             variant="ghost"
             onClick={() => ignore.mutate()}
             loading={ignore.isPending}
-            title="Ignore: hide this link from the problems"
+            title="Ignore: hide this link from the problems and stop checking it"
             aria-label="Ignore"
           >
             {!ignore.isPending && <EyeOffIcon />}
