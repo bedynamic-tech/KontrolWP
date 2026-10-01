@@ -71,7 +71,7 @@ export function App() {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-[1100px] flex-1 px-4 py-6 md:px-8 md:py-10">
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/sites" element={<SitesPage />} />

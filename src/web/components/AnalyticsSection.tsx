@@ -93,7 +93,7 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
         </select>
       }
     >
-      <div className={cn(analytics.isPlaceholderData && "opacity-60 transition-opacity")}>{body}</div>
+      <div className={cn("@container", analytics.isPlaceholderData && "opacity-60 transition-opacity")}>{body}</div>
     </Section>
   );
 }
@@ -110,7 +110,7 @@ function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
 
   return (
     <div>
-      <dl className="grid grid-cols-2 gap-px border-b bg-border lg:grid-cols-5 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
+      <dl className="grid grid-cols-2 gap-px border-b bg-border @2xl:grid-cols-5 [&>*:last-child]:col-span-2 @2xl:[&>*:last-child]:col-span-1">
         <Stat label="Visitors" stat={stats.visitors} format={count} />
         <Stat label="Visits" stat={stats.visits} format={count} />
         <Stat label="Pageviews" stat={stats.pageviews} format={count} />
@@ -118,9 +118,9 @@ function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
         <Stat label="Visit duration" stat={visitTime} format={duration} />
       </dl>
       <TrendChart data={data} />
-      <div className="grid border-t sm:grid-cols-2 sm:divide-x">
+      <div className="grid border-t @xl:grid-cols-2 @xl:divide-x">
         <TopList title="Top pages" rows={data.pages} empty="No pageviews in this period." />
-        <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t sm:border-t-0" />
+        <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t @xl:border-t-0" />
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
         <span>Connected to {data.website!.name || data.website!.domain}</span>
