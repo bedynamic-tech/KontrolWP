@@ -41,6 +41,7 @@ import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
+import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
 export function SitePage() {
@@ -132,8 +133,8 @@ export function SitePage() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-sm" aria-label="More actions">
-                <EllipsisVerticalIcon />
+              <Button variant="outline" size="icon-sm" aria-label="More actions" aria-busy={excludeUpdates.isPending || undefined}>
+                {excludeUpdates.isPending ? <Spinner className="size-4" /> : <EllipsisVerticalIcon />}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -260,7 +261,7 @@ export function SitePage() {
               <Button type="button" variant="outline" onClick={() => closeKeyDialog(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={replaceKey.isPending}>
+              <Button type="submit" loading={replaceKey.isPending}>
                 {replaceKey.isPending ? "Connecting..." : "Save key"}
               </Button>
             </DialogFooter>
@@ -282,7 +283,7 @@ export function SitePage() {
             <Button variant="outline" onClick={() => setConfirmRemove(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={() => remove.mutate()} disabled={remove.isPending}>
+            <Button variant="destructive" onClick={() => remove.mutate()} loading={remove.isPending}>
               Remove site
             </Button>
           </DialogFooter>
@@ -323,10 +324,13 @@ function SelfUpdateNote(props: { site: SiteSummary }) {
   if (!active && site.self_update_version !== PRESSER_CONNECT_VERSION) return null;
   if (active) {
     return (
-      <div className="mt-4 rounded-xl border px-4 py-3 text-sm text-muted-foreground">
-        {site.self_update_status === "running" ? "Updating" : "Waiting to update"} Presser Connect from {version} to{" "}
-        {target}...
-        {site.self_update_status === "queued" && site.self_update_error && <> {site.self_update_error}</>}
+      <div className="mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm text-muted-foreground">
+        <Spinner className="mt-0.5 size-4" />
+        <span>
+          {site.self_update_status === "running" ? "Updating" : "Waiting to update"} Presser Connect from {version} to{" "}
+          {target}...
+          {site.self_update_status === "queued" && site.self_update_error && <> {site.self_update_error}</>}
+        </span>
       </div>
     );
   }

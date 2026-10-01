@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,8 @@ import {
 import type { PluginAction } from "../../shared/types";
 
 export type BulkAction = PluginAction | "update";
+
+export type BulkProgress = { done: number; total: number };
 
 const PENDING_LABELS: Record<BulkAction, string> = {
   activate: "Activating...",
@@ -71,11 +73,13 @@ export function PluginBulkBar(props: {
   canSelectAll: boolean;
   onRun: (action: BulkAction) => void;
   pending: BulkAction | null;
+  /** How far the running action has got, counted in plugins (or plugin and site pairs). */
+  progress?: BulkProgress | null;
   /** Deleting needs confirming; this names what goes. */
   deleteTitle: string;
   error?: string | null;
 }) {
-  const { counts, pending } = props;
+  const { counts, pending, progress } = props;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const busy = pending !== null;
   const autoUpdates =
@@ -90,6 +94,7 @@ export function PluginBulkBar(props: {
         size="sm"
         variant={variant}
         disabled={busy}
+        loading={pending === action}
         onClick={() => props.onRun(action)}
       >
         {label}
@@ -105,10 +110,16 @@ export function PluginBulkBar(props: {
     <div className="border-b bg-muted/40 px-4 py-2">
       <div className="flex min-h-8 items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-          <span className="mr-auto text-xs text-muted-foreground">
-            {busy
-              ? PENDING_LABELS[pending]
-              : props.selection}
+          <span className="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
+            {busy ? (
+              <>
+                <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+                {PENDING_LABELS[pending]}
+                {progress && progress.total > 1 && ` ${progress.done} of ${progress.total} done`}
+              </>
+            ) : (
+              props.selection
+            )}
           </span>
           {props.selection && (
             <>
@@ -118,7 +129,12 @@ export function PluginBulkBar(props: {
               {autoUpdates > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" disabled={busy}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      loading={pending === "enable-auto-update" || pending === "disable-auto-update"}
+                    >
                       Auto-updates <ChevronDownIcon />
                     </Button>
                   </DropdownMenuTrigger>
@@ -144,6 +160,7 @@ export function PluginBulkBar(props: {
                   variant="ghost"
                   className="text-destructive hover:text-destructive"
                   disabled={busy}
+                  loading={pending === "delete"}
                   onClick={() => setConfirmDelete(true)}
                 >
                   Delete ({counts.delete})
@@ -163,6 +180,21 @@ export function PluginBulkBar(props: {
           />
         )}
       </div>
+      {busy && progress && progress.total > 1 && (
+        <div
+          className="mt-2 h-1 overflow-hidden rounded-full bg-border"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progress.total}
+          aria-valuenow={progress.done}
+          aria-label="Progress"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300"
+            style={{ width: `${Math.max(4, (progress.done / progress.total) * 100)}%` }}
+          />
+        </div>
+      )}
       {props.error && (
         <p className="mt-1 whitespace-pre-line text-xs text-destructive">
           {props.error}
@@ -194,8 +226,9 @@ export function PluginBulkBar(props: {
               variant="destructive"
               onClick={() => props.onRun("delete")}
               disabled={busy}
+              loading={pending === "delete"}
             >
-              {pending === "delete" ? "Deleting..." : "Delete"}
+              {pending === "delete" ? (progress && progress.total > 1 ? `Deleting ${progress.done} of ${progress.total}...` : "Deleting...") : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

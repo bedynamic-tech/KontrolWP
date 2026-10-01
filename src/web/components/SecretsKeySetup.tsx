@@ -53,7 +53,7 @@ export function SecretsKeySetup(props: { onRetry: () => void; retrying: boolean 
           Connection Key.
         </p>
 
-        <Button className="mt-6" onClick={props.onRetry} disabled={props.retrying}>
+        <Button className="mt-6" onClick={props.onRetry} loading={props.retrying}>
           {props.retrying ? "Checking..." : "Check again"}
         </Button>
       </div>

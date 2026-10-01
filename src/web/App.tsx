@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
+import { ActivityBar } from "./components/ActivityBar";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { SettingsPage } from "./components/SettingsPage";
@@ -28,6 +29,7 @@ export function App() {
 
   return (
     <div className="flex min-h-dvh bg-canvas text-foreground">
+      <ActivityBar />
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col overflow-y-auto border-r bg-sidebar px-3 py-4 md:flex">
         <div className="flex items-center justify-between">
           <Brand />

@@ -13,6 +13,7 @@ import { AUTO_UPDATES_SINCE, compareVersions } from "../../shared/plugin-version
 import type { CoreAutoUpdate, SiteSummary } from "../../shared/types";
 import { bulkCoreAutoUpdate, setCoreAutoUpdate } from "../api";
 import { SitePicker } from "./SitePicker";
+import { Spinner } from "./Spinner";
 
 export const CORE_AUTO_UPDATE_LABELS: Record<CoreAutoUpdate, string> = {
   all: "All new versions",
@@ -80,12 +81,15 @@ export function CoreAutoUpdateRow(props: { site: SiteSummary }) {
         {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
         {save.error && <p className="mt-1 text-xs text-destructive">{save.error.message}</p>}
       </div>
-      <ModeSelect
-        id="core-auto-update"
-        value={mode ?? ""}
-        onChange={(next) => save.mutate(next)}
-        disabled={!supported || site.core_auto_update_locked || !site.core_auto_update || save.isPending}
-      />
+      <div className="flex items-center gap-2">
+        {save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
+        <ModeSelect
+          id="core-auto-update"
+          value={mode ?? ""}
+          onChange={(next) => save.mutate(next)}
+          disabled={!supported || site.core_auto_update_locked || !site.core_auto_update || save.isPending}
+        />
+      </div>
     </div>
   );
 }
@@ -168,7 +172,7 @@ export function CoreAutoUpdateDialog(props: { sites: SiteSummary[]; open: boolea
             <Button type="button" variant="outline" onClick={() => close(false)} disabled={save.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={save.isPending || !chosen.length}>
+            <Button type="submit" disabled={!chosen.length} loading={save.isPending}>
               {save.isPending ? "Saving..." : "Apply"}
             </Button>
           </DialogFooter>

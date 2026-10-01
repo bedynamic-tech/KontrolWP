@@ -57,13 +57,13 @@ function CommentRow(props: { comment: PendingComment; showSite: boolean }) {
       </p>
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
       <div className="mt-2 flex gap-2">
-        <Button size="xs" onClick={() => mutation.mutate("approve")} disabled={busy}>
+        <Button size="xs" onClick={() => mutation.mutate("approve")} disabled={busy} loading={busy && mutation.variables === "approve"}>
           Approve
         </Button>
-        <Button size="xs" variant="outline" onClick={() => mutation.mutate("spam")} disabled={busy}>
+        <Button size="xs" variant="outline" onClick={() => mutation.mutate("spam")} disabled={busy} loading={busy && mutation.variables === "spam"}>
           Spam
         </Button>
-        <Button size="xs" variant="ghost" onClick={() => mutation.mutate("trash")} disabled={busy}>
+        <Button size="xs" variant="ghost" onClick={() => mutation.mutate("trash")} disabled={busy} loading={busy && mutation.variables === "trash"}>
           Trash
         </Button>
       </div>
