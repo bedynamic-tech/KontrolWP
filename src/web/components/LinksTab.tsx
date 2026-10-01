@@ -187,10 +187,21 @@ export function LinksTab(props: { site: SiteSummary }) {
 
   return (
     <>
-      <Section title="Link check" action={scanButton}>
-        <ScanSummary scan={data.scan} counts={counts} />
-        {scan.error && <p className="border-t px-4 py-2.5 text-sm text-destructive">{scan.error.message}</p>}
-      </Section>
+      {data.scan.status === "done" ? (
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium">Link check</h2>
+            {scanButton}
+          </div>
+          <ScanCards scan={data.scan} counts={counts} />
+          {scan.error && <p className="mt-2 text-sm text-destructive">{scan.error.message}</p>}
+        </section>
+      ) : (
+        <Section title="Link check" action={scanButton}>
+          <ScanSummary scan={data.scan} counts={counts} />
+          {scan.error && <p className="border-t px-4 py-2.5 text-sm text-destructive">{scan.error.message}</p>}
+        </Section>
+      )}
 
       <section className="mt-8">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -401,33 +412,39 @@ function ScanSummary(props: { scan: LinkScan; counts: SiteLinks["counts"] }) {
       </p>
     );
   }
-  const problems = counts.broken + counts.unresponsive;
+  return null;
+}
+
+/** A finished scan as cards, in the style of the facts at the top of a site. */
+function ScanCards(props: { scan: LinkScan; counts: SiteLinks["counts"] }) {
+  const { scan, counts } = props;
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 text-sm">
-      <Stat label="Links checked" value={scan.total_urls} />
-      <Stat label="Posts and pages" value={scan.posts_scanned} />
-      <Stat label="Broken" value={counts.broken} tone={counts.broken ? "bad" : undefined} />
-      <Stat label="Unresponsive" value={counts.unresponsive} tone={counts.unresponsive ? "warn" : undefined} />
-      <p className="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto">
-        {problems ? "" : "No broken links. "}Finished {timeAgo(scan.finished_at).toLowerCase()}
-      </p>
-    </div>
+    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StatCard label="Links checked" value={scan.total_urls.toLocaleString()} />
+      <StatCard label="Broken" value={counts.broken.toLocaleString()} tone={counts.broken ? "bad" : undefined} />
+      <StatCard
+        label="Unresponsive"
+        value={counts.unresponsive.toLocaleString()}
+        tone={counts.unresponsive ? "warn" : undefined}
+      />
+      <StatCard label="Last scan" value={timeAgo(scan.finished_at)} />
+    </dl>
   );
 }
 
-function Stat(props: { label: string; value: number; tone?: "bad" | "warn" }) {
+function StatCard(props: { label: string; value: string; tone?: "bad" | "warn" }) {
   return (
-    <div>
-      <p className="text-xs text-muted-foreground">{props.label}</p>
-      <p
+    <div className="rounded-xl border bg-background px-4 py-3">
+      <dt className="text-xs text-muted-foreground">{props.label}</dt>
+      <dd
         className={cn(
-          "text-lg font-semibold tabular-nums",
+          "mt-1 truncate text-sm font-medium tabular-nums",
           props.tone === "bad" && "text-destructive",
           props.tone === "warn" && "text-amber-700 dark:text-amber-300",
         )}
       >
-        {props.value.toLocaleString()}
-      </p>
+        {props.value}
+      </dd>
     </div>
   );
 }
