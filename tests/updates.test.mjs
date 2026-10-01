@@ -49,6 +49,9 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
     }
     if (route === "/presser/v1/updates") return json({ core: null, plugins: [], themes: [] });
     if (route === "/presser/v1/comments") return json({ pending_count: 0, comments: [] });
+    if (route === "/presser/v1/admins") {
+      return json({ admins: [{ id: 7, login: "editor-in-chief", display_name: "Chief" }, { id: 2, login: "owner", display_name: "Owner" }] });
+    }
     throw new Error(`unexpected ${route}`);
   };
   const jobs = () => db.sqlite.prepare("SELECT slug, status, error FROM update_jobs ORDER BY id").all().map((r) => ({ ...r }));
@@ -240,4 +243,21 @@ test("an update to the version already installed is not listed", async () => {
   await syncSite(t.env, 1);
   const rows = t.env.DB.sqlite.prepare("SELECT slug FROM site_updates").all().map((r) => r.slug);
   assert.deepEqual(rows, ["b/b.php"]);
+});
+
+test("Magic Login defaults to the site's first administrator, and keeps the owner's choice", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const user = () => ({ ...t.env.DB.sqlite.prepare("SELECT login_user_id, login_user_name FROM sites WHERE id = 1").get() });
+  await syncSite(t.env, 1);
+  assert.deepEqual(user(), { login_user_id: 2, login_user_name: "Owner" });
+
+  t.env.DB.sqlite.prepare("UPDATE sites SET login_user_id = 7, login_user_name = 'Chief' WHERE id = 1").run();
+  await syncSite(t.env, 1);
+  assert.deepEqual(user(), { login_user_id: 7, login_user_name: "Chief" });
+});
+
+test("a Presser Connect without Magic Login is not asked for administrators", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }), "0.4.1");
+  await syncSite(t.env, 1);
+  assert.equal(t.env.DB.sqlite.prepare("SELECT login_user_id FROM sites WHERE id = 1").get().login_user_id, null);
 });

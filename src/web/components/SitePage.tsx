@@ -1,10 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, EllipsisVerticalIcon, ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import type { SiteSummary } from "../../shared/types";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +25,7 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
-import { MAGIC_LOGIN_SECTION, MagicLoginButton, MagicLoginSettings } from "./MagicLogin";
+import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
 import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
@@ -33,6 +40,13 @@ export function SitePage() {
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [choosingLoginUser, setChoosingLoginUser] = useState(false);
+  const closeKeyDialog = (open: boolean) => {
+    setReplacingKey(open);
+    if (!open) {
+      setConnectionKey("");
+      replaceKey.reset();
+    }
+  };
 
   const { data, error, isPending } = useQuery({
     queryKey: ["site", id],
@@ -92,22 +106,28 @@ export function SitePage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2">
-          <MagicLoginButton
-            site={site}
-            onChooseUser={() => {
-              setChoosingLoginUser(true);
-              document.getElementById(MAGIC_LOGIN_SECTION)?.scrollIntoView({ behavior: "smooth" });
-            }}
-          />
-          <Button variant="outline" size="sm" asChild>
-            <a href={`${site.url}/wp-admin/`} target="_blank" rel="noreferrer">
-              WP Admin
-            </a>
-          </Button>
+          <MagicLoginButton site={site} onChooseUser={() => setChoosingLoginUser(true)} />
           <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
             <RefreshCwIcon className={sync.isPending ? "animate-spin" : ""} />
             {sync.isPending ? "Syncing..." : "Sync now"}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon-sm" aria-label="More actions">
+                <EllipsisVerticalIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => setChoosingLoginUser(true)}>
+                Change Magic Login administrator
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setReplacingKey(true)}>Change connection key</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmRemove(true)}>
+                Remove site
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -146,72 +166,70 @@ export function SitePage() {
         <CommentsList comments={comments} showSite={false} />
       </Section>
 
-      <div id={MAGIC_LOGIN_SECTION}>
-        <Section title="Magic Login">
-          <MagicLoginSettings site={site} editing={choosingLoginUser} onEditingChange={setChoosingLoginUser} />
-        </Section>
-      </div>
-
-      <Section title="Connection">
-        <div className="space-y-4 px-4 py-4">
-          {replacingKey ? (
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                replaceKey.mutate();
-              }}
-            >
-              <ConnectionSteps siteUrl={site.url} />
-              <Textarea
-                value={connectionKey}
-                onChange={(e) => setConnectionKey(e.target.value)}
-                placeholder="presser2...."
-                className="font-mono text-xs"
-                rows={3}
-                spellCheck={false}
-                autoComplete="off"
-                required
-              />
-              {replaceKey.error && <p className="text-sm text-destructive">{replaceKey.error.message}</p>}
-              <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={replaceKey.isPending}>
-                  {replaceKey.isPending ? "Connecting..." : "Save key"}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setReplacingKey(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                If you created a new key in Presser Connect, or reinstalled it, paste the site's
-                current Connection Key here.
-              </p>
-              <Button variant="outline" size="sm" className="shrink-0" onClick={() => setReplacingKey(true)}>
-                Replace connection key
-              </Button>
-            </div>
+      <Dialog open={choosingLoginUser} onOpenChange={setChoosingLoginUser}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Magic Login</DialogTitle>
+            <DialogDescription>Choose the administrator Magic Login signs you in to {site.name} as.</DialogDescription>
+          </DialogHeader>
+          {choosingLoginUser && (
+            <MagicLoginUserForm
+              site={site}
+              submitLabel="Save"
+              onDone={() => setChoosingLoginUser(false)}
+              secondary={{ label: "Cancel", onClick: () => setChoosingLoginUser(false) }}
+            />
           )}
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Removing the site deletes it from Presser. Nothing changes on the site itself.
-            </p>
-            <Button variant="destructive" size="sm" onClick={() => setConfirmRemove(true)}>
-              Remove site
-            </Button>
-          </div>
-        </div>
-      </Section>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={replacingKey} onOpenChange={closeKeyDialog}>
+        <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
+          <form
+            className="min-w-0 space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              replaceKey.mutate();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Change connection key</DialogTitle>
+              <DialogDescription>
+                If you created a new key in Presser Connect, or reinstalled it, paste the site's current
+                Connection Key here.
+              </DialogDescription>
+            </DialogHeader>
+            <ConnectionSteps siteUrl={site.url} />
+            <Textarea
+              value={connectionKey}
+              onChange={(e) => setConnectionKey(e.target.value)}
+              placeholder="presser2...."
+              className="font-mono text-xs"
+              rows={3}
+              spellCheck={false}
+              autoComplete="off"
+              required
+            />
+            {replaceKey.error && <p className="text-sm text-destructive">{replaceKey.error.message}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => closeKeyDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={replaceKey.isPending}>
+                {replaceKey.isPending ? "Connecting..." : "Save key"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove {site.name}?</DialogTitle>
             <DialogDescription>
-              Presser forgets this site and its Connection Key. To shut the door on the site too,
-              deactivate Presser Connect or create a new key there.
+              Presser forgets this site and its Connection Key; nothing changes on the site itself. To shut
+              the door on the site too, deactivate Presser Connect or create a new key there.
             </DialogDescription>
           </DialogHeader>
           {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}

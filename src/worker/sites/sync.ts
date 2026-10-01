@@ -1,6 +1,7 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import type { PluginComments, PluginStatus, PluginUpdates } from "../../shared/types.ts";
-import { callSite, SiteRequestError } from "./client.ts";
+import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version.ts";
+import type { PluginComments, PluginStatus, PluginUpdates, SiteAdmin } from "../../shared/types.ts";
+import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
@@ -122,9 +123,35 @@ export async function syncSite(
   }
 
   await env.DB.batch(statements);
+  await chooseMagicLoginUser(env, site, text(status.plugin_version));
   // Presser Connect's own update comes from this dashboard and runs by itself.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };
+}
+
+/**
+ * Magic Login is on by default: a site without a chosen administrator gets
+ * its first one (the lowest user id). Best effort; the owner can change it.
+ */
+async function chooseMagicLoginUser(env: Env, site: SiteCredentials, pluginVersion: string): Promise<void> {
+  if (!pluginVersion || compareVersions(pluginVersion, MAGIC_LOGIN_SINCE) < 0) return;
+  const row = await env.DB.prepare("SELECT login_user_id FROM sites WHERE id = ?").bind(site.id).first<{ login_user_id: number | null }>();
+  if (!row || row.login_user_id) return;
+  let admins: SiteAdmin[];
+  try {
+    ({ admins } = await callSite<{ admins: SiteAdmin[] }>(site, "GET", `${REST_NAMESPACE}/admins`));
+  } catch (error) {
+    if (error instanceof SiteRequestError) return;
+    throw error;
+  }
+  const first = (Array.isArray(admins) ? admins : [])
+    .filter((admin) => Number.isSafeInteger(admin.id) && admin.id > 0)
+    .sort((a, b) => a.id - b.id)[0];
+  if (!first) return;
+  await env.DB
+    .prepare("UPDATE sites SET login_user_id = ?, login_user_name = ? WHERE id = ? AND login_user_id IS NULL")
+    .bind(first.id, text(first.display_name || first.login).slice(0, 120), site.id)
+    .run();
 }
 
 async function recordError(env: Env, siteId: number, message: string): Promise<void> {
