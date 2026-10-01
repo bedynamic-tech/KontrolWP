@@ -16,7 +16,7 @@
 | Cloudflare Access | | Protects the whole Worker. `requireWebAccess` also verifies the `Cf-Access-Jwt-Assertion` JWT on every API call, so a misconfigured route still fails closed. |
 | D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
-| Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below). |
+| Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below) and the link checker. The consumer takes one message per run: a Worker run opens at most six connections at once and queues the rest with their timeouts already running, so syncing several sites in one run made healthy sites time out. A sync that can't reach a site, or gets a 5xx, tries once more three seconds later before the site shows as unreachable. |
 | Cron Trigger | | `*/15 * * * *` checks whether a sync is due and, once the Background sync interval (Settings; every hour by default) has passed since the last run, enqueues every site. |
 
 KontrolWP only makes outbound requests to sites. Sites never call the

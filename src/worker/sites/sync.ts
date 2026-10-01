@@ -18,6 +18,9 @@ import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-conn
 import { SecretsKeyError } from "./secrets.ts";
 import { getCredentials } from "./store.ts";
 
+/** Wait before the second try at an unreachable site. */
+const RETRY_DELAY_MS = 3000;
+
 export type SyncResult = { ok: true } | { ok: false; error: string };
 
 /**
@@ -29,7 +32,7 @@ export type SyncResult = { ok: true } | { ok: false; error: string };
 export async function syncSite(
   env: Env,
   siteId: number,
-  options: { retrySelfUpdate?: boolean } = {},
+  options: { retrySelfUpdate?: boolean; retryDelayMs?: number } = {},
 ): Promise<SyncResult> {
   let site;
   try {
@@ -52,8 +55,8 @@ export async function syncSite(
   let comments: PluginComments;
   // What browsers show for the site; best effort, alongside the plugin calls.
   const pageIcon = discoverIcon(site.url);
-  try {
-    [status, updates, comments] = await Promise.all([
+  const read = () =>
+    Promise.all([
       callSite<PluginStatus>(site, "GET", `${REST_NAMESPACE}/status`),
       // An excluded site is not asked for updates at all.
       checkUpdates
@@ -61,6 +64,16 @@ export async function syncSite(
         : Promise.resolve<PluginUpdates>({ core: null, plugins: [], themes: [] }),
       callSite<PluginComments>(site, "GET", `${REST_NAMESPACE}/comments`),
     ]);
+  try {
+    try {
+      [status, updates, comments] = await read();
+    } catch (error) {
+      // A slow moment or a dropped connection is common; one more try before
+      // the dashboard says the site can't be reached.
+      if (!(error instanceof SiteRequestError) || (error.status !== undefined && error.status < 500)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? RETRY_DELAY_MS));
+      [status, updates, comments] = await read();
+    }
   } catch (error) {
     if (!(error instanceof SiteRequestError)) throw error;
     await recordError(env, siteId, error.message);
