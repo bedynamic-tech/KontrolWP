@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -215,39 +216,42 @@ function PluginRow(props: {
   const jobActive = update?.job_status === "queued" || update?.job_status === "running";
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:items-center">
-      <RemoteIcon
-        sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)}
-        name={plugin.name}
-        className="size-9 text-sm"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium">{plugin.name}</p>
-          {plugin.active ? (
-            <Badge variant="secondary">{plugin.network_active ? "Network active" : "Active"}</Badge>
-          ) : (
-            <Badge variant="outline">Inactive</Badge>
-          )}
-          {update && !plugin.protected && <Badge variant="secondary">Update to {update.new_version}</Badge>}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
-          {plugin.protected && " · Connects this site to Presser"}
-          {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
-          {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined &&
-            ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`}
-          {update?.job_status === "done" && " · Updated"}
-        </p>
-        {jobActive && (
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Spinner className="size-3" />
-            {update.job_status === "running" ? `Updating to ${update.new_version}...` : `Update to ${update.new_version} queued`}
+      {/* Inactive plugins are dimmed rather than labelled. */}
+      <div className={cn("flex min-w-0 flex-1 items-start gap-3 sm:items-center", !plugin.active && "opacity-60")}>
+        <RemoteIcon
+          sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)}
+          name={plugin.name}
+          className="size-9 text-sm"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-medium">
+              {plugin.name}
+              {!plugin.active && <span className="sr-only"> (inactive)</span>}
+            </p>
+            {update && !plugin.protected && <Badge variant="secondary">Update to {update.new_version}</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {[plugin.version && `Version ${plugin.version}`, plugin.author, plugin.network_active && "Network active"]
+              .filter(Boolean)
+              .join(" · ")}
+            {plugin.protected && " · Connects this site to Presser"}
+            {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
+            {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined &&
+              ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`}
+            {update?.job_status === "done" && " · Updated"}
           </p>
-        )}
-        {update?.job_status === "failed" && update.job_error && (
-          <p className="mt-1 text-xs text-destructive">{update.job_error}</p>
-        )}
-        {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
+          {jobActive && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
+              {update.job_status === "running" ? `Updating to ${update.new_version}...` : `Update to ${update.new_version} queued`}
+            </p>
+          )}
+          {update?.job_status === "failed" && update.job_error && (
+            <p className="mt-1 text-xs text-destructive">{update.job_error}</p>
+          )}
+          {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
+        </div>
       </div>
       {props.working ? (
         <Spinner className="mt-1 size-4 text-muted-foreground sm:mt-0" label={`Changing ${plugin.name}`} />

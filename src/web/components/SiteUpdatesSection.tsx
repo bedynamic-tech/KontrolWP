@@ -25,7 +25,7 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
         <List updates={of("core")} empty="WordPress is up to date." />
       </Part>
       <Part title="Plugins">
-        <List updates={of("plugin")} empty="Every plugin is up to date." />
+        <List updates={of("plugin")} empty="All plugins are up to date" />
       </Part>
       {themes.length > 0 && (
         <Part title="Themes">
