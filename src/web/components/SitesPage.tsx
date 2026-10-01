@@ -9,7 +9,7 @@ import { CoreAutoUpdateDialog } from "./CoreAutoUpdate";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
 import { SiteIcon } from "./SiteIcon";
-import { StatusBadge } from "./StatusBadge";
+import { ConnectionBanner } from "./ConnectionBanner";
 
 export function SitesPage() {
   const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
@@ -51,9 +51,11 @@ export function SitesPage() {
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>{site.updates_excluded ? "Updates excluded" : plural(site.update_count, "update")}</span>
                     <span>{plural(site.pending_comments, "comment")}</span>
-                    {/* Version, sync time and status live on the site's page; only a problem shows here. */}
-                    {site.status !== "connected" && <StatusBadge status={site.status} />}
                   </div>
+                </Link>
+                {/* Only a site KontrolWP can't reach gets a banner; a connected one shows nothing. */}
+                <Link to={`/sites/${site.id}`} className="block px-4 pb-3 empty:hidden">
+                  <ConnectionBanner site={site} compact />
                 </Link>
               </li>
             ))}
