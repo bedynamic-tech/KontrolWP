@@ -340,7 +340,7 @@ export function SitePage() {
             {umami.data?.configured && (
               <SettingRow
                 title="Umami website"
-                detail="Where this site's analytics come from. Match by domain picks the Umami website with the site's domain."
+                detail="Where this site's analytics come from."
                 stacked
               >
                 <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
