@@ -12,13 +12,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version";
-import type { BulkPluginResult, FleetPlugin, FleetPlugins, PluginAction, SiteSummary } from "../../shared/types";
+import type { BulkPluginResult, FleetPlugin, FleetPlugins, PluginAction } from "../../shared/types";
+import { plural } from "../format";
 import { applyUpdate, bulkPluginAction, fetchFleetPlugins, fetchOverview, installPluginOnSites } from "../api";
+import { autoUpdatesSupported } from "./CoreAutoUpdate";
 import { InstallDialog } from "./PluginsSection";
+import { SitePicker } from "./SitePicker";
 import { RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 
@@ -96,7 +105,7 @@ export function PluginsPage() {
               className="pl-8"
             />
           </div>
-          <Section title={`${groups.length} plugins across ${siteCount} ${siteCount === 1 ? "site" : "sites"}`}>
+          <Section title={`${plural(groups.length, "plugin")} across ${plural(siteCount, "site")}`}>
             {!groups.length ? (
               <EmptyRow>No plugins yet. Each site's plugins show here after it syncs.</EmptyRow>
             ) : !shown.length ? (
@@ -133,6 +142,8 @@ const PENDING_LABELS: Record<PluginAction | "update", string> = {
   deactivate: "Deactivating...",
   delete: "Deleting...",
   update: "Queueing updates...",
+  "enable-auto-update": "Turning on auto-updates...",
+  "disable-auto-update": "Turning off auto-updates...",
 };
 
 function PluginGroup(props: { plugins: FleetPlugin[] }) {
@@ -182,6 +193,7 @@ function PluginGroup(props: { plugins: FleetPlugin[] }) {
   const active = plugins.filter((plugin) => plugin.active).length;
   const versions = [...new Set(plugins.map((plugin) => plugin.version).filter(Boolean))];
   const failedJobs = plugins.filter((plugin) => plugin.job_status === "failed").length;
+  const autoUpdating = plugins.filter((plugin) => plugin.auto_update).length;
   const busyJobs = plugins.filter((plugin) => plugin.job_status === "queued" || plugin.job_status === "running").length;
   const allSelected = plugins.length > 0 && chosen.length === plugins.length;
   const toggle = (siteId: number) => {
@@ -215,6 +227,7 @@ function PluginGroup(props: { plugins: FleetPlugin[] }) {
               {` · ${active} active`}
               {versions.length > 0 && ` · ${versions.length === 1 ? "Version" : "Versions"} ${versions.join(", ")}`}
               {first.author && ` · ${first.author}`}
+              {autoUpdating > 0 && ` · ${autoUpdating} auto-updating`}
               {busyJobs > 0 && ` · ${busyJobs} updating`}
               {failedJobs > 0 && <span className="text-destructive">{` · ${failedJobs} failed`}</span>}
             </p>
@@ -262,6 +275,17 @@ function PluginGroup(props: { plugins: FleetPlugin[] }) {
               >
                 Update
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={!chosen.length || action.isPending}>
+                    Auto-updates <ChevronDownIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => run("enable-auto-update")}>Enable auto-updates</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => run("disable-auto-update")}>Disable auto-updates</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 size="sm"
                 variant="ghost"
@@ -351,6 +375,11 @@ function SiteRow(props: {
           {update && ` · ${plugin.new_version} available`}
           {update && plugin.updates_excluded && " · Excluded from updates"}
           {plugin.job_status && ` · ${JOB_LABELS[plugin.job_status]}`}
+          {!plugin.protected && autoUpdatesSupported(plugin.site_plugin_version) && (
+            plugin.site_plugin_auto_updates
+              ? ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`
+              : " · Auto-updates turned off in code"
+          )}
         </p>
         {plugin.job_status === "failed" && plugin.job_error && (
           <p className="mt-1 text-xs text-destructive">{plugin.job_error}</p>
@@ -413,54 +442,5 @@ function FleetInstallDialog(props: {
         onChange={setSelected}
       />
     </InstallDialog>
-  );
-}
-
-function SitePicker(props: {
-  sites: SiteSummary[];
-  loading: boolean;
-  selected: Set<number>;
-  onChange: (selected: Set<number>) => void;
-}) {
-  const { sites, selected } = props;
-  const all = sites.length > 0 && sites.every((site) => selected.has(site.id));
-  return (
-    <fieldset className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <legend className="text-sm font-medium">Sites</legend>
-        {sites.length > 1 && (
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-            onClick={() => props.onChange(all ? new Set() : new Set(sites.map((site) => site.id)))}
-          >
-            {all ? "Clear" : "Select all"}
-          </button>
-        )}
-      </div>
-      {props.loading ? (
-        <p className="text-sm text-muted-foreground">Loading sites...</p>
-      ) : !sites.length ? (
-        <p className="text-sm text-muted-foreground">No sites can install plugins from Presser yet.</p>
-      ) : (
-        <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border px-3 py-2">
-          {sites.map((site) => (
-            <label key={site.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selected.has(site.id)}
-                onChange={() => {
-                  const next = new Set(selected);
-                  if (next.has(site.id)) next.delete(site.id);
-                  else next.add(site.id);
-                  props.onChange(next);
-                }}
-              />
-              <span className="truncate">{site.name}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </fieldset>
   );
 }

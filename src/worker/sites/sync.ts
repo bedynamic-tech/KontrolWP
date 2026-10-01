@@ -1,6 +1,6 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins } from "../../shared/types.ts";
+import type { CoreAutoUpdate, PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
@@ -63,7 +63,8 @@ export async function syncSite(
         `UPDATE sites SET status = 'connected', last_error = NULL, last_synced_at = ?,
            name = COALESCE(NULLIF(?, ''), name),
            wp_version = ?, php_version = ?, plugin_version = ?, theme_name = ?, pending_comments = ?,
-           icon_url = ?
+           icon_url = ?,
+           core_auto_update = COALESCE(?, core_auto_update), core_auto_update_locked = COALESCE(?, core_auto_update_locked)
          WHERE id = ?`,
       )
       .bind(
@@ -75,6 +76,7 @@ export async function syncSite(
         text(status.theme),
         Math.max(0, Math.trunc(Number(comments.pending_count) || 0)),
         (await pageIcon) ?? iconUrl(status.icon_url),
+        ...coreAutoUpdate(status),
         siteId,
       ),
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
@@ -143,6 +145,13 @@ export async function syncSite(
  * Keep the site's installed plugins for the Plugins page. Best effort: when
  * the list cannot be read, the last one stays.
  */
+/** Core auto-update mode and lock from /status, or nulls to keep the stored ones (before 0.7.0). */
+export function coreAutoUpdate(status: Pick<PluginStatus, "core_auto_update">): [CoreAutoUpdate | null, number | null] {
+  const mode = status.core_auto_update?.mode;
+  if (mode !== "all" && mode !== "minor" && mode !== "off") return [null, null];
+  return [mode, status.core_auto_update?.locked ? 1 : 0];
+}
+
 async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: string): Promise<void> {
   if (!pluginVersion || compareVersions(pluginVersion, PLUGIN_MANAGEMENT_SINCE) < 0) return;
   let list: SitePlugins;
@@ -153,8 +162,8 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
     throw error;
   }
   const insert = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected, auto_update)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const plugins = (Array.isArray(list.plugins) ? list.plugins : []).slice(0, 500).filter((p) => text(p.file));
   await env.DB.batch([
@@ -169,8 +178,10 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
         p.active ? 1 : 0,
         p.network_active ? 1 : 0,
         p.protected ? 1 : 0,
+        p.auto_update ? 1 : 0,
       ),
     ),
+    env.DB.prepare("UPDATE sites SET plugin_auto_updates = ? WHERE id = ?").bind(list.auto_updates === false ? 0 : 1, site.id),
   ]);
 }
 

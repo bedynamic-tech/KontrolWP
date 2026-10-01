@@ -26,6 +26,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
+import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
 import { EmptyRow, Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
@@ -173,12 +174,14 @@ export function SitePage() {
       {excludeUpdates.error && <p className="mt-4 text-sm text-destructive">{excludeUpdates.error.message}</p>}
       {site.updates_excluded ? (
         <Section title="Updates">
+          <CoreAutoUpdateRow site={site} />
           <EmptyRow>
             This site is excluded from update checks. Include it again from the menu next to Sync now.
           </EmptyRow>
         </Section>
       ) : (
         <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
+          <CoreAutoUpdateRow site={site} />
           <UpdatesList updates={updates} showSite={false} />
         </Section>
       )}

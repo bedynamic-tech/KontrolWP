@@ -45,17 +45,21 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
       }
     }
     if (route === "/presser/v1/status") {
-      return json({ name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version, theme: "T" });
+      return json({
+        name: "Example", wp_version: "6.8", php_version: "8.3", plugin_version, theme: "T",
+        ...(plugin_version >= "0.7.0" ? { core_auto_update: { mode: "all", locked: false } } : {}),
+      });
     }
     if (route === "/presser/v1/updates") return json({ core: null, plugins: [], themes: [] });
     if (route === "/presser/v1/comments") return json({ pending_count: 0, comments: [] });
     if (route === "/presser/v1/plugins") {
       return json({
         plugins: [
-          { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false },
+          { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false, auto_update: true },
           { file: "presser-connect/presser-connect.php", name: "Presser Connect", version: plugin_version, author: "Presser", active: true, network_active: false, protected: true },
         ],
         can_modify_files: true,
+        auto_updates: true,
       });
     }
     if (route === "/presser/v1/admins") {
@@ -305,10 +309,10 @@ test("sync keeps each site's plugins for the Plugins page, with their updates", 
   await syncSite(t.env, 1);
   const fleet = await listFleetPlugins(t.env.DB);
   assert.deepEqual(
-    fleet.plugins.map((p) => [p.file, p.active, p.protected, p.new_version, p.site_name]),
+    fleet.plugins.map((p) => [p.file, p.active, p.protected, p.auto_update, p.new_version, p.site_name]),
     [
-      ["akismet/akismet.php", true, false, "5.4", "Example"],
-      ["presser-connect/presser-connect.php", true, true, null, "Example"],
+      ["akismet/akismet.php", true, false, true, "5.4", "Example"],
+      ["presser-connect/presser-connect.php", true, true, false, null, "Example"],
     ],
   );
   assert.deepEqual(fleet.unsupported_sites, []);
@@ -320,4 +324,17 @@ test("a site whose Presser Connect cannot list plugins is reported, not listed",
   const fleet = await listFleetPlugins(t.env.DB);
   assert.deepEqual(fleet.plugins, []);
   assert.deepEqual(fleet.unsupported_sites.map((s) => ({ ...s })), [{ id: 1, name: "Example", plugin_version: "0.5.1" }]);
+});
+
+test("sync keeps WordPress's auto-update settings, and an older Presser Connect leaves them unknown", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  await syncSite(t.env, 1);
+  const site = await getSite(t.env.DB, 1);
+  assert.equal(site.core_auto_update, "all");
+  assert.equal(site.core_auto_update_locked, false);
+  assert.equal(site.plugin_auto_updates, true);
+
+  const old = await setup(async (_body, json) => json({ ok: true }), "0.6.1");
+  await syncSite(old.env, 1);
+  assert.equal((await getSite(old.env.DB, 1)).core_auto_update, null);
 });

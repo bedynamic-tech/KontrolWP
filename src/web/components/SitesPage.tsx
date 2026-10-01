@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Link } from "react-router";
 import { fetchOverview } from "../api";
 import { hostname, plural } from "../format";
 import { AddSiteDialog } from "./AddSiteDialog";
+import { CoreAutoUpdateDialog } from "./CoreAutoUpdate";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
 import { SiteIcon } from "./SiteIcon";
@@ -10,6 +13,7 @@ import { StatusBadge } from "./StatusBadge";
 
 export function SitesPage() {
   const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
+  const [autoUpdates, setAutoUpdates] = useState(false);
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
 
@@ -17,7 +21,14 @@ export function SitesPage() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Sites</h1>
-        <AddSiteDialog />
+        <div className="flex items-center gap-2">
+          {data.sites.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setAutoUpdates(true)}>
+              WordPress auto-updates
+            </Button>
+          )}
+          <AddSiteDialog />
+        </div>
       </div>
       <div className="mt-6 overflow-hidden rounded-xl border bg-background">
         {data.sites.length === 0 ? (
@@ -49,6 +60,7 @@ export function SitesPage() {
           </ul>
         )}
       </div>
+      <CoreAutoUpdateDialog sites={data.sites} open={autoUpdates} onOpenChange={setAutoUpdates} />
     </div>
   );
 }
