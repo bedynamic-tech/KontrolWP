@@ -615,10 +615,21 @@ export interface SecurityCheck {
   detail: string;
 }
 
+/** One hardening fix: `enabled` is switched on from the dashboard; `applied` is whether it is in effect on the site now. */
+export interface SecurityFix {
+  id: string;
+  title: string;
+  detail: string;
+  enabled: boolean;
+  applied: boolean;
+}
+
 export interface SiteSecurity {
   vulnerabilities: SiteVulnerability[];
   checks: SecurityCheck[];
   /** Why the plugin's own settings are missing from the checks, when they are. */
   checks_note: string | null;
+  /** The fixes the plugin can apply; null while the site's plugin is too old to offer them. */
+  fixes: SecurityFix[] | null;
   feed: { updated_at: number | null; error: string | null };
 }

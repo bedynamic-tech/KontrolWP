@@ -1,5 +1,13 @@
-import { compareVersions, SECURITY_SINCE } from "../../shared/plugin-version.ts";
-import type { SecurityCheck, SiteSecurity, SiteVulnerability, SiteSummary, VulnSeverity } from "../../shared/types.ts";
+import { compareVersions, HARDENING_SINCE, SECURITY_SINCE } from "../../shared/plugin-version.ts";
+import { SECURITY_FIXES } from "../../shared/security-fixes.ts";
+import type {
+  SecurityCheck,
+  SecurityFix,
+  SiteSecurity,
+  SiteVulnerability,
+  SiteSummary,
+  VulnSeverity,
+} from "../../shared/types.ts";
 import { callSite, type SiteCredentials, SiteRequestError } from "./client.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 
@@ -324,6 +332,31 @@ export interface SecurityReport {
   file_edit_allowed?: boolean;
   admin_user_exists?: boolean;
   xmlrpc_enabled?: boolean;
+  fixes?: FixStates;
+}
+
+export type FixStates = Record<string, { enabled?: boolean; applied?: boolean }>;
+
+/** The catalog of fixes with the states the plugin reported. */
+export function fixesFrom(states: FixStates): SecurityFix[] {
+  return SECURITY_FIXES.map((fix) => ({
+    ...fix,
+    enabled: Boolean(states[fix.id]?.enabled),
+    applied: Boolean(states[fix.id]?.applied),
+  }));
+}
+
+/** Switch fixes on or off on one site; returns the new state of every fix. */
+export async function setSiteFixes(
+  credentials: SiteCredentials,
+  ids: string[],
+  enabled: boolean,
+): Promise<SecurityFix[]> {
+  const result = await callSite<{ fixes: FixStates }>(credentials, "POST", `${REST_NAMESPACE}/security/fixes`, {
+    ids,
+    enabled,
+  });
+  return fixesFrom(result.fixes ?? {});
 }
 
 const check = (id: string, bad: boolean, title: string, problem: string, fine: string): SecurityCheck => ({
@@ -426,6 +459,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
   ]);
   let checks = derived;
   let note: string | null = null;
+  let fixes: SecurityFix[] | null = null;
   if (!site.plugin_version || compareVersions(site.plugin_version, SECURITY_SINCE) < 0) {
     note =
       "KontrolWP Connect on this site is too old to report its settings. It updates automatically; select Sync now to check.";
@@ -433,6 +467,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
     try {
       const report = await callSite<SecurityReport>(credentials, "GET", `${REST_NAMESPACE}/security`);
       checks = [...reportChecks(report), ...derived];
+      if (report.fixes && compareVersions(site.plugin_version, HARDENING_SINCE) >= 0) fixes = fixesFrom(report.fixes);
     } catch (error) {
       if (!(error instanceof SiteRequestError)) throw error;
       note = `The site's own settings could not be read: ${error.message}`;
@@ -442,6 +477,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
     vulnerabilities,
     checks,
     checks_note: note,
+    fixes,
     feed: { updated_at: state?.updated_at ?? null, error: state?.error ?? null },
   };
 }

@@ -52,7 +52,8 @@ import {
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
-import { refreshFeed, siteSecurity } from "../sites/vulnerabilities.ts";
+import { SECURITY_FIXES } from "../../shared/security-fixes.ts";
+import { refreshFeed, setSiteFixes, siteSecurity } from "../sites/vulnerabilities.ts";
 import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
@@ -822,6 +823,34 @@ api.get("/sites/:id/security", async (c) => {
   const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
   if (!site || !credentials) return c.json({ error: "Site not found" }, 404);
   return c.json<SiteSecurity>(await siteSecurity(c.env, site, credentials));
+});
+
+const fixesBody = z.object({
+  ids: z.array(z.enum(SECURITY_FIXES.map((fix) => fix.id) as [string, ...string[]])).min(1).max(SECURITY_FIXES.length),
+  enabled: z.boolean(),
+});
+
+/** Switch hardening fixes on or off on one WordPress site. */
+api.put("/sites/:id/security/fixes", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getCredentials(c.env, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  const parsed = fixesBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose the fixes to change" }, 400);
+  try {
+    return c.json({ fixes: await setSiteFixes(site, parsed.data.ids, parsed.data.enabled) });
+  } catch (error) {
+    if (!(error instanceof SiteRequestError)) throw error;
+    return c.json(
+      {
+        error:
+          error.status === 404 && !error.code
+            ? "KontrolWP Connect on this site is too old to apply security fixes. It updates automatically; select Sync now to check."
+            : error.message,
+      },
+      502,
+    );
+  }
 });
 
 /** Download the vulnerability feed again now instead of waiting for the daily refresh. */

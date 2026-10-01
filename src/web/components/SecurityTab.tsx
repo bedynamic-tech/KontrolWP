@@ -3,8 +3,15 @@ import { CheckIcon, ExternalLinkIcon, RefreshCwIcon, TriangleAlertIcon } from "l
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { SecurityCheck, SiteSecurity, SiteSummary, SiteVulnerability, VulnSeverity } from "../../shared/types";
-import { fetchSecurity, refreshVulnerabilityFeed } from "../api";
+import type {
+  SecurityCheck,
+  SecurityFix,
+  SiteSecurity,
+  SiteSummary,
+  SiteVulnerability,
+  VulnSeverity,
+} from "../../shared/types";
+import { fetchSecurity, refreshVulnerabilityFeed, setSecurityFixes } from "../api";
 import { plural, timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
@@ -95,6 +102,45 @@ function CheckRow(props: { check: SecurityCheck }) {
   );
 }
 
+function FixRow(props: { fix: SecurityFix; busy: boolean; onChange: (enabled: boolean) => void }) {
+  const { fix } = props;
+  return (
+    <li className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">{fix.title}</p>
+          {fix.applied && !fix.enabled && <Badge variant="secondary">Already in place</Badge>}
+        </div>
+        <p className="mt-0.5 text-muted-foreground">{fix.detail}</p>
+        {fix.enabled && !fix.applied && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            Switched on, but not in effect yet. Check that the site can write to its files, then reload.
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={fix.enabled}
+        aria-label={fix.title}
+        disabled={props.busy}
+        onClick={() => props.onChange(!fix.enabled)}
+        className={cn(
+          "relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
+          fix.enabled ? "border-primary bg-primary" : "bg-muted",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-block size-4 rounded-full bg-background shadow transition-transform",
+            fix.enabled ? "translate-x-4" : "translate-x-0.5",
+          )}
+        />
+      </button>
+    </li>
+  );
+}
+
 /** Known vulnerabilities in the site's WordPress and plugins, and insecure settings. */
 export function SecurityTab(props: { site: SiteSummary }) {
   const { site } = props;
@@ -107,6 +153,11 @@ export function SecurityTab(props: { site: SiteSummary }) {
   });
   const refresh = useMutation({
     mutationFn: refreshVulnerabilityFeed,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "security"] }),
+  });
+
+  const fixes = useMutation({
+    mutationFn: (change: { ids: string[]; enabled: boolean }) => setSecurityFixes(site.id, change.ids, change.enabled),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "security"] }),
   });
 
@@ -187,6 +238,38 @@ export function SecurityTab(props: { site: SiteSummary }) {
           )} in WordPress and plugins as of the last sync. Themes are not checked.`}
         </p>
       </Section>
+
+      {data.fixes && (
+        <Section
+          title="Hardening"
+          action={
+            data.fixes.some((fix) => !fix.enabled) && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={fixes.isPending}
+                onClick={() =>
+                  fixes.mutate({ ids: data.fixes!.filter((fix) => !fix.enabled).map((fix) => fix.id), enabled: true })
+                }
+              >
+                Turn on all
+              </Button>
+            )
+          }
+        >
+          {fixes.error && <p className="border-b px-4 py-3 text-sm text-destructive">{fixes.error.message}</p>}
+          <ul className="divide-y">
+            {data.fixes.map((fix) => (
+              <FixRow
+                key={fix.id}
+                fix={fix}
+                busy={fixes.isPending}
+                onChange={(enabled) => fixes.mutate({ ids: [fix.id], enabled })}
+              />
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title={`Settings (${warnings ? `${warnings} to fix` : "all good"})`}>
         {data.checks_note && <p className="border-b px-4 py-3 text-sm text-muted-foreground">{data.checks_note}</p>}

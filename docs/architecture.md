@@ -274,6 +274,8 @@ The settings findings combine what the dashboard already knows (HTTPS, a PHP ver
 longer gets fixes, a waiting core update, inactive plugins) with the plugin's `GET /security`
 report (0.12.0). Sites on an older plugin show only the first group, with a note.
 
+Hardening (plugin 0.13.0) mirrors MainWP's site fixes: directory listing, WordPress version, RSD and Windows Live Writer tags, database and PHP error display, readme.html, plus the code editor and XML-RPC. Switches are stored in the `kontrolwp_connect_hardening` option on the site, hooks are applied each time the plugin loads and files (index.php, readme.html) when a fix is switched on, and switching one off restores it. Only an index.php with the plugin's exact content is ever removed. `applied` is read from the live site, so the tab also shows protection something else provides. The "admin" user stays a manual fix.
+
 ## Posts and pages
 
 The Posts and pages tab (KontrolWP Connect 0.10.0) lists a WordPress site's
@@ -305,6 +307,7 @@ in D1, and static sites do not have the tab.
 | `POST /links` | `{page, per_page, post_ids}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. With `post_ids` (up to 100), just those posts, if still published. Added in 0.9.0; `post_ids` in 0.9.2. |
 | `POST /content` | `{page, per_page, type: all or a post type slug, status: all, publish, future, draft, pending or private, search}`. One page of posts, pages and custom post types (newest first, up to 100 per page) with title, type, status, author, dates and permalink, the count of each status for the chosen type, the total matching, and the site's public post types with their names (custom types, 0.11.0). Read-only; trash is left out. Added in 0.10.0. |
 | `GET /security` | No body. Settings worth fixing: whether errors are printed into pages (`WP_DEBUG` with `WP_DEBUG_DISPLAY`), whether the wp-admin code editor is allowed, whether a user named `admin` exists and whether XML-RPC is on. Read-only. Added in 0.12.0. |
+| `POST /security/fixes` | `{ids: [fix ids], enabled}`. Switches hardening fixes on or off and returns each fix's `{enabled, applied}`. Ids: `directory_listing`, `generator`, `rsd`, `wlw`, `db_errors`, `php_errors`, `readme`, `file_edit`, `xmlrpc`. Added in 0.13.0. |
 | `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
