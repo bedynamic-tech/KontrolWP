@@ -13,7 +13,9 @@ import type {
   PluginStatus,
   SiteAdmin,
   SiteDetail,
+  SiteAnalytics,
   SitePlugins,
+  UmamiSettings,
 } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64 } from "../sites/presser-connect.ts";
@@ -21,6 +23,17 @@ import { getCredentials, getSite, listComments, listFleetPlugins, listSites, lis
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { coreAutoUpdate, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
+import {
+  deleteUmamiConfig,
+  listUmamiWebsites,
+  loadUmamiConfig,
+  matchWebsite,
+  saveUmamiConfig,
+  siteAnalytics,
+  umamiClient,
+  UmamiError,
+  type UmamiConfig,
+} from "../umami.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
@@ -569,4 +582,115 @@ api.onError((error, c) => {
 function siteId(c: AppContext): number | null {
   const id = Number(c.req.param("id"));
   return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function umamiSettings(config: UmamiConfig | null): UmamiSettings {
+  return config
+    ? { configured: true, mode: config.mode, url: config.mode === "cloud" ? "" : config.url, username: config.username }
+    : { configured: false, mode: "cloud", url: "", username: "" };
+}
+
+/** Run an Umami request, turning its failures into messages for the page. */
+async function umamiRequest(c: AppContext, request: (config: UmamiConfig) => Promise<Response>) {
+  try {
+    const config = await loadUmamiConfig(c.env);
+    if (!config) return c.json({ error: "Connect Umami in Settings first", code: "umami_not_configured" }, 409);
+    return await request(config);
+  } catch (error) {
+    if (error instanceof UmamiError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+}
+
+api.get("/settings/umami", async (c) => {
+  try {
+    return c.json(umamiSettings(await loadUmamiConfig(c.env)));
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+const umamiInput = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("cloud"), secret: z.string().trim().max(500).optional() }),
+  z.object({
+    mode: z.literal("self-hosted"),
+    url: z.string().trim().url().max(500).regex(/^https?:\/\//),
+    username: z.string().trim().min(1).max(200),
+    secret: z.string().max(500).optional(),
+  }),
+]);
+
+/** Save the Umami connection after checking that it works. A blank secret keeps the saved one. */
+api.put("/settings/umami", async (c) => {
+  const parsed = umamiInput.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter the Umami address, username and password, or an API key" }, 400);
+  const input = parsed.data;
+  try {
+    const saved = await loadUmamiConfig(c.env).catch(() => null);
+    const secret = input.secret?.length ? input.secret : saved?.mode === input.mode ? saved.secret : "";
+    if (!secret) return c.json({ error: input.mode === "cloud" ? "Enter an API key" : "Enter the password" }, 400);
+    const config: UmamiConfig =
+      input.mode === "cloud"
+        ? { mode: "cloud", url: "", username: "", secret }
+        : { mode: "self-hosted", url: input.url.replace(/\/+$/, ""), username: input.username, secret };
+    const websites = await listUmamiWebsites(await umamiClient(config));
+    await saveUmamiConfig(c.env, config);
+    return c.json({ ...umamiSettings(config), websites: websites.length });
+  } catch (error) {
+    if (error instanceof UmamiError) return c.json({ error: error.message }, 400);
+    throw error;
+  }
+});
+
+api.delete("/settings/umami", async (c) => {
+  await deleteUmamiConfig(c.env);
+  return c.json(umamiSettings(null));
+});
+
+api.get("/umami/websites", (c) =>
+  umamiRequest(c, async (config) => c.json({ websites: await listUmamiWebsites(await umamiClient(config)) })),
+);
+
+/** Choose the Umami website for a site, or null to match by domain again. */
+api.put("/sites/:id/umami", async (c) => {
+  const parsed = z
+    .object({ website_id: z.string().trim().min(1).max(100).nullable() })
+    .safeParse(await c.req.json().catch(() => null));
+  const id = siteId(c);
+  if (!parsed.success || !id) return c.json({ error: "Invalid website" }, 400);
+  const result = await c.env.DB.prepare("UPDATE sites SET umami_website_id = ? WHERE id = ?").bind(parsed.data.website_id, id).run();
+  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
+  return c.json({ ok: true });
+});
+
+const analyticsRange = z.enum(["24h", "7d", "30d", "90d"]);
+
+api.get("/sites/:id/analytics", (c) =>
+  umamiRequest(c, async (config) => {
+    const id = siteId(c);
+    const site = id && (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?").bind(id).first<{ url: string; umami_website_id: string | null }>());
+    if (!site) return c.json({ error: "Site not found" }, 404);
+    const range = analyticsRange.catch("7d").parse(c.req.query("range"));
+    const tz = validTimeZone(c.req.query("tz"));
+    const client = await umamiClient(config);
+    const websites = await listUmamiWebsites(client);
+    const chosen = site.umami_website_id ? websites.find((website) => website.id === site.umami_website_id) ?? null : null;
+    const website = chosen ?? (site.umami_website_id ? null : matchWebsite(websites, site.url));
+    if (!website) {
+      return c.json<SiteAnalytics>({ website: null, chosen: !!site.umami_website_id, range, stats: null, series: [], pages: [], referrers: [] });
+    }
+    return c.json<SiteAnalytics>({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) });
+  }),
+);
+
+function validTimeZone(value: string | undefined): string {
+  if (!value) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    return "UTC";
+  }
 }

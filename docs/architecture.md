@@ -147,6 +147,25 @@ and Presser leaves it alone. The site page sets core and each plugin; the
 Plugins page sets plugins across selected sites, and the Sites page's
 WordPress auto-updates dialog sets core across chosen sites.
 
+## Umami analytics
+
+Settings stores one Umami connection in the `settings` table: Umami Cloud
+with an API key (sent as a bearer token to `https://api.umami.is/v1`), or a
+self-hosted Umami with a username and password (Presser logs in at
+`/api/auth/login` for each analytics request and sends the token the same
+way). The key or password is encrypted under SITE_SECRETS_KEY, bound to the
+setting's name, and never returned to the browser. Saving tests the
+connection by listing websites.
+
+A site's analytics come from the Umami website whose domain matches the
+site's (ignoring `www.`), or the one the owner chose
+(`sites.umami_website_id`). `GET /api/sites/:id/analytics?range=&tz=` asks
+Umami for stats, pageviews by hour or day in the browser's time zone (empty
+buckets filled with zero), and the top pages and referrers. It reads both
+Umami 2's stats format (`{value, prev}`) and later versions' (numbers plus
+`comparison`), and asks for the `path` metric, falling back to Umami 2's `url`.
+Nothing is stored; the page refreshes it every five minutes.
+
 ## Plugin routes (`presser/v1`)
 
 | Route | Does |
