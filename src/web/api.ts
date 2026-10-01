@@ -136,7 +136,7 @@ export const setUpdatesExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/updates-excluded`, { method: "PUT", json: { excluded } });
 
 export interface ContentFilter {
-  type: "all" | "post" | "page";
+  type: string;
   status: "all" | "publish" | "future" | "draft" | "pending" | "private";
   search: string;
   page: number;

@@ -386,13 +386,20 @@ export interface SiteUser {
 export const CONTENT_STATUSES = ["publish", "future", "draft", "pending", "private"] as const;
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];
 
-export type ContentType = "post" | "page";
+/** A public post type on the site: posts, pages and any custom type. */
+export interface ContentTypeInfo {
+  slug: string;
+  /** Plural, as WordPress labels it: "Products". */
+  name: string;
+  singular: string;
+}
 
 /** A post or page, as the site lists it. Dates are seconds since the epoch, in UTC. */
 export interface SiteContentItem {
   id: number;
   title: string;
-  type: ContentType;
+  /** The post type slug. */
+  type: string;
   status: ContentStatus;
   author: string;
   date: number;
@@ -405,6 +412,8 @@ export interface SiteContent {
   items: SiteContentItem[];
   counts: Record<ContentStatus, number>;
   total: number;
+  /** The site's public post types; an older KontrolWP Connect lists only posts and pages and sends none. */
+  types?: ContentTypeInfo[];
 }
 
 export interface SiteUsers {

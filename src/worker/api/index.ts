@@ -758,7 +758,10 @@ api.post("/sites/:id/links/ignore", async (c) => {
 const PAGE_SIZE = 25;
 
 const contentQuery = z.object({
-  type: z.enum(["all", "post", "page"]).default("all"),
+  type: z
+    .string()
+    .regex(/^[a-z0-9_-]{1,20}$/)
+    .default("all"),
   status: z.enum(["all", ...CONTENT_STATUSES]).default("all"),
   search: z.string().trim().max(200).default(""),
   page: z.coerce.number().int().min(1).max(10_000).default(1),

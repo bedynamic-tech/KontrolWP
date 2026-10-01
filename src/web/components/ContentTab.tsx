@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { compareVersions, CONTENT_LIST_SINCE } from "../../shared/plugin-version";
-import type { ContentStatus, SiteContentItem, SiteSummary } from "../../shared/types";
+import type { ContentStatus, ContentTypeInfo, SiteContentItem, SiteSummary } from "../../shared/types";
 import { fetchContent, type ContentFilter } from "../api";
 import { plural } from "../format";
 import { EditButton } from "./LinksTab";
@@ -29,10 +29,10 @@ const STATUS_TONES: Record<ContentStatus, string> = {
   private: "bg-violet-500/15 text-violet-800 dark:text-violet-300",
 };
 
-const TYPES: { value: ContentFilter["type"]; label: string }[] = [
-  { value: "all", label: "All types" },
-  { value: "post", label: "Posts" },
-  { value: "page", label: "Pages" },
+/** What an older KontrolWP Connect lists: posts and pages, and no names for them. */
+const CORE_TYPES: ContentTypeInfo[] = [
+  { slug: "post", name: "Posts", singular: "Post" },
+  { slug: "page", name: "Pages", singular: "Page" },
 ];
 
 function supported(site: SiteSummary): boolean {
@@ -94,6 +94,8 @@ export function ContentTab(props: { site: SiteSummary }) {
   }
 
   const { items, counts, total } = content.data;
+  const types = content.data.types ?? CORE_TYPES;
+  const typeOptions = [{ slug: "all", name: "All types", singular: "" }, ...types];
   const all = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const chips: { value: ContentFilter["status"]; label: string; count: number }[] = [
     { value: "all", label: "All", count: all },
@@ -134,15 +136,15 @@ export function ContentTab(props: { site: SiteSummary }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex gap-1">
-            {TYPES.map((option) => (
+            {typeOptions.map((option) => (
               <Button
-                key={option.value}
+                key={option.slug}
                 size="sm"
-                variant={type === option.value ? "outline" : "ghost"}
-                onClick={() => choose(setType, option.value)}
-                aria-pressed={type === option.value}
+                variant={type === option.slug ? "outline" : "ghost"}
+                onClick={() => choose(setType, option.slug)}
+                aria-pressed={type === option.slug}
               >
-                {option.label}
+                {option.name}
               </Button>
             ))}
           </div>
@@ -165,7 +167,7 @@ export function ContentTab(props: { site: SiteSummary }) {
         )}
       >
         {items.length ? (
-          <ContentList site={site} items={items} />
+          <ContentList site={site} items={items} types={types} />
         ) : (
           <EmptyRow>{query ? "Nothing matches your search." : "Nothing here yet."}</EmptyRow>
         )}
@@ -227,10 +229,9 @@ function Actions(props: { site: SiteSummary; item: SiteContentItem }) {
   );
 }
 
-const typeLabel = (item: SiteContentItem) => (item.type === "page" ? "Page" : "Post");
-
-function ContentList(props: { site: SiteSummary; items: SiteContentItem[] }) {
-  const { site, items } = props;
+function ContentList(props: { site: SiteSummary; items: SiteContentItem[]; types: ContentTypeInfo[] }) {
+  const { site, items, types } = props;
+  const typeLabel = (item: SiteContentItem) => types.find((type) => type.slug === item.type)?.singular || item.type;
   const title = (item: SiteContentItem) => item.title || `(no title) #${item.id}`;
   return (
     <>
