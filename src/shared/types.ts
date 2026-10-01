@@ -142,6 +142,8 @@ export interface InstalledPlugin {
   protected: boolean;
   /** Presser Connect 0.7.0+: WordPress updates it automatically. */
   auto_update?: boolean;
+  /** Presser Connect 0.7.1+: its icon from WordPress's last update check, or "". */
+  icon_url?: string;
 }
 
 export interface SitePlugins {

@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version";
 import type { InstalledPlugin, PluginAction, SiteSummary } from "../../shared/types";
 import { fetchPlugins, installPlugin, managePlugin, type PluginInstall } from "../api";
+import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 
 function supported(site: SiteSummary): boolean {
@@ -113,33 +114,36 @@ function PluginRow(props: {
 
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium">{plugin.name}</p>
-          {plugin.active ? (
-            <Badge variant="secondary">{plugin.network_active ? "Network active" : "Active"}</Badge>
-          ) : (
-            <Badge variant="outline">Inactive</Badge>
-          )}
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <RemoteIcon sources={plugin.protected ? ["/presser.svg"] : pluginIconSources(plugin.file, plugin.icon_url)} name={plugin.name} className="size-9 text-sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-medium">{plugin.name}</p>
+            {plugin.active ? (
+              <Badge variant="secondary">{plugin.network_active ? "Network active" : "Active"}</Badge>
+            ) : (
+              <Badge variant="outline">Inactive</Badge>
+            )}
+          </div>
+          <p className="truncate text-xs text-muted-foreground">
+            {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
+            {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
+            {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined && (
+              <>
+                {` · Auto-updates ${plugin.auto_update ? "on" : "off"} · `}
+                <button
+                  type="button"
+                  className="hover:text-foreground hover:underline disabled:opacity-60"
+                  disabled={action.isPending}
+                  onClick={() => action.mutate(plugin.auto_update ? "disable-auto-update" : "enable-auto-update")}
+                >
+                  {plugin.auto_update ? "Disable" : "Enable"}
+                </button>
+              </>
+            )}
+          </p>
+          {action.error && <p className="mt-1 text-xs text-destructive">{action.error.message}</p>}
         </div>
-        <p className="truncate text-xs text-muted-foreground">
-          {[plugin.version && `Version ${plugin.version}`, plugin.author].filter(Boolean).join(" · ")}
-          {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
-          {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined && (
-            <>
-              {` · Auto-updates ${plugin.auto_update ? "on" : "off"} · `}
-              <button
-                type="button"
-                className="hover:text-foreground hover:underline disabled:opacity-60"
-                disabled={action.isPending}
-                onClick={() => action.mutate(plugin.auto_update ? "disable-auto-update" : "enable-auto-update")}
-              >
-                {plugin.auto_update ? "Disable" : "Enable"}
-              </button>
-            </>
-          )}
-        </p>
-        {action.error && <p className="mt-1 text-xs text-destructive">{action.error.message}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {action.isPending && <span className="text-xs text-muted-foreground">{ACTION_LABELS[action.variables]}</span>}

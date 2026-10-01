@@ -101,7 +101,7 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
         `SELECT p.site_id, s.name AS site_name, s.url AS site_url, s.icon_url AS site_icon_url, s.updates_excluded,
                 s.plugin_version AS site_plugin_version, s.plugin_auto_updates AS site_plugin_auto_updates,
                 p.file, p.name, p.version, p.author, p.active, p.network_active, p.protected, p.auto_update,
-                u.new_version, u.icon_url, j.status AS job_status, j.error AS job_error
+                u.new_version, COALESCE(NULLIF(u.icon_url, ''), NULLIF(p.icon_url, '')) AS icon_url, j.status AS job_status, j.error AS job_error
          FROM site_plugins p JOIN sites s ON s.id = p.site_id
          LEFT JOIN site_updates u ON u.site_id = p.site_id AND u.kind = 'plugin' AND u.slug = p.file
          LEFT JOIN update_jobs j ON j.site_id = p.site_id AND j.kind = 'plugin' AND j.slug = p.file

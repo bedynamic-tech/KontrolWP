@@ -55,7 +55,7 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
     if (route === "/presser/v1/plugins") {
       return json({
         plugins: [
-          { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false, auto_update: true },
+          { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false, auto_update: true, icon_url: "https://ps.w.org/akismet/assets/icon.svg" },
           { file: "presser-connect/presser-connect.php", name: "Presser Connect", version: plugin_version, author: "Presser", active: true, network_active: false, protected: true },
         ],
         can_modify_files: true,
@@ -309,10 +309,10 @@ test("sync keeps each site's plugins for the Plugins page, with their updates", 
   await syncSite(t.env, 1);
   const fleet = await listFleetPlugins(t.env.DB);
   assert.deepEqual(
-    fleet.plugins.map((p) => [p.file, p.active, p.protected, p.auto_update, p.new_version, p.site_name]),
+    fleet.plugins.map((p) => [p.file, p.active, p.protected, p.auto_update, p.new_version, p.icon_url, p.site_name]),
     [
-      ["akismet/akismet.php", true, false, true, "5.4", "Example"],
-      ["presser-connect/presser-connect.php", true, true, false, null, "Example"],
+      ["akismet/akismet.php", true, false, true, "5.4", "https://ps.w.org/akismet/assets/icon.svg", "Example"],
+      ["presser-connect/presser-connect.php", true, true, false, null, null, "Example"],
     ],
   );
   assert.deepEqual(fleet.unsupported_sites, []);

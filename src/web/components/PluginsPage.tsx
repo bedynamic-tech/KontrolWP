@@ -28,7 +28,7 @@ import { applyUpdate, bulkPluginAction, fetchFleetPlugins, fetchOverview, instal
 import { autoUpdatesSupported } from "./CoreAutoUpdate";
 import { InstallDialog } from "./PluginsSection";
 import { SitePicker } from "./SitePicker";
-import { RemoteIcon } from "./RemoteIcon";
+import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 
 const QUERY_KEY = ["fleet-plugins"];
@@ -208,7 +208,7 @@ function PluginGroup(props: { plugins: FleetPlugin[] }) {
     <li>
       <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <RemoteIcon sources={[first.icon_url]} name={first.name} className="size-9 text-sm" />
+          <RemoteIcon sources={first.protected ? ["/presser.svg"] : pluginIconSources(first.file, plugins.find((p) => p.icon_url)?.icon_url)} name={first.name} className="size-9 text-sm" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate text-sm font-medium">{first.name}</span>

@@ -157,7 +157,7 @@ WordPress auto-updates dialog sets core across chosen sites.
 | `POST /self-update` | `{version, package}`. Installs the Presser Connect zip the dashboard ships (base64 in the signed body, so the signature covers it) through WordPress's plugin upgrader, keeping the plugin's folder. Refuses a version that is not newer. Added in 0.4.0. |
 | `GET /admins` | Users who can `manage_options`, for the Magic Login setting. Added in 0.5.0. |
 | `POST /login` | `{user_id}`. A one-time `wp-login.php?action=presser_login` link for that administrator, valid for 60 seconds. Added in 0.5.0. |
-| `GET /plugins` | Installed plugins with version, author and active state, and whether file changes are allowed. Added in 0.6.0. |
+| `GET /plugins` | Installed plugins with version, author and active state, and whether file changes are allowed. Added in 0.6.0; auto-update state in 0.7.0; each plugin's icon from WordPress's last update check in 0.7.1. |
 | `POST /plugins/manage` | `{plugin, action: activate, deactivate, delete, enable-auto-update or disable-auto-update}`. Delete deactivates first, then uses `delete_plugins`. Presser Connect refuses to deactivate or delete itself. Added in 0.6.0; auto-update actions in 0.7.0. |
 | `POST /core/auto-update` | `{mode: all, minor or off}`. Sets WordPress core auto-updates; refuses when wp-config.php decides them. Added in 0.7.0. |
 | `POST /plugins/install` | `{source: wordpress.org, url or zip, slug, url or package, activate}`. Installs through `Plugin_Upgrader::install`: a WordPress.org slug resolves through `plugins_api`, a link is downloaded by the site, a zip (up to 10 MB, base64 in the signed body) is written to a temp file. Added in 0.6.0. |

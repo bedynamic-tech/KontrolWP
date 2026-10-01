@@ -91,7 +91,11 @@ class Presser_Connect_Plugins {
 		self::load_admin_includes();
 		$own   = plugin_basename( PRESSER_CONNECT_FILE );
 		$auto  = (array) get_site_option( 'auto_update_plugins', array() );
-		$items = array();
+		// WordPress keeps each plugin's icons from its last update check, for
+		// plugins with an update and without one.
+		$checked = get_site_transient( 'update_plugins' );
+		$checked = is_object( $checked ) ? array_merge( (array) ( $checked->no_update ?? array() ), (array) ( $checked->response ?? array() ) ) : array();
+		$items   = array();
 		foreach ( get_plugins() as $file => $data ) {
 			$items[] = array(
 				'file'           => $file,
@@ -102,6 +106,7 @@ class Presser_Connect_Plugins {
 				'network_active' => is_multisite() && is_plugin_active_for_network( $file ),
 				'protected'      => $file === $own,
 				'auto_update'    => in_array( $file, $auto, true ),
+				'icon_url'       => isset( $checked[ $file ]->icons ) ? Presser_Connect_Rest::plugin_icon( $checked[ $file ]->icons ) : '',
 			);
 		}
 		return array(
