@@ -46,29 +46,44 @@ function importKey(value: string | undefined): Promise<CryptoKey> {
   return key;
 }
 
-export async function encryptSecret(keyValue: string | undefined, siteId: number, secret: string): Promise<string> {
+export function encryptSecret(keyValue: string | undefined, siteId: number, secret: string): Promise<string> {
+  return seal(keyValue, aad(siteId), secret);
+}
+
+export function decryptSecret(keyValue: string | undefined, siteId: number, stored: string): Promise<string> {
+  return open(keyValue, aad(siteId), stored, UNREADABLE);
+}
+
+// Dashboard settings, such as the Umami API key, are bound to their name.
+const settingAad = (name: string) => encoder.encode(`presser-setting:${name}`);
+
+export function encryptSetting(keyValue: string | undefined, name: string, secret: string): Promise<string> {
+  return seal(keyValue, settingAad(name), secret);
+}
+
+export function decryptSetting(keyValue: string | undefined, name: string, stored: string): Promise<string> {
+  return open(keyValue, settingAad(name), stored, "Presser could not decrypt a saved setting. If SITE_SECRETS_KEY changed, enter it again in Settings.");
+}
+
+async function seal(keyValue: string | undefined, additionalData: Uint8Array, secret: string): Promise<string> {
   const key = await importKey(keyValue);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const sealed = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, additionalData: aad(siteId) },
-    key,
-    encoder.encode(secret),
-  );
+  const sealed = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData }, key, encoder.encode(secret));
   return [VERSION, base64UrlEncode(iv), base64UrlEncode(new Uint8Array(sealed))].join(".");
 }
 
-export async function decryptSecret(keyValue: string | undefined, siteId: number, stored: string): Promise<string> {
+async function open(keyValue: string | undefined, additionalData: Uint8Array, stored: string, unreadable: string): Promise<string> {
   const key = await importKey(keyValue);
   const [version, iv, sealed] = stored.split(".");
-  if (version !== VERSION || !iv || !sealed) throw new SecretsKeyError(UNREADABLE);
+  if (version !== VERSION || !iv || !sealed) throw new SecretsKeyError(unreadable);
   try {
     const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64UrlDecode(iv), additionalData: aad(siteId) },
+      { name: "AES-GCM", iv: base64UrlDecode(iv), additionalData },
       key,
       base64UrlDecode(sealed),
     );
     return new TextDecoder().decode(plain);
   } catch {
-    throw new SecretsKeyError(UNREADABLE);
+    throw new SecretsKeyError(unreadable);
   }
 }

@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon } from "lucide-react";
+import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
+import { SettingsPage } from "./components/SettingsPage";
 import { OverviewPage } from "./components/OverviewPage";
 import { PluginsPage } from "./components/PluginsPage";
 import { SitePage } from "./components/SitePage";
@@ -36,6 +37,7 @@ export function App() {
           <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
           <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
           <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
+          <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
         </nav>
         <a
           href={PLUGIN_ZIP_URL}
@@ -54,6 +56,7 @@ export function App() {
               <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
               <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
               <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
+              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" compact />
             </nav>
             {/* The sidebar is hidden on small screens, so its download link moves here. */}
             <a
@@ -74,6 +77,7 @@ export function App() {
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/sites/:siteId" element={<SitePage />} />
             <Route path="/plugins" element={<PluginsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

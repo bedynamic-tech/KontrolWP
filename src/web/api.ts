@@ -2,7 +2,11 @@ import type {
   BulkPluginResult,
   CommentAction,
   CoreAutoUpdate,
+  AnalyticsRange,
   FleetPlugins,
+  SiteAnalytics,
+  UmamiSettings,
+  UmamiWebsite,
   Overview,
   PluginAction,
   SiteAdmin,
@@ -153,3 +157,24 @@ export const setCoreAutoUpdate = (siteId: number, mode: CoreAutoUpdate) =>
 
 export const bulkCoreAutoUpdate = (siteIds: number[], mode: CoreAutoUpdate) =>
   request<{ results: BulkPluginResult[] }>("/core-auto-update", { method: "POST", json: { mode, site_ids: siteIds } });
+
+export const fetchUmamiSettings = () => request<UmamiSettings>("/settings/umami");
+
+export type UmamiInput =
+  | { mode: "cloud"; secret?: string }
+  | { mode: "self-hosted"; url: string; username: string; secret?: string };
+
+export const saveUmamiSettings = (input: UmamiInput) =>
+  request<UmamiSettings & { websites: number }>("/settings/umami", { method: "PUT", json: input });
+
+export const deleteUmamiSettings = () => request<UmamiSettings>("/settings/umami", { method: "DELETE" });
+
+export const fetchUmamiWebsites = () => request<{ websites: UmamiWebsite[] }>("/umami/websites");
+
+export const setSiteUmamiWebsite = (siteId: number, websiteId: string | null) =>
+  request<{ ok: true }>(`/sites/${siteId}/umami`, { method: "PUT", json: { website_id: websiteId } });
+
+export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return request<SiteAnalytics>(`/sites/${siteId}/analytics?range=${range}&tz=${encodeURIComponent(tz)}`);
+};

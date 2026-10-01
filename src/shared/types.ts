@@ -192,3 +192,48 @@ export interface BulkPluginResult {
   ok: boolean;
   error?: string;
 }
+
+export type UmamiMode = "cloud" | "self-hosted";
+
+/** The Umami connection as Settings shows it; the API key or password never leaves the Worker. */
+export interface UmamiSettings {
+  configured: boolean;
+  mode: UmamiMode;
+  /** The self-hosted Umami address; empty for Umami Cloud. */
+  url: string;
+  username: string;
+}
+
+export interface UmamiWebsite {
+  id: string;
+  name: string;
+  domain: string;
+}
+
+export type AnalyticsRange = "24h" | "7d" | "30d" | "90d";
+
+export interface AnalyticsStat {
+  value: number;
+  /** The same figure for the period before, when Umami reports it. */
+  previous: number | null;
+}
+
+export interface SiteAnalytics {
+  /** The Umami website shown, or null when none matches the site. */
+  website: UmamiWebsite | null;
+  /** True when the owner chose the website rather than Presser matching it by domain. */
+  chosen: boolean;
+  range: AnalyticsRange;
+  stats: {
+    visitors: AnalyticsStat;
+    visits: AnalyticsStat;
+    pageviews: AnalyticsStat;
+    bounces: AnalyticsStat;
+    /** Total visit time in seconds. */
+    totaltime: AnalyticsStat;
+  } | null;
+  /** One point per hour (24h) or day, in the browser's time zone. */
+  series: { label: string; pageviews: number; visitors: number }[];
+  pages: { label: string; count: number }[];
+  referrers: { label: string; count: number }[];
+}

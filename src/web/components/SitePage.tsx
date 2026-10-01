@@ -26,6 +26,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
+import { AnalyticsSection } from "./AnalyticsSection";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
 import { EmptyRow, Section } from "./Section";
@@ -170,6 +171,8 @@ export function SitePage() {
         <Fact label="Theme" value={site.theme_name} />
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
+
+      <AnalyticsSection site={site} />
 
       {excludeUpdates.error && <p className="mt-4 text-sm text-destructive">{excludeUpdates.error.message}</p>}
       {site.updates_excluded ? (
