@@ -214,7 +214,9 @@ api.post("/sites/:id/updates", async (c) => {
   const id = siteId(c);
   const parsed = updateAction.safeParse(await c.req.json().catch(() => null));
   if (!id || !parsed.success) return c.json({ error: "Invalid update" }, 400);
-  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  const site = await getSite(c.env.DB, id);
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  if (site.updates_excluded) return c.json({ error: "This site is excluded from update checks" }, 409);
   await enqueueUpdate(c.env, id, parsed.data);
   return c.json({ ok: true }, 202);
 });
@@ -295,6 +297,32 @@ api.post("/sites/:id/magic-login", async (c) => {
   }
   c.header("Cache-Control", "no-store");
   return c.json({ url: url.href });
+});
+
+const updatesExcluded = z.object({ excluded: z.boolean() });
+
+/**
+ * Exclude a site from update checks, or include it again. Excluding drops
+ * its listed updates and anything still waiting in its queue; including it
+ * checks right away.
+ */
+api.put("/sites/:id/updates-excluded", async (c) => {
+  const id = siteId(c);
+  const parsed = updatesExcluded.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid setting" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  const { excluded } = parsed.data;
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE sites SET updates_excluded = ? WHERE id = ?").bind(excluded ? 1 : 0, id),
+    ...(excluded
+      ? [
+          c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
+          c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running'").bind(id),
+        ]
+      : []),
+  ]);
+  if (!excluded) await syncSite(c.env, id);
+  return c.json(await getSite(c.env.DB, id));
 });
 
 async function siteAction(

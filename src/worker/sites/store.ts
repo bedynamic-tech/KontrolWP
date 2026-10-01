@@ -6,7 +6,7 @@ import { decryptSecret } from "./secrets.ts";
 const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
-  s.login_user_id, s.login_user_name,
+  s.login_user_id, s.login_user_name, s.updates_excluded,
   j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
@@ -16,13 +16,21 @@ const SELF_UPDATE_JOIN = `LEFT JOIN update_jobs j
 export async function listSites(db: D1Database): Promise<SiteSummary[]> {
   const { results } = await db
     .prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ${SELF_UPDATE_JOIN} ORDER BY s.name COLLATE NOCASE`)
-    .all<SiteSummary>();
-  return results;
+    .all<SiteRow>();
+  return results.map(summary);
 }
 
 export async function getSite(db: D1Database, id: number): Promise<SiteSummary | null> {
-  return db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ${SELF_UPDATE_JOIN} WHERE s.id = ?`).bind(id).first<SiteSummary>();
+  const row = await db
+    .prepare(`SELECT ${SUMMARY_COLUMNS} FROM sites s ${SELF_UPDATE_JOIN} WHERE s.id = ?`)
+    .bind(id)
+    .first<SiteRow>();
+  return row && summary(row);
 }
+
+type SiteRow = Omit<SiteSummary, "updates_excluded"> & { updates_excluded: number };
+
+const summary = (row: SiteRow): SiteSummary => ({ ...row, updates_excluded: Boolean(row.updates_excluded) });
 
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */
 export async function getCredentials(env: Env, id: number): Promise<SiteCredentials | null> {
@@ -48,7 +56,8 @@ export async function getCredentials(env: Env, id: number): Promise<SiteCredenti
 const SETTLE_SECONDS = 5 * 60;
 
 export async function listUpdates(db: D1Database, siteId?: number): Promise<SiteUpdate[]> {
-  const where = siteId === undefined ? "" : "WHERE u.site_id = ?";
+  // Excluded sites have no stored updates; the filter covers a sync in flight.
+  const where = siteId === undefined ? "WHERE s.updates_excluded = 0" : "WHERE u.site_id = ?";
   const settle = SETTLE_SECONDS;
   const statement = db.prepare(
     `SELECT u.site_id, s.name AS site_name, s.url AS site_url, u.kind, u.slug, u.name, u.current_version, u.new_version,

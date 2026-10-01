@@ -20,13 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSite, fetchSite, replaceConnectionKey, syncSite } from "../api";
+import { deleteSite, fetchSite, replaceConnectionKey, setUpdatesExcluded, syncSite } from "../api";
 import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
-import { Section } from "./Section";
+import { EmptyRow, Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
@@ -62,6 +62,10 @@ export function SitePage() {
   };
   // A failed sync is recorded on the site, so the refreshed page shows why.
   const sync = useMutation({ mutationFn: () => syncSite(id), onSettled: refresh });
+  const excludeUpdates = useMutation({
+    mutationFn: (excluded: boolean) => setUpdatesExcluded(id, excluded),
+    onSettled: refresh,
+  });
   const replaceKey = useMutation({
     mutationFn: () => replaceConnectionKey(id, connectionKey),
     onSuccess: () => {
@@ -122,6 +126,12 @@ export function SitePage() {
                 Change Magic Login administrator
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setReplacingKey(true)}>Change connection key</DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={excludeUpdates.isPending}
+                onSelect={() => excludeUpdates.mutate(!site.updates_excluded)}
+              >
+                {site.updates_excluded ? "Include in update checks" : "Exclude from update checks"}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={() => setConfirmRemove(true)}>
                 Remove site
@@ -159,9 +169,18 @@ export function SitePage() {
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
 
-      <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
-        <UpdatesList updates={updates} showSite={false} />
-      </Section>
+      {excludeUpdates.error && <p className="mt-4 text-sm text-destructive">{excludeUpdates.error.message}</p>}
+      {site.updates_excluded ? (
+        <Section title="Updates">
+          <EmptyRow>
+            This site is excluded from update checks. Include it again from the menu next to Sync now.
+          </EmptyRow>
+        </Section>
+      ) : (
+        <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
+          <UpdatesList updates={updates} showSite={false} />
+        </Section>
+      )}
       <Section title={`Comments awaiting review (${site.pending_comments})`}>
         <CommentsList comments={comments} showSite={false} />
       </Section>
