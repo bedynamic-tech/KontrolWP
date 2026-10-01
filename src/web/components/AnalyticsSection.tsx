@@ -3,6 +3,7 @@ import { PencilIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
 import { fetchSiteAnalytics, fetchUmamiSettings, fetchUmamiWebsites, setSiteUmamiWebsite } from "../api";
@@ -122,7 +123,7 @@ function AnalyticsBody(props: { data: SiteAnalytics }) {
 export function AnalyticsFooter(props: { site: SiteSummary; data: SiteAnalytics; children?: ReactNode }) {
   const { data } = props;
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
+    <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
       <span>Connected to {data.website!.name || data.website!.domain}</span>
       <WebsitePicker site={props.site} current={data.website!.id} chosen={data.chosen} compact />
       <span className="ml-auto flex items-center gap-3">
@@ -288,15 +289,16 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
 
   if (!open) {
     return (
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-xs"
         aria-label="Change the Umami website"
         title="Change the Umami website"
-        className="-my-1 inline-flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
+        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
         onClick={() => setOpen(true)}
       >
-        <PencilIcon className="size-3.5" />
-      </button>
+        <PencilIcon />
+      </Button>
     );
   }
   return (
