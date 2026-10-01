@@ -254,6 +254,26 @@ excludes a site: its scan and every link it found are deleted, scheduled
 checks skip it, Scan now answers 409, and its Links tab says detection is off.
 Including it again leaves the tab ready to scan.
 
+## Security
+
+The Security tab (WordPress sites) shows known vulnerabilities and insecure settings.
+
+Vulnerabilities come from the free Wordfence Intelligence scanner feed
+(`https://www.wordfence.com/api/intelligence/v2/vulnerabilities/scanner`). The feed is one
+very large JSON object, so `src/worker/sites/vulnerabilities.ts` reads it as a stream, splits
+out one entry at a time and keeps only WordPress core and the plugins some connected site has
+installed (`site_plugins`). The rows go to the `vulnerabilities` table, one per affected
+version range. The cron trigger refreshes them once a day, and an hour after a failed
+attempt; the refresh button on the tab (`POST /api/security/refresh`) does it at once. A
+feed that fails or comes back empty leaves the stored rows alone, and the error shows on the
+tab. `GET /api/sites/:id/security` matches the site's WordPress version and plugin versions
+from the last sync against those rows when the tab opens, so nothing per site is stored.
+Themes are not matched because sites report only their active theme's name.
+
+The settings findings combine what the dashboard already knows (HTTPS, a PHP version that no
+longer gets fixes, a waiting core update, inactive plugins) with the plugin's `GET /security`
+report (0.12.0). Sites on an older plugin show only the first group, with a note.
+
 ## Posts and pages
 
 The Posts and pages tab (KontrolWP Connect 0.10.0) lists a WordPress site's
@@ -284,6 +304,7 @@ in D1, and static sites do not have the tab.
 | `POST /users/manage` | `{user_id, action: set-role, reset-password or delete, role}`. Refuses to demote or delete the only administrator; delete gives the user's content to the earliest other administrator. Added in 0.8.0. |
 | `POST /links` | `{page, per_page, post_ids}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. With `post_ids` (up to 100), just those posts, if still published. Added in 0.9.0; `post_ids` in 0.9.2. |
 | `POST /content` | `{page, per_page, type: all or a post type slug, status: all, publish, future, draft, pending or private, search}`. One page of posts, pages and custom post types (newest first, up to 100 per page) with title, type, status, author, dates and permalink, the count of each status for the chosen type, the total matching, and the site's public post types with their names (custom types, 0.11.0). Read-only; trash is left out. Added in 0.10.0. |
+| `GET /security` | No body. Settings worth fixing: whether errors are printed into pages (`WP_DEBUG` with `WP_DEBUG_DISPLAY`), whether the wp-admin code editor is allowed, whether a user named `admin` exists and whether XML-RPC is on. Read-only. Added in 0.12.0. |
 | `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |

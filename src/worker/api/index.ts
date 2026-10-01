@@ -22,6 +22,7 @@ import type {
   CloudflareSettings,
   CloudflareWorker,
   SiteContent,
+  SiteSecurity,
   SiteSitemap,
   SiteUsers,
   SyncSettings,
@@ -51,6 +52,7 @@ import {
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
+import { refreshFeed, siteSecurity } from "../sites/vulnerabilities.ts";
 import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
@@ -180,7 +182,7 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
 
 // A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -812,6 +814,21 @@ api.get("/sites/:id/content", async (c) => {
       502,
     );
   }
+});
+
+/** Known vulnerabilities and insecure settings on one WordPress site. */
+api.get("/sites/:id/security", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site || !credentials) return c.json({ error: "Site not found" }, 404);
+  return c.json<SiteSecurity>(await siteSecurity(c.env, site, credentials));
+});
+
+/** Download the vulnerability feed again now instead of waiting for the daily refresh. */
+api.post("/security/refresh", async (c) => {
+  const state = await refreshFeed(c.env);
+  if (state.error) return c.json({ error: state.error }, 502);
+  return c.json({ updated_at: state.updated_at });
 });
 
 api.get("/sites/:id/users", (c) =>

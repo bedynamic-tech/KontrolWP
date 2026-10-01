@@ -586,3 +586,39 @@ export interface BuildLog {
   cursor: string | null;
   truncated: boolean;
 }
+
+export type VulnSeverity = "critical" | "high" | "medium" | "low" | "unknown";
+
+/** A known vulnerability that affects the version of WordPress or a plugin a site runs. */
+export interface SiteVulnerability {
+  id: string;
+  kind: "core" | "plugin";
+  slug: string;
+  name: string;
+  installed_version: string;
+  /** False for an installed plugin that is switched off; its files are still on the site. */
+  active: boolean;
+  title: string;
+  cve: string | null;
+  cvss: number | null;
+  severity: VulnSeverity;
+  /** The first version that fixes it, when the feed names one. */
+  patched_in: string | null;
+  url: string;
+}
+
+export interface SecurityCheck {
+  id: string;
+  /** "ok" passes; "warning" is worth fixing. */
+  status: "ok" | "warning";
+  title: string;
+  detail: string;
+}
+
+export interface SiteSecurity {
+  vulnerabilities: SiteVulnerability[];
+  checks: SecurityCheck[];
+  /** Why the plugin's own settings are missing from the checks, when they are. */
+  checks_note: string | null;
+  feed: { updated_at: number | null; error: string | null };
+}
