@@ -152,19 +152,23 @@ class Presser_Connect_Rest {
 		self::load_admin_includes();
 
 		// WordPress checks on its own twice a day. Refresh only stale data so
-		// frequent dashboard syncs never hammer api.wordpress.org.
-		$core = get_site_transient( 'update_core' );
-		if ( ! is_object( $core ) || empty( $core->last_checked ) || time() - $core->last_checked > 12 * HOUR_IN_SECONDS ) {
-			wp_version_check();
+		// frequent dashboard syncs never hammer api.wordpress.org; data checked
+		// against another version (before a core update) is stale too.
+		$installed = get_bloginfo( 'version' );
+		$core      = get_site_transient( 'update_core' );
+		if ( ! is_object( $core ) || empty( $core->last_checked ) || time() - $core->last_checked > 12 * HOUR_IN_SECONDS
+			|| ! isset( $core->version_checked ) || $core->version_checked !== $installed ) {
+			wp_version_check( array(), true );
 		}
 		wp_update_plugins();
 		wp_update_themes();
 
 		$core_update = null;
 		foreach ( (array) get_core_updates() as $offer ) {
-			if ( is_object( $offer ) && isset( $offer->response ) && 'upgrade' === $offer->response ) {
+			if ( is_object( $offer ) && isset( $offer->response ) && 'upgrade' === $offer->response
+				&& isset( $offer->current ) && version_compare( $offer->current, $installed, '>' ) ) {
 				$core_update = array(
-					'current'     => get_bloginfo( 'version' ),
+					'current'     => $installed,
 					'new_version' => $offer->current,
 					'icon_url'    => includes_url( 'images/w-logo-blue.png' ),
 				);
