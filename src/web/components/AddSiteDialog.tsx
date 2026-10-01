@@ -28,6 +28,7 @@ export function AddSiteDialog() {
   const [connectionKey, setConnectionKey] = useState("");
   const [kind, setKind] = useState<SiteKind>("wordpress");
   const [name, setName] = useState("");
+  const [onCloudflare, setOnCloudflare] = useState(false);
   const [worker, setWorker] = useState<WorkerChoice | null>(null);
   // Once connected, the dialog asks for the Magic Login administrator.
   const [added, setAdded] = useState<SiteSummary | null>(null);
@@ -43,8 +44,9 @@ export function AddSiteDialog() {
               kind,
               url: address,
               name: name.trim() || undefined,
-              cf_account_id: worker?.account_id,
-              cf_worker: worker?.worker,
+              cloudflare: onCloudflare,
+              cf_account_id: onCloudflare ? worker?.account_id : undefined,
+              cf_worker: onCloudflare ? worker?.worker : undefined,
             }
           : { url: address, connection_key: connectionKey },
       );
@@ -74,6 +76,7 @@ export function AddSiteDialog() {
       setConnectionKey("");
       setName("");
       setWorker(null);
+      setOnCloudflare(false);
       setKind("wordpress");
       setAdded(null);
       create.reset();
@@ -115,7 +118,7 @@ export function AddSiteDialog() {
               <DialogDescription>
                 {kind === "wordpress"
                   ? "KontrolWP uses the site's own name from WordPress."
-                  : "A static website hosted on Cloudflare Workers. KontrolWP shows its analytics and, with a Cloudflare API token, its deployments."}
+                  : "A static website, hosted anywhere. KontrolWP shows its analytics and domain, and, for a site on Cloudflare Workers, its deployments."}
               </DialogDescription>
             </DialogHeader>
             <Tabs value={kind} onValueChange={(value) => setKind(value as SiteKind)}>
@@ -160,10 +163,21 @@ export function AddSiteDialog() {
                     maxLength={120}
                   />
                 </label>
-                <div className="space-y-1.5">
-                  <span className="block text-sm font-medium">Cloudflare Worker</span>
-                  <CloudflareWorkerSelect value={worker} onChange={setWorker} className={`${SELECT_CLASS} w-full`} />
-                </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={onCloudflare}
+                    onChange={(e) => setOnCloudflare(e.target.checked)}
+                  />
+                  Hosted on Cloudflare Workers
+                </label>
+                {onCloudflare && (
+                  <div className="space-y-1.5">
+                    <span className="block text-sm font-medium">Cloudflare Worker</span>
+                    <CloudflareWorkerSelect value={worker} onChange={setWorker} className={`${SELECT_CLASS} w-full`} />
+                  </div>
+                )}
               </>
             )}
             {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}

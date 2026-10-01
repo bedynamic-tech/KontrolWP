@@ -52,11 +52,13 @@ export function SitesPage() {
                     {site.kind === "static" ? (
                       <>
                         <span>Static site</span>
-                        <span>
-                          {site.last_deployed_at
-                            ? `Deployed ${timeAgo(site.last_deployed_at).toLowerCase()}`
-                            : "No deployments"}
-                        </span>
+                        {site.cf_hosted && (
+                          <span>
+                            {site.last_deployed_at
+                              ? `Deployed ${timeAgo(site.last_deployed_at).toLowerCase()}`
+                              : "No deployments"}
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>

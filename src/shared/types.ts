@@ -36,7 +36,9 @@ export interface SiteSummary {
   plugin_auto_updates: boolean;
   /** The Umami website the owner chose for this site; null matches by domain. */
   umami_website_id: string | null;
-  /** Static sites: the Cloudflare Worker they deploy from, and why reading it last failed. */
+  /** Static sites: hosted on Cloudflare Workers, so Deployments and the Worker below apply. */
+  cf_hosted: boolean;
+  /** Static sites hosted there: the Worker they deploy from, and why reading it last failed. */
   cf_account_id: string | null;
   cf_worker: string | null;
   cf_error: string | null;

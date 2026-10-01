@@ -9,7 +9,7 @@ const SUMMARY_COLUMNS = `
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded,
   s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates, s.umami_website_id,
-  s.cf_account_id, s.cf_worker, s.cf_error,
+  s.cf_hosted, s.cf_account_id, s.cf_worker, s.cf_error,
   (SELECT MAX(d.created_at) FROM site_deployments d WHERE d.site_id = s.id AND d.type = 'deployment') AS last_deployed_at,
   j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
@@ -32,7 +32,7 @@ export async function getSite(db: D1Database, id: number): Promise<SiteSummary |
   return row && summary(row);
 }
 
-type SiteFlag = "updates_excluded" | "core_auto_update_locked" | "plugin_auto_updates";
+type SiteFlag = "updates_excluded" | "core_auto_update_locked" | "plugin_auto_updates" | "cf_hosted";
 type SiteRow = Omit<SiteSummary, SiteFlag> & Record<SiteFlag, number>;
 
 const summary = (row: SiteRow): SiteSummary => ({
@@ -40,6 +40,7 @@ const summary = (row: SiteRow): SiteSummary => ({
   updates_excluded: Boolean(row.updates_excluded),
   core_auto_update_locked: Boolean(row.core_auto_update_locked),
   plugin_auto_updates: Boolean(row.plugin_auto_updates),
+  cf_hosted: Boolean(row.cf_hosted),
 });
 
 /** The site's URL and decrypted secret. Throws SecretsKeyError when the key is wrong. */

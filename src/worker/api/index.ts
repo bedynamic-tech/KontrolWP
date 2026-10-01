@@ -1,11 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import {
-  decodeConnectionKey,
-  normalizeSiteUrl,
-  REST_NAMESPACE,
-  type ConnectionKey,
-} from "../../shared/protocol.ts";
+import { decodeConnectionKey, normalizeSiteUrl, REST_NAMESPACE, type ConnectionKey } from "../../shared/protocol.ts";
 import type {
   BulkPluginResult,
   BulkUserResult,
@@ -31,10 +26,25 @@ import type {
   UmamiSettings,
 } from "../../shared/types.ts";
 import { LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
-import { linkScanSchedule, loadLinkScanSettings, saveLinkScanSettings, validTimeZone as isTimeZone } from "../sites/link-schedule.ts";
+import {
+  linkScanSchedule,
+  loadLinkScanSettings,
+  saveLinkScanSettings,
+  validTimeZone as isTimeZone,
+} from "../sites/link-schedule.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
-import { getCredentials, getSite, listComments, listDeployments, listFleetLinks, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
+import {
+  getCredentials,
+  getSite,
+  listComments,
+  listDeployments,
+  listFleetLinks,
+  listFleetPlugins,
+  listFleetUsers,
+  listSites,
+  listUpdates,
+} from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
@@ -88,16 +98,15 @@ api.use("*", async (c, next) => {
 // exists. Runs after Access, so only signed-in owners see this.
 api.use("*", async (c, next) => {
   if (!isValidSecretsKey(c.env.SITE_SECRETS_KEY)) {
-    return c.json(
-      { error: "SITE_SECRETS_KEY is missing or invalid", code: "secrets_key_missing" },
-      503,
-    );
+    return c.json({ error: "SITE_SECRETS_KEY is missing or invalid", code: "secrets_key_missing" }, 503);
   }
   await next();
 });
 
 api.get("/overview", async (c) => {
-  c.executionCtx.waitUntil(queueSelfUpdatesAfterDeploy(c.env).catch((error) => console.error("self-update after deploy", error)));
+  c.executionCtx.waitUntil(
+    queueSelfUpdatesAfterDeploy(c.env).catch((error) => console.error("self-update after deploy", error)),
+  );
   const [sites, updates, comments, links] = await Promise.all([
     listSites(c.env.DB),
     listUpdates(c.env.DB),
@@ -131,6 +140,8 @@ const staticSiteInput = z.object({
   kind: z.literal("static"),
   url: z.string().trim().min(1).max(2000),
   name: z.string().trim().max(120).optional(),
+  /** Hosted on Cloudflare Workers; only then is a Worker taken. */
+  cloudflare: z.boolean().optional(),
   cf_account_id: z.string().trim().max(64).optional(),
   cf_worker: z.string().trim().max(200).optional(),
 });
@@ -143,20 +154,30 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
   if (existing) return c.json({ error: "This site is already in KontrolWP", id: existing.id }, 409);
   const { error } = await inspectStaticSite(url);
   if (error) return c.json({ error: `KontrolWP could not open ${url}. ${error}.` }, 400);
-  const worker = input.cf_account_id && input.cf_worker ? input : null;
-  const row = await c.env.DB
-    .prepare("INSERT INTO sites (kind, name, url, secret, cf_account_id, cf_worker) VALUES ('static', ?, ?, '', ?, ?) RETURNING id")
-    .bind(input.name || new URL(url).hostname, url, worker?.cf_account_id ?? null, worker?.cf_worker ?? null)
+  const worker = input.cloudflare && input.cf_account_id && input.cf_worker ? input : null;
+  const row = await c.env.DB.prepare(
+    "INSERT INTO sites (kind, name, url, secret, cf_hosted, cf_account_id, cf_worker) VALUES ('static', ?, ?, '', ?, ?, ?) RETURNING id",
+  )
+    .bind(
+      input.name || new URL(url).hostname,
+      url,
+      input.cloudflare ? 1 : 0,
+      worker?.cf_account_id ?? null,
+      worker?.cf_worker ?? null,
+    )
     .first<{ id: number }>();
   await syncStaticSite(c.env, row!.id);
   return c.json(await getSite(c.env.DB, row!.id), 201);
 }
 
 // A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
-const WORDPRESS_ONLY = /^\/sites\/\d+\/(plugins|users|links|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
+const WORDPRESS_ONLY =
+  /^\/sites\/\d+\/(plugins|users|links|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
-    const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?").bind(Number(c.req.param("id"))).first<{ kind: string }>();
+    const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
+      .bind(Number(c.req.param("id")))
+      .first<{ kind: string }>();
     if (row?.kind === "static") return c.json({ error: "This is a static site. It has no WordPress to manage." }, 400);
   }
   await next();
@@ -175,7 +196,10 @@ api.post("/sites", async (c) => {
   if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
   const key = decodeConnectionKey(parsed.data.connection_key);
   if (!key) {
-    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." }, 400);
+    return c.json(
+      { error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." },
+      400,
+    );
   }
 
   const existing = await c.env.DB.prepare("SELECT id FROM sites WHERE url = ?").bind(url).first<{ id: number }>();
@@ -191,13 +215,11 @@ api.post("/sites", async (c) => {
     throw error;
   }
 
-  const row = await c.env.DB
-    .prepare("INSERT INTO sites (name, url, key_id, secret) VALUES (?, ?, ?, '') RETURNING id")
+  const row = await c.env.DB.prepare("INSERT INTO sites (name, url, key_id, secret) VALUES (?, ?, ?, '') RETURNING id")
     .bind(name || new URL(url).hostname, url, key.keyId)
     .first<{ id: number }>();
   // The ciphertext is bound to the site id, which exists only after the insert.
-  await c.env.DB
-    .prepare("UPDATE sites SET secret = ? WHERE id = ?")
+  await c.env.DB.prepare("UPDATE sites SET secret = ? WHERE id = ?")
     .bind(await encryptSecret(c.env.SITE_SECRETS_KEY, row!.id, key.secret), row!.id)
     .run();
   await syncSite(c.env, row!.id);
@@ -218,8 +240,7 @@ api.patch("/sites/:id", async (c) => {
   if (!id || !parsed.success) return c.json({ error: "Invalid site" }, 400);
   const url = normalizeSiteUrl(parsed.data.url);
   if (!url) return c.json({ error: "Enter the site's public https:// address" }, 400);
-  const result = await c.env.DB
-    .prepare("UPDATE sites SET url = ? WHERE id = ?")
+  const result = await c.env.DB.prepare("UPDATE sites SET url = ? WHERE id = ?")
     .bind(url, id)
     .run()
     .catch(() => null);
@@ -250,7 +271,10 @@ api.post("/sites/:id/connection-key", async (c) => {
   const parsed = siteInput.pick({ connection_key: true }).safeParse(await c.req.json().catch(() => null));
   const key = parsed.success ? decodeConnectionKey(parsed.data.connection_key) : null;
   if (!key) {
-    return c.json({ error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." }, 400);
+    return c.json(
+      { error: "That is not a Connection Key. Copy it again from Settings, KontrolWP Connect on the site." },
+      400,
+    );
   }
   try {
     await verifyConnection(site.url, key);
@@ -258,8 +282,7 @@ api.post("/sites/:id/connection-key", async (c) => {
     if (error instanceof SiteRequestError) return c.json({ error: error.message }, 400);
     throw error;
   }
-  await c.env.DB
-    .prepare("UPDATE sites SET key_id = ?, secret = ? WHERE id = ?")
+  await c.env.DB.prepare("UPDATE sites SET key_id = ?, secret = ? WHERE id = ?")
     .bind(key.keyId, await encryptSecret(c.env.SITE_SECRETS_KEY, id, key.secret), id)
     .run();
   await syncSite(c.env, id);
@@ -283,15 +306,13 @@ api.post("/sites/:id/comments/:commentId", async (c) => {
   }
   return siteAction(c, async (site) => {
     await callSite(site, "POST", `${REST_NAMESPACE}/comments/moderate`, { id: commentId, action: parsed.data.action });
-    await c.env.DB
-      .prepare(
-        `UPDATE sites SET pending_comments = MAX(0, pending_comments - 1)
+    await c.env.DB.prepare(
+      `UPDATE sites SET pending_comments = MAX(0, pending_comments - 1)
          WHERE id = ? AND EXISTS (SELECT 1 FROM site_comments WHERE site_id = ? AND comment_id = ?)`,
-      )
+    )
       .bind(site.id, site.id, commentId)
       .run();
-    await c.env.DB
-      .prepare("DELETE FROM site_comments WHERE site_id = ? AND comment_id = ?")
+    await c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ? AND comment_id = ?")
       .bind(site.id, commentId)
       .run();
   });
@@ -362,8 +383,7 @@ api.put("/sites/:id/magic-login", async (c) => {
     if (!admin) return c.json({ error: "That user is not an administrator on the site" }, 400);
     name = String(admin.display_name || admin.login).slice(0, 120);
   }
-  await c.env.DB
-    .prepare("UPDATE sites SET login_user_id = ?, login_user_name = ? WHERE id = ?")
+  await c.env.DB.prepare("UPDATE sites SET login_user_id = ?, login_user_name = ? WHERE id = ?")
     .bind(parsed.data.user_id, name, id)
     .run();
   return c.json(await getSite(c.env.DB, id));
@@ -420,9 +440,10 @@ api.put("/sites/:id/updates-excluded", async (c) => {
       ? [
           c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
           // KontrolWP Connect's own update is not one the owner excludes.
-          c.env.DB
-            .prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running' AND slug != ?")
-            .bind(id, SELF_UPDATE.slug),
+          c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running' AND slug != ?").bind(
+            id,
+            SELF_UPDATE.slug,
+          ),
         ]
       : []),
   ]);
@@ -477,8 +498,24 @@ api.post("/sites/:id/plugins", async (c) => {
 });
 
 const pluginInstall = z.discriminatedUnion("source", [
-  z.object({ source: z.literal("wordpress.org"), slug: z.string().trim().regex(/^[a-z0-9-]{1,200}$/), activate: z.boolean() }),
-  z.object({ source: z.literal("url"), url: z.string().trim().url().max(2000).regex(/^https?:\/\//), activate: z.boolean() }),
+  z.object({
+    source: z.literal("wordpress.org"),
+    slug: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9-]{1,200}$/),
+    activate: z.boolean(),
+  }),
+  z.object({
+    source: z.literal("url"),
+    url: z
+      .string()
+      .trim()
+      .url()
+      .max(2000)
+      .regex(/^https?:\/\//),
+    activate: z.boolean(),
+  }),
 ]);
 
 /**
@@ -503,7 +540,11 @@ async function readInstallRequest(c: AppContext): Promise<InstallRequest> {
       return { error: "The zip is larger than 10 MB. Install it from a link instead.", status: 413 };
     }
     return {
-      payload: { source: "zip", package: base64(new Uint8Array(await file.arrayBuffer())), activate: form.activate === "true" },
+      payload: {
+        source: "zip",
+        package: base64(new Uint8Array(await file.arrayBuffer())),
+        activate: form.activate === "true",
+      },
       siteIds: siteIdList(String(form.site_ids ?? "").split(",")),
     };
   }
@@ -610,7 +651,9 @@ type UserActionInput = z.infer<typeof userAction>;
 async function manageUser(env: Env, site: SiteCredentials, input: UserActionInput): Promise<void> {
   const removesAdmin = input.action === "delete" || (input.action === "set-role" && input.role !== "administrator");
   if (removesAdmin) {
-    const row = await env.DB.prepare("SELECT login_user_id FROM sites WHERE id = ?").bind(site.id).first<{ login_user_id: number | null }>();
+    const row = await env.DB.prepare("SELECT login_user_id FROM sites WHERE id = ?")
+      .bind(site.id)
+      .first<{ login_user_id: number | null }>();
     if (row?.login_user_id === input.user_id) {
       throw new UserActionError(
         "This is the administrator Magic Login signs in as. Choose another one in Site settings first.",
@@ -643,7 +686,9 @@ api.post("/sites/:id/links/scan", async (c) => {
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
   if (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0) {
     return c.json(
-      { error: `Checking links needs KontrolWP Connect ${LINK_CHECK_SINCE} or later. It updates automatically; select Sync now to check.` },
+      {
+        error: `Checking links needs KontrolWP Connect ${LINK_CHECK_SINCE} or later. It updates automatically; select Sync now to check.`,
+      },
       400,
     );
   }
@@ -688,11 +733,14 @@ api.post("/sites/:id/links/ignore", async (c) => {
   const id = siteId(c);
   const parsed = linkIgnore.safeParse(await c.req.json().catch(() => null));
   if (!id || !parsed.success) return c.json({ error: "Invalid link" }, 400);
-  if (!(await ignoreLink(c.env.DB, id, parsed.data.url, parsed.data.ignored))) return c.json({ error: "Link not found" }, 404);
+  if (!(await ignoreLink(c.env.DB, id, parsed.data.url, parsed.data.ignored)))
+    return c.json({ error: "Link not found" }, 404);
   return c.json<SiteLinks>(await listLinks(c.env.DB, id));
 });
 
-api.get("/sites/:id/users", (c) => userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)));
+api.get("/sites/:id/users", (c) =>
+  userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)),
+);
 
 /** Add a user to one site. */
 api.post("/sites/:id/users", async (c) => {
@@ -797,7 +845,12 @@ api.put("/sites/:id/core-auto-update", async (c) => {
   const parsed = coreAutoUpdateMode.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Choose all, minor or off" }, 400);
   const response = await pluginRequest(c, async (site) => {
-    const result = await callSite<PluginStatus["core_auto_update"]>(site, "POST", `${REST_NAMESPACE}/core/auto-update`, parsed.data);
+    const result = await callSite<PluginStatus["core_auto_update"]>(
+      site,
+      "POST",
+      `${REST_NAMESPACE}/core/auto-update`,
+      parsed.data,
+    );
     await saveCoreAutoUpdate(c.env, site.id, result);
     return { ok: true };
   });
@@ -817,7 +870,12 @@ api.post("/core-auto-update", async (c) => {
       c.env,
       site_ids,
       async (site) => {
-        const result = await callSite<PluginStatus["core_auto_update"]>(site, "POST", `${REST_NAMESPACE}/core/auto-update`, { mode });
+        const result = await callSite<PluginStatus["core_auto_update"]>(
+          site,
+          "POST",
+          `${REST_NAMESPACE}/core/auto-update`,
+          { mode },
+        );
         await saveCoreAutoUpdate(c.env, site.id, result);
       },
       { sync: false },
@@ -851,7 +909,11 @@ async function forEachSite(
         results.push({ site_id: id, ok: true });
       } catch (error) {
         if (!(error instanceof SiteRequestError || error instanceof SecretsKeyError)) throw error;
-        results.push({ site_id: id, ok: false, error: error instanceof SiteRequestError ? pluginsError(error) : error.message });
+        results.push({
+          site_id: id,
+          ok: false,
+          error: error instanceof SiteRequestError ? pluginsError(error) : error.message,
+        });
       }
     }
   };
@@ -920,7 +982,12 @@ const umamiInput = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("cloud"), secret: z.string().trim().max(500).optional() }),
   z.object({
     mode: z.literal("self-hosted"),
-    url: z.string().trim().url().max(500).regex(/^https?:\/\//),
+    url: z
+      .string()
+      .trim()
+      .url()
+      .max(500)
+      .regex(/^https?:\/\//),
     username: z.string().trim().min(1).max(200),
     secret: z.string().max(500).optional(),
   }),
@@ -964,7 +1031,9 @@ api.put("/sites/:id/umami", async (c) => {
     .safeParse(await c.req.json().catch(() => null));
   const id = siteId(c);
   if (!parsed.success || !id) return c.json({ error: "Invalid website" }, 400);
-  const result = await c.env.DB.prepare("UPDATE sites SET umami_website_id = ? WHERE id = ?").bind(parsed.data.website_id, id).run();
+  const result = await c.env.DB.prepare("UPDATE sites SET umami_website_id = ? WHERE id = ?")
+    .bind(parsed.data.website_id, id)
+    .run();
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
   return c.json({ ok: true });
 });
@@ -973,7 +1042,8 @@ api.put("/sites/:id/umami", async (c) => {
 async function cloudflareRequest(c: AppContext, request: (token: string) => Promise<Response>) {
   try {
     const token = await loadCloudflareToken(c.env);
-    if (!token) return c.json({ error: "Connect Cloudflare in Settings first", code: "cloudflare_not_configured" }, 409);
+    if (!token)
+      return c.json({ error: "Connect Cloudflare in Settings first", code: "cloudflare_not_configured" }, 409);
     return await request(token);
   } catch (error) {
     if (error instanceof CloudflareError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
@@ -1014,17 +1084,29 @@ api.get("/cloudflare/workers", (c) =>
   cloudflareRequest(c, async (token) => c.json<{ workers: CloudflareWorker[] }>({ workers: await listWorkers(token) })),
 );
 
-/** Choose the Cloudflare Worker a static site deploys from, or none. */
+/**
+ * Say whether a static site is hosted on Cloudflare Workers and, if so, which
+ * Worker it deploys from. Not hosted there clears everything from Cloudflare.
+ */
 api.put("/sites/:id/cloudflare", async (c) => {
   const id = siteId(c);
   const parsed = z
-    .object({ account_id: z.string().trim().min(1).max(64), worker: z.string().trim().min(1).max(200) })
-    .nullable()
+    .object({
+      hosted: z.boolean(),
+      account_id: z.string().trim().min(1).max(64).optional(),
+      worker: z.string().trim().min(1).max(200).optional(),
+    })
     .safeParse(await c.req.json().catch(() => undefined));
   if (!id || !parsed.success) return c.json({ error: "Invalid Worker" }, 400);
-  const result = await c.env.DB
-    .prepare("UPDATE sites SET cf_account_id = ?, cf_worker = ?, cf_worker_tag = NULL, cf_error = NULL WHERE id = ? AND kind = 'static'")
-    .bind(parsed.data?.account_id ?? null, parsed.data?.worker ?? null, id)
+  const result = await c.env.DB.prepare(
+    "UPDATE sites SET cf_hosted = ?, cf_account_id = ?, cf_worker = ?, cf_worker_tag = NULL, cf_error = NULL WHERE id = ? AND kind = 'static'",
+  )
+    .bind(
+      parsed.data.hosted ? 1 : 0,
+      parsed.data.hosted ? (parsed.data.account_id ?? null) : null,
+      parsed.data.hosted ? (parsed.data.worker ?? null) : null,
+      id,
+    )
     .run();
   if (!result.meta.changes) return c.json({ error: "Static site not found" }, 404);
   await c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id).run();
@@ -1035,7 +1117,7 @@ api.put("/sites/:id/cloudflare", async (c) => {
 api.get("/sites/:id/deployments", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
-  if (!id || !site || site.kind !== "static") return c.json({ error: "Static site not found" }, 404);
+  if (!id || !site || site.kind !== "static" || !site.cf_hosted) return c.json({ error: "Static site not found" }, 404);
   const [deployments, token] = await Promise.all([
     listDeployments(c.env.DB, id),
     loadCloudflareToken(c.env).catch(() => null),
@@ -1052,10 +1134,17 @@ api.get("/sites/:id/builds/:buildId/logs", (c) =>
     // Only builds this site listed at its last sync, so a site cannot read another Worker's logs.
     const known =
       site &&
+      site.cf_hosted &&
       site.cf_account_id &&
-      (await c.env.DB.prepare("SELECT 1 AS found FROM site_deployments WHERE site_id = ? AND type = 'build' AND ref = ?").bind(id, buildId).first());
+      (await c.env.DB.prepare(
+        "SELECT 1 AS found FROM site_deployments WHERE site_id = ? AND type = 'build' AND ref = ?",
+      )
+        .bind(id, buildId)
+        .first());
     if (!site || !known) return c.json({ error: "Build not found" }, 404);
-    return c.json<BuildLog>(await fetchBuildLog(token, site.cf_account_id!, buildId, c.req.query("cursor") || undefined));
+    return c.json<BuildLog>(
+      await fetchBuildLog(token, site.cf_account_id!, buildId, c.req.query("cursor") || undefined),
+    );
   }),
 );
 
@@ -1064,16 +1153,30 @@ const analyticsRange = z.enum(["24h", "7d", "30d", "90d"]);
 api.get("/sites/:id/analytics", (c) =>
   umamiRequest(c, async (config) => {
     const id = siteId(c);
-    const site = id && (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?").bind(id).first<{ url: string; umami_website_id: string | null }>());
+    const site =
+      id &&
+      (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?")
+        .bind(id)
+        .first<{ url: string; umami_website_id: string | null }>());
     if (!site) return c.json({ error: "Site not found" }, 404);
     const range = analyticsRange.catch("7d").parse(c.req.query("range"));
     const tz = validTimeZone(c.req.query("tz"));
     const client = await umamiClient(config);
     const websites = await listUmamiWebsites(client);
-    const chosen = site.umami_website_id ? websites.find((website) => website.id === site.umami_website_id) ?? null : null;
+    const chosen = site.umami_website_id
+      ? (websites.find((website) => website.id === site.umami_website_id) ?? null)
+      : null;
     const website = chosen ?? (site.umami_website_id ? null : matchWebsite(websites, site.url));
     if (!website) {
-      return c.json<SiteAnalytics>({ website: null, chosen: !!site.umami_website_id, range, stats: null, series: [], pages: [], referrers: [] });
+      return c.json<SiteAnalytics>({
+        website: null,
+        chosen: !!site.umami_website_id,
+        range,
+        stats: null,
+        series: [],
+        pages: [],
+        referrers: [],
+      });
     }
     return c.json<SiteAnalytics>({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) });
   }),
@@ -1083,13 +1186,19 @@ api.get("/sites/:id/analytics", (c) =>
 api.get("/sites/:id/analytics/details", (c) =>
   umamiRequest(c, async (config) => {
     const id = siteId(c);
-    const site = id && (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?").bind(id).first<{ url: string; umami_website_id: string | null }>());
+    const site =
+      id &&
+      (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?")
+        .bind(id)
+        .first<{ url: string; umami_website_id: string | null }>());
     if (!site) return c.json({ error: "Site not found" }, 404);
     const range = analyticsRange.catch("7d").parse(c.req.query("range"));
     const tz = validTimeZone(c.req.query("tz"));
     const client = await umamiClient(config);
     const websites = await listUmamiWebsites(client);
-    const chosen = site.umami_website_id ? websites.find((website) => website.id === site.umami_website_id) ?? null : null;
+    const chosen = site.umami_website_id
+      ? (websites.find((website) => website.id === site.umami_website_id) ?? null)
+      : null;
     const website = chosen ?? (site.umami_website_id ? null : matchWebsite(websites, site.url));
     if (!website) {
       return c.json<SiteAnalyticsDetails>({
@@ -1104,7 +1213,11 @@ api.get("/sites/:id/analytics/details", (c) =>
         active: null,
       });
     }
-    return c.json<SiteAnalyticsDetails>({ website, chosen: !!chosen, ...(await siteAnalyticsDetails(client, website, range, tz)) });
+    return c.json<SiteAnalyticsDetails>({
+      website,
+      chosen: !!chosen,
+      ...(await siteAnalyticsDetails(client, website, range, tz)),
+    });
   }),
 );
 
@@ -1136,7 +1249,9 @@ api.put("/settings/sync", async (c) => {
   const interval = SYNC_INTERVALS.find((minutes) => minutes === body?.interval_minutes);
   if (!interval) return c.json({ error: "Choose one of the offered intervals" }, 400);
   const settings: SyncSettings = { interval_minutes: interval };
-  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', ?)").bind(JSON.stringify(settings)).run();
+  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', ?)")
+    .bind(JSON.stringify(settings))
+    .run();
   return c.json(settings);
 });
 
@@ -1153,7 +1268,8 @@ api.put("/settings/links", async (c) => {
   if (interval === undefined) return c.json({ error: "Choose one of the offered intervals" }, 400);
   let zone = current.time_zone;
   if (body?.time_zone !== undefined) {
-    if (typeof body.time_zone !== "string" || !isTimeZone(body.time_zone)) return c.json({ error: "Unknown time zone" }, 400);
+    if (typeof body.time_zone !== "string" || !isTimeZone(body.time_zone))
+      return c.json({ error: "Unknown time zone" }, 400);
     zone = body.time_zone;
   }
   await saveLinkScanSettings(c.env, { interval_days: interval, time_zone: zone });
@@ -1163,9 +1279,13 @@ api.put("/settings/links", async (c) => {
 api.get("/settings/layout", async (c) => c.json(await loadLayout(c.env)));
 
 api.put("/settings/layout", async (c) => {
-  const parsed = z.object({ site_columns: z.union([z.literal(1), z.literal(2)]) }).safeParse(await c.req.json().catch(() => null));
+  const parsed = z
+    .object({ site_columns: z.union([z.literal(1), z.literal(2)]) })
+    .safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Choose one or two columns" }, 400);
   const layout = { ...(await loadLayout(c.env)), ...parsed.data };
-  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('layout', ?)").bind(JSON.stringify(layout)).run();
+  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('layout', ?)")
+    .bind(JSON.stringify(layout))
+    .run();
   return c.json(layout);
 });

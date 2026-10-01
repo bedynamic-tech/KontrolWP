@@ -20,7 +20,7 @@ import {
   fetchSite,
   fetchUmamiSettings,
   replaceConnectionKey,
-  setSiteWorker,
+  setSiteCloudflare,
   setUpdatesExcluded,
   syncSite,
 } from "../api";
@@ -38,7 +38,7 @@ import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
-import { CloudflareWorkerSelect, type WorkerChoice } from "./CloudflareWorkerSelect";
+import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
 import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
@@ -50,8 +50,10 @@ import { updatesRefetchInterval } from "./UpdatesList";
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
 const WORDPRESS_TABS = ["overview", "analytics", "plugins", "users", "links", "domain"];
-const STATIC_TABS = ["overview", "analytics", "deployments", "domain"];
-const TABS = [...new Set([...WORDPRESS_TABS, ...STATIC_TABS])];
+const STATIC_TABS = ["overview", "analytics", "domain"];
+/** Deployments come from Cloudflare, so only a static site hosted there has them. */
+const CLOUDFLARE_TABS = ["overview", "analytics", "deployments", "domain"];
+const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -118,7 +120,7 @@ export function SitePage() {
   const twoColumns = layout.data?.site_columns === 2 && !!umami.data?.configured;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
-  const tabs = kind === "static" ? STATIC_TABS : WORDPRESS_TABS;
+  const tabs = kind === "static" ? (data?.site.cf_hosted ? CLOUDFLARE_TABS : STATIC_TABS) : WORDPRESS_TABS;
   const tab =
     (requestedTab === "analytics" && umami.data && !umami.data.configured) || (kind && !tabs.includes(requestedTab))
       ? "overview"
@@ -128,6 +130,7 @@ export function SitePage() {
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
+  const onCloudflare = isStatic && site.cf_hosted;
 
   return (
     <div>
@@ -185,12 +188,14 @@ export function SitePage() {
       <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isStatic ? (
           <>
-            <Fact label="Type" value="Static site" />
-            <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
-            <Fact
-              label="Last deployed"
-              value={site.last_deployed_at ? timeAgo(site.last_deployed_at) : "No deployments"}
-            />
+            <Fact label="Type" value={onCloudflare ? "Static site on Cloudflare" : "Static site"} />
+            {onCloudflare && <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />}
+            {onCloudflare && (
+              <Fact
+                label="Last deployed"
+                value={site.last_deployed_at ? timeAgo(site.last_deployed_at) : "No deployments"}
+              />
+            )}
             <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
           </>
         ) : (
@@ -217,9 +222,11 @@ export function SitePage() {
             </TabsTrigger>
           )}
           {isStatic ? (
-            <TabsTrigger value="deployments" className="flex-none px-3">
-              Deployments
-            </TabsTrigger>
+            onCloudflare && (
+              <TabsTrigger value="deployments" className="flex-none px-3">
+                Deployments
+              </TabsTrigger>
+            )
           ) : (
             <>
               <TabsTrigger value="plugins" className="flex-none px-3">
@@ -240,7 +247,7 @@ export function SitePage() {
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
             const main = isStatic ? (
-              <DeploymentsSection site={site} compact onChooseWorker={() => setSettingsOpen(true)} />
+              onCloudflare && <DeploymentsSection site={site} compact onChooseWorker={() => setSettingsOpen(true)} />
             ) : (
               <>
                 <SiteUpdatesSection site={site} updates={updates} />
@@ -250,7 +257,7 @@ export function SitePage() {
               </>
             );
             // Two columns only when there is analytics to put on the right.
-            return twoColumns ? (
+            return twoColumns && main ? (
               <div className="grid items-start gap-x-6 lg:grid-cols-2">
                 <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                 <div className={`min-w-0 ${TAB_CLASS}`}>
@@ -269,7 +276,7 @@ export function SitePage() {
           <AnalyticsTab site={site} />
         </TabsContent>
         <TabsContent value="deployments" className={TAB_CLASS}>
-          {isStatic && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
+          {onCloudflare && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
         </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />
@@ -321,7 +328,7 @@ export function SitePage() {
                 <MagicLoginUserSelect site={site} />
               </SettingRow>
             )}
-            {isStatic && <WorkerRow site={site} />}
+            {isStatic && <CloudflareRow site={site} />}
             {umami.data?.configured && (
               <SettingRow
                 title="Umami website"
@@ -429,31 +436,53 @@ export function SitePage() {
 }
 
 /** A setting with its control beside it, or below it on the right when `stacked` (for wide controls). */
-/** Which Cloudflare Worker a static site's deployments come from. */
-function WorkerRow(props: { site: SiteSummary }) {
+/** Whether a static site is hosted on Cloudflare Workers and, if so, which Worker its deployments come from. */
+function CloudflareRow(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
-  const choose = useMutation({
-    mutationFn: (worker: WorkerChoice | null) =>
-      setSiteWorker(site.id, worker && { account_id: worker.account_id, worker: worker.worker }),
+  const save = useMutation({
+    mutationFn: (input: { hosted: boolean; account_id?: string; worker?: string }) => setSiteCloudflare(site.id, input),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["site", site.id] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
     },
   });
   return (
-    <SettingRow
-      title="Cloudflare Worker"
-      detail="The Worker this site deploys from. KontrolWP lists its deployments and build logs."
-      error={choose.error?.message}
-      stacked
-    >
-      <CloudflareWorkerSelect
-        value={site.cf_worker && site.cf_account_id ? { account_id: site.cf_account_id, worker: site.cf_worker } : null}
-        onChange={(worker) => choose.mutate(worker)}
-        disabled={choose.isPending}
-      />
-    </SettingRow>
+    <>
+      <label className="flex cursor-pointer items-center gap-3 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">Hosted on Cloudflare Workers</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Shows this site's deployments and build logs from Cloudflare. Leave it off for a site hosted anywhere else.
+          </p>
+          {save.error && !site.cf_hosted && <p className="mt-1 text-xs text-destructive">{save.error.message}</p>}
+        </div>
+        {save.isPending && <Spinner className="size-4 text-muted-foreground" />}
+        <input
+          type="checkbox"
+          className="size-4 shrink-0 accent-primary"
+          checked={save.isPending ? save.variables?.hosted === true : site.cf_hosted}
+          disabled={save.isPending}
+          onChange={(event) => save.mutate({ hosted: event.target.checked })}
+        />
+      </label>
+      {site.cf_hosted && (
+        <SettingRow
+          title="Cloudflare Worker"
+          detail="The Worker this site deploys from. KontrolWP lists its deployments and build logs."
+          error={save.error?.message}
+          stacked
+        >
+          <CloudflareWorkerSelect
+            value={
+              site.cf_worker && site.cf_account_id ? { account_id: site.cf_account_id, worker: site.cf_worker } : null
+            }
+            onChange={(worker) => save.mutate({ hosted: true, account_id: worker?.account_id, worker: worker?.worker })}
+            disabled={save.isPending}
+          />
+        </SettingRow>
+      )}
+    </>
   );
 }
 

@@ -88,7 +88,7 @@ export const fetchSite = (id: number) => request<SiteDetail>(`/sites/${id}`);
 
 export type NewSite =
   | { url: string; connection_key: string }
-  | { kind: "static"; url: string; name?: string; cf_account_id?: string; cf_worker?: string };
+  | { kind: "static"; url: string; name?: string; cloudflare?: boolean; cf_account_id?: string; cf_worker?: string };
 
 export const createSite = (input: NewSite) => request<SiteSummary>("/sites", { method: "POST", json: input });
 
@@ -251,8 +251,9 @@ export const deleteCloudflareSettings = () => request<CloudflareSettings>("/sett
 
 export const fetchCloudflareWorkers = () => request<{ workers: CloudflareWorker[] }>("/cloudflare/workers");
 
-export const setSiteWorker = (siteId: number, worker: { account_id: string; worker: string } | null) =>
-  request<SiteSummary>(`/sites/${siteId}/cloudflare`, { method: "PUT", json: worker });
+/** Whether a static site is hosted on Cloudflare Workers and, if so, from which Worker. */
+export const setSiteCloudflare = (siteId: number, input: { hosted: boolean; account_id?: string; worker?: string }) =>
+  request<SiteSummary>(`/sites/${siteId}/cloudflare`, { method: "PUT", json: input });
 
 export const fetchSiteDeployments = (siteId: number) => request<SiteDeployments>(`/sites/${siteId}/deployments`);
 
