@@ -95,6 +95,10 @@ export const createSite = (input: NewSite) => request<SiteSummary>("/sites", { m
 export const updateSiteUrl = (id: number, url: string) =>
   request<SiteSummary>(`/sites/${id}`, { method: "PATCH", json: { url } });
 
+/** Rename a site, or pass null to restore its default name. */
+export const setSiteName = (id: number, name: string | null) =>
+  request<SiteSummary>(`/sites/${id}/name`, { method: "PUT", json: { name } });
+
 export const deleteSite = (id: number) => request<{ ok: true }>(`/sites/${id}`, { method: "DELETE" });
 
 export const replaceConnectionKey = (id: number, connectionKey: string) =>

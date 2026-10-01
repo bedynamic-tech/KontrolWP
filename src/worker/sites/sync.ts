@@ -88,7 +88,8 @@ export async function syncSite(
     env.DB
       .prepare(
         `UPDATE sites SET status = 'connected', last_error = NULL, last_synced_at = ?,
-           name = COALESCE(NULLIF(?, ''), name),
+           name = CASE WHEN name_custom = 1 THEN name ELSE COALESCE(NULLIF(?, ''), name) END,
+           default_name = COALESCE(NULLIF(?, ''), default_name),
            wp_version = ?, php_version = ?, plugin_version = ?, theme_name = ?, pending_comments = ?,
            icon_url = ?,
            core_auto_update = COALESCE(?, core_auto_update), core_auto_update_locked = COALESCE(?, core_auto_update_locked)
@@ -96,6 +97,8 @@ export async function syncSite(
       )
       .bind(
         now,
+        // The site's own title, for `name` unless the owner renamed it, and as the default to reset to.
+        text(status.name).trim().slice(0, 120),
         text(status.name).trim().slice(0, 120),
         text(status.wp_version),
         text(status.php_version),

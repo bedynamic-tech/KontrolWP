@@ -6,7 +6,12 @@ export type SiteKind = "wordpress" | "static";
 export interface SiteSummary {
   id: number;
   kind: SiteKind;
+  /** The name shown everywhere: the owner's own, or the default. */
   name: string;
+  /** The owner renamed the site, so a sync keeps `name`. */
+  name_custom: boolean;
+  /** What Reset restores: the WordPress site title, or null for a static site's domain. */
+  default_name: string | null;
   url: string;
   status: SiteStatus;
   last_error: string | null;

@@ -159,7 +159,7 @@ export function AddSiteDialog() {
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Defaults to the address"
+                    placeholder="Defaults to the domain"
                     maxLength={120}
                   />
                 </label>
