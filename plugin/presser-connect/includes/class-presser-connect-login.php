@@ -102,10 +102,48 @@ class Presser_Connect_Login {
 
 		wp_set_current_user( $user->ID );
 		wp_set_auth_cookie( $user->ID, false, is_ssl() );
-		// Activity logs and security plugins see this as a normal login.
+		// Activity logs see this as a normal login. The link already proved
+		// who this is, so two-factor plugins that act on wp_login are told
+		// to let this one sign-in through; normal logins are unaffected.
+		self::skip_two_factor( $user );
 		do_action( 'wp_login', $user->user_login, $user );
 		wp_safe_redirect( admin_url() );
 		exit;
+	}
+
+	/**
+	 * For the rest of this request only, and only for this user, tell the
+	 * two-factor plugins that prompt on wp_login not to. Wordfence and others
+	 * that check during password authentication never see a Magic Login.
+	 *
+	 * @param WP_User $user The user Magic Login signs in.
+	 */
+	private static function skip_two_factor( $user ) {
+		$id   = (int) $user->ID;
+		$skip = static function ( $value, $who = null ) use ( $id ) {
+			$who_id = $who instanceof WP_User ? (int) $who->ID : (int) $who;
+			return $who_id === $id ? false : $value;
+		};
+		// Two Factor (WordPress.org "two-factor"): 0.17+ asks this filter,
+		// older versions find no enabled provider.
+		add_filter( 'two_factor_is_required_for_user', $skip, PHP_INT_MAX, 2 );
+		add_filter(
+			'two_factor_enabled_providers_for_user',
+			static function ( $providers, $user_id ) use ( $id ) {
+				return (int) $user_id === $id ? array() : $providers;
+			},
+			PHP_INT_MAX,
+			2
+		);
+		// WP 2FA (Melapress).
+		add_filter(
+			'wp_2fa_skip_2fa_login_form',
+			static function ( $skip_form, $who ) use ( $id ) {
+				return ( $who instanceof WP_User && (int) $who->ID === $id ) ? true : $skip_form;
+			},
+			PHP_INT_MAX,
+			2
+		);
 	}
 
 	/** Remove every login link, for uninstall. */
