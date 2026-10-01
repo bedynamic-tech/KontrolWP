@@ -419,3 +419,14 @@ export interface SiteLinks {
   counts: Record<Exclude<LinkStatus, "pending">, number> & { ignored: number; total: number };
   links: SiteLink[];
 }
+
+/** What Remove link did. */
+export interface LinkUnlinkResult {
+  /** Addresses that left the list because no post links to them any more. */
+  links_removed: number;
+  posts_changed: number;
+  /** Button blocks pointing at the address, left as they are. */
+  buttons_kept: number;
+  /** Addresses also used as images, which are left in place. */
+  images_kept: number;
+}

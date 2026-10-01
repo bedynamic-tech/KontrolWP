@@ -21,6 +21,7 @@ import type {
   SitePlugins,
   SiteDetail,
   SiteDomain,
+  LinkUnlinkResult,
   SiteLinks,
   SiteSummary,
   SiteUpdate,
@@ -208,6 +209,11 @@ export const fetchLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteI
 export const scanLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteId}/links/scan`, { method: "POST" });
 export const recheckLink = (siteId: number, url: string) =>
   request<SiteLinks>(`/sites/${siteId}/links/recheck`, { method: "POST", json: { url } });
+export const unlinkLinks = (siteId: number, urls: string[]) =>
+  request<{ result: LinkUnlinkResult; links: SiteLinks }>(`/sites/${siteId}/links/unlink`, {
+    method: "POST",
+    json: { urls },
+  });
 export const ignoreLink = (siteId: number, url: string, ignored: boolean) =>
   request<SiteLinks>(`/sites/${siteId}/links/ignore`, { method: "POST", json: { url, ignored } });
 export const fetchUsers = (siteId: number) => request<SiteUsers>(`/sites/${siteId}/users`);

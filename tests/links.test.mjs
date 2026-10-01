@@ -12,6 +12,7 @@ import {
   ignoreLink,
   listLinks,
   recheckLink,
+  unlinkLinks,
   startLinkScan,
 } from "../src/worker/sites/links.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
@@ -224,4 +225,44 @@ test("Check again drops a link taken out of its posts, and keeps one still there
   result = await listLinks(env.DB, 1);
   assert.equal(result.links.length, 0);
   assert.equal(result.counts.ok, 1);
+});
+
+test("Remove link takes links out of their posts and drops them from the list", async () => {
+  const content = {
+    1: post(1, "Home", [{ url: "https://gone.test/", text: "Gone", kind: "link" }, { url: "https://pic.test/a.png", text: "", kind: "image" }]),
+    2: post(2, "About", [{ url: "https://gone.test/", text: "", kind: "link" }, { url: "https://pic.test/a.png", text: "", kind: "link" }]),
+  };
+  const { db, env } = await setup([{ items: Object.values(content), page: 1, total_pages: 1, total_posts: 2 }]);
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  await checkLinks(env, 1, scanId, web({ "https://gone.test/": 404, "https://pic.test/a.png": 404 }));
+
+  await assert.rejects(unlinkLinks(env, 1, ["https://gone.test/"]), /needs KontrolWP Connect 0\.9\.3/);
+  db.sqlite.prepare("UPDATE sites SET plugin_version = '0.9.3' WHERE id = 1").run();
+
+  const unlinked = [];
+  globalThis.fetch = async (url, init) => {
+    const route = new URL(url).searchParams.get("rest_route");
+    const body = JSON.parse(init.body);
+    if (route === "/kontrolwp/v1/links/unlink") {
+      unlinked.push(body.items);
+      const results = body.items.map((item) => {
+        for (const id of item.post_ids) {
+          content[id] = { ...content[id], links: content[id].links.filter((l) => !(l.url === item.url && l.kind === "link")) };
+        }
+        return { url: item.url, posts_changed: item.post_ids.length, buttons_kept: 0 };
+      });
+      return json({ results });
+    }
+    return json({ items: body.post_ids.map((id) => content[id]), page: 1, total_pages: 1, total_posts: body.post_ids.length });
+  };
+
+  const result = await unlinkLinks(env, 1, ["https://gone.test/", "https://pic.test/a.png"]);
+  // Only the posts that link to each address; the image on Home stays.
+  assert.deepEqual(unlinked, [[{ url: "https://gone.test/", post_ids: [1, 2] }, { url: "https://pic.test/a.png", post_ids: [2] }]]);
+  assert.deepEqual(result, { links_removed: 1, posts_changed: 3, buttons_kept: 0, images_kept: 1 });
+  const after = await listLinks(env.DB, 1);
+  assert.deepEqual(after.links.map((link) => [link.url, link.refs.map((ref) => `${ref.post_title}:${ref.kind}`)]), [
+    ["https://pic.test/a.png", ["Home:image"]],
+  ]);
 });
