@@ -383,7 +383,7 @@ export function SitePage() {
   );
 }
 
-/** A setting with its control beside it, or below it when `stacked` (for wide controls). */
+/** A setting with its control beside it, or below it on the right when `stacked` (for wide controls). */
 function SettingRow(props: { title: string; detail: string; error?: string; stacked?: boolean; children: ReactNode }) {
   return (
     <div
@@ -394,7 +394,7 @@ function SettingRow(props: { title: string; detail: string; error?: string; stac
         <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>
         {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
       </div>
-      <div className="shrink-0">{props.children}</div>
+      <div className={props.stacked ? "flex justify-end" : "shrink-0"}>{props.children}</div>
     </div>
   );
 }
