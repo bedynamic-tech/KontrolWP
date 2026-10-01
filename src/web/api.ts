@@ -8,6 +8,7 @@ import type {
   FleetUsers,
   NewUser,
   SiteContent,
+  SecurityFix,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
@@ -290,3 +291,6 @@ export const fetchSecurity = (siteId: number) => request<SiteSecurity>(`/sites/$
 
 export const refreshVulnerabilityFeed = () =>
   request<{ updated_at: number | null }>("/security/refresh", { method: "POST" });
+
+export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean) =>
+  request<{ fixes: SecurityFix[] }>(`/sites/${siteId}/security/fixes`, { method: "PUT", json: { ids, enabled } });

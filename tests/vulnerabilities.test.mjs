@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import {
+  fixesFrom,
   isAffected,
   pluginSlug,
   refreshFeed,
@@ -146,4 +147,13 @@ test("the schedule refreshes daily, retries hourly after a failure and skips wit
 
   db.sqlite.prepare("DELETE FROM sites").run();
   assert.ok(!(await runScheduledFeedRefresh(env, 900_000, counted)));
+});
+
+test("fixesFrom lists every catalog fix with the states the plugin reported", () => {
+  const fixes = fixesFrom({ generator: { enabled: true, applied: true }, readme: { applied: true } });
+  assert.equal(fixes.length, 9);
+  assert.deepEqual(
+    fixes.filter((fix) => fix.enabled || fix.applied).map((fix) => [fix.id, fix.enabled, fix.applied]),
+    [["generator", true, true], ["readme", false, true]],
+  );
 });
