@@ -36,7 +36,7 @@ import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
-import { StatusBadge } from "./StatusBadge";
+import { ConnectionBanner } from "./ConnectionBanner";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
@@ -123,10 +123,7 @@ export function SitePage() {
         <div className="flex min-w-0 items-center gap-3">
           <SiteIcon site={site} className="size-13 text-xl" />
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
-              <StatusBadge status={site.status} />
-            </div>
+            <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
             <a
               href={site.url}
               target="_blank"
@@ -168,12 +165,7 @@ export function SitePage() {
 
       <SelfUpdateNote site={site} />
 
-      {site.last_error && (
-        <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-          <p className="font-medium text-destructive">The last sync failed</p>
-          <p className="mt-1 text-muted-foreground">{site.last_error}</p>
-        </div>
-      )}
+      <ConnectionBanner site={site} className="mt-4" />
 
       <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Fact label="WordPress" value={site.wp_version} />
