@@ -1,5 +1,5 @@
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
+import type { FleetLinks, FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
 import { SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { decryptSecret } from "./secrets.ts";
@@ -92,6 +92,27 @@ export async function listComments(db: D1Database, siteId?: number, limit = 100)
   );
   const { results } = await (siteId === undefined ? statement : statement.bind(siteId)).all<PendingComment>();
   return results;
+}
+
+/** Broken and unresponsive links across every site, broken first. */
+export async function listFleetLinks(db: D1Database, limit = 50): Promise<FleetLinks> {
+  const problems = "l.ignored = 0 AND l.status IN ('broken', 'unresponsive')";
+  const [{ results }, total, scanned] = await Promise.all([
+    db
+      .prepare(
+        `SELECT l.site_id, s.name AS site_name, l.url, l.status, l.http_status, l.error, l.checked_at,
+           (SELECT r.post_title FROM site_link_refs r WHERE r.site_id = l.site_id AND r.url = l.url ORDER BY r.post_title LIMIT 1) AS post_title,
+           (SELECT COUNT(DISTINCT r.post_id) FROM site_link_refs r WHERE r.site_id = l.site_id AND r.url = l.url) AS post_count
+         FROM site_links l JOIN sites s ON s.id = l.site_id
+         WHERE ${problems}
+         ORDER BY l.status = 'unresponsive', s.name COLLATE NOCASE, l.url
+         LIMIT ${limit}`,
+      )
+      .all<FleetLinks["items"][number]>(),
+    db.prepare(`SELECT COUNT(*) AS n FROM site_links l WHERE ${problems}`).first<{ n: number }>(),
+    db.prepare("SELECT 1 AS found FROM link_scans WHERE finished_at IS NOT NULL LIMIT 1").first(),
+  ]);
+  return { total: total?.n ?? 0, scanned: !!scanned, items: results };
 }
 
 export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {

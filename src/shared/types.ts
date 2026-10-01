@@ -87,6 +87,29 @@ export interface Overview {
   sites: SiteSummary[];
   updates: SiteUpdate[];
   comments: PendingComment[];
+  links: FleetLinks;
+}
+
+/** A broken or unresponsive link on one site, for the Overview. */
+export interface FleetLink {
+  site_id: number;
+  site_name: string;
+  url: string;
+  status: "broken" | "unresponsive";
+  http_status: number | null;
+  error: string | null;
+  checked_at: number | null;
+  /** One post it appears in, and how many posts in all. */
+  post_title: string | null;
+  post_count: number;
+}
+
+/** Broken and unresponsive links across every site; ignored and uncheckable ones are left out. */
+export interface FleetLinks {
+  total: number;
+  /** Whether any site has been checked yet. */
+  scanned: boolean;
+  items: FleetLink[];
 }
 
 export interface SiteDetail {

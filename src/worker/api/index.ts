@@ -30,7 +30,7 @@ import { LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import { linkScanSchedule, loadLinkScanSettings, saveLinkScanSettings, validTimeZone as isTimeZone } from "../sites/link-schedule.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
-import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
+import { getCredentials, getSite, listComments, listFleetLinks, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
@@ -85,12 +85,13 @@ api.use("*", async (c, next) => {
 
 api.get("/overview", async (c) => {
   c.executionCtx.waitUntil(queueSelfUpdatesAfterDeploy(c.env).catch((error) => console.error("self-update after deploy", error)));
-  const [sites, updates, comments] = await Promise.all([
+  const [sites, updates, comments, links] = await Promise.all([
     listSites(c.env.DB),
     listUpdates(c.env.DB),
     listComments(c.env.DB),
+    listFleetLinks(c.env.DB),
   ]);
-  return c.json<Overview>({ sites, updates, comments });
+  return c.json<Overview>({ sites, updates, comments, links });
 });
 
 api.get("/sites", async (c) => c.json(await listSites(c.env.DB)));
