@@ -131,8 +131,9 @@ export function SitePage() {
         </div>
       )}
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Fact label="WordPress" value={site.wp_version} />
+        <Fact label="Presser Connect" value={site.plugin_version} />
         <Fact label="PHP" value={site.php_version} />
         <Fact label="Theme" value={site.theme_name} />
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
