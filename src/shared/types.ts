@@ -116,3 +116,24 @@ export interface PluginComments {
     date_gmt: string;
   }>;
 }
+
+/** A plugin installed on a site, as Presser Connect 0.6.0+ lists it. */
+export interface InstalledPlugin {
+  /** Plugin file relative to wp-content/plugins, such as akismet/akismet.php. */
+  file: string;
+  name: string;
+  version: string;
+  author: string;
+  active: boolean;
+  network_active: boolean;
+  /** Presser Connect itself: never deactivated or deleted from Presser. */
+  protected: boolean;
+}
+
+export interface SitePlugins {
+  plugins: InstalledPlugin[];
+  /** False when the site sets DISALLOW_FILE_MODS: no installs or deletes. */
+  can_modify_files: boolean;
+}
+
+export type PluginAction = "activate" | "deactivate" | "delete";

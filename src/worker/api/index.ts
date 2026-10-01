@@ -6,8 +6,9 @@ import {
   REST_NAMESPACE,
   type ConnectionKey,
 } from "../../shared/protocol.ts";
-import type { Overview, PluginStatus, SiteAdmin, SiteDetail } from "../../shared/types.ts";
-import { callSite, SiteRequestError } from "../sites/client.ts";
+import type { Overview, PluginStatus, SiteAdmin, SiteDetail, SitePlugins } from "../../shared/types.ts";
+import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
+import { base64 } from "../sites/presser-connect.ts";
 import { getCredentials, getSite, listComments, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { syncSite } from "../sites/sync.ts";
@@ -324,6 +325,83 @@ api.put("/sites/:id/updates-excluded", async (c) => {
   if (!excluded) await syncSite(c.env, id);
   return c.json(await getSite(c.env.DB, id));
 });
+
+/** An older Presser Connect has no plugin routes; it updates itself on the next sync. */
+function pluginsError(error: SiteRequestError): string {
+  return error.status === 404 && !error.code
+    ? "Presser Connect on this site is too old to manage plugins. It updates automatically; select Sync now to check."
+    : error.message;
+}
+
+/** Run a plugin request against the site, then re-sync it in the background so its updates stay current. */
+async function pluginRequest(c: AppContext, request: (site: SiteCredentials) => Promise<unknown>) {
+  const id = siteId(c);
+  const site = id && (await getCredentials(c.env, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  let result: unknown;
+  try {
+    result = await request(site);
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: pluginsError(error) }, 502);
+    throw error;
+  }
+  return c.json(result ?? { ok: true });
+}
+
+api.get("/sites/:id/plugins", (c) =>
+  pluginRequest(c, (site) => callSite<SitePlugins>(site, "GET", `${REST_NAMESPACE}/plugins`)),
+);
+
+const pluginAction = z.object({
+  plugin: z.string().min(1).max(300),
+  action: z.enum(["activate", "deactivate", "delete"]),
+});
+
+api.post("/sites/:id/plugins", async (c) => {
+  const parsed = pluginAction.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid plugin action" }, 400);
+  return pluginRequest(c, async (site) => {
+    await callSite(site, "POST", `${REST_NAMESPACE}/plugins/manage`, parsed.data);
+    c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
+    return { ok: true };
+  });
+});
+
+const pluginInstall = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("wordpress.org"), slug: z.string().trim().regex(/^[a-z0-9-]{1,200}$/), activate: z.boolean() }),
+  z.object({ source: z.literal("url"), url: z.string().trim().url().max(2000).regex(/^https?:\/\//), activate: z.boolean() }),
+]);
+
+/**
+ * The zip travels base64 in a signed JSON body, held in memory several times
+ * over; the Worker has 128 MB, so larger zips go in by link instead.
+ */
+const MAX_PLUGIN_ZIP_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Install a plugin from WordPress.org (slug), a link (url), or an uploaded
+ * zip (multipart form with a "file" field).
+ */
+api.post("/sites/:id/plugins/install", async (c) => {
+  let payload: Record<string, unknown>;
+  if ((c.req.header("Content-Type") ?? "").startsWith("multipart/form-data")) {
+    const form = await c.req.parseBody();
+    const file = form.file;
+    if (!(file instanceof File)) return c.json({ error: "Choose a plugin zip to upload" }, 400);
+    if (file.size > MAX_PLUGIN_ZIP_BYTES) return c.json({ error: "The zip is larger than 10 MB. Install it from a link instead." }, 413);
+    payload = { source: "zip", package: base64(new Uint8Array(await file.arrayBuffer())), activate: form.activate === "true" };
+  } else {
+    const parsed = pluginInstall.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: "Enter a WordPress.org slug or an http(s) link to a zip" }, 400);
+    payload = parsed.data;
+  }
+  return pluginRequest(c, async (site) => {
+    const result = await callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, payload);
+    c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
+    return result;
+  });
+});
+
 
 async function siteAction(
   c: AppContext,

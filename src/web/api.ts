@@ -1,7 +1,9 @@
 import type {
   CommentAction,
   Overview,
+  PluginAction,
   SiteAdmin,
+  SitePlugins,
   SiteDetail,
   SiteSummary,
   SiteUpdate,
@@ -103,3 +105,22 @@ export const createMagicLogin = (siteId: number) =>
 
 export const setUpdatesExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/updates-excluded`, { method: "PUT", json: { excluded } });
+
+export const fetchPlugins = (siteId: number) => request<SitePlugins>(`/sites/${siteId}/plugins`);
+
+export const managePlugin = (siteId: number, plugin: string, action: PluginAction) =>
+  request<{ ok: true }>(`/sites/${siteId}/plugins`, { method: "POST", json: { plugin, action } });
+
+export type PluginInstall =
+  | { source: "wordpress.org"; slug: string; activate: boolean }
+  | { source: "url"; url: string; activate: boolean }
+  | { source: "zip"; file: File; activate: boolean };
+
+export function installPlugin(siteId: number, install: PluginInstall) {
+  const path = `/sites/${siteId}/plugins/install`;
+  if (install.source !== "zip") return request<{ ok: true; plugin: string }>(path, { method: "POST", json: install });
+  const form = new FormData();
+  form.set("file", install.file);
+  form.set("activate", String(install.activate));
+  return request<{ ok: true; plugin: string }>(path, { method: "POST", body: form });
+}

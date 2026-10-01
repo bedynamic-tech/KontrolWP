@@ -79,6 +79,7 @@ class Presser_Connect_Rest {
 				),
 			)
 		);
+		Presser_Connect_Plugins::register_routes( $auth );
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/admins',
@@ -291,7 +292,7 @@ class Presser_Connect_Rest {
 		ob_end_clean();
 
 		if ( $skin->get_errors()->has_errors() ) {
-			return new WP_Error( 'presser_update_failed', implode( ' ', $skin->get_error_messages() ), array( 'status' => 500 ) );
+			return new WP_Error( 'presser_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
 		}
 		if ( false === $results ) {
 			return self::filesystem_error();
@@ -412,7 +413,7 @@ class Presser_Connect_Rest {
 			return new WP_Error( 'presser_update_failed', $result->get_error_message(), array( 'status' => 500 ) );
 		}
 		if ( $skin->get_errors()->has_errors() ) {
-			return new WP_Error( 'presser_update_failed', implode( ' ', $skin->get_error_messages() ), array( 'status' => 500 ) );
+			return new WP_Error( 'presser_update_failed', $skin->get_error_messages(), array( 'status' => 500 ) );
 		}
 		if ( ! $result ) {
 			return self::filesystem_error();

@@ -3,7 +3,7 @@
  * Plugin Name:       Presser Connect
  * Plugin URI:        https://github.com/bedynamic-tech/Presser
  * Description:       Connects this site to your Presser dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.5.1
+ * Version:           0.6.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Presser
@@ -28,13 +28,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PRESSER_CONNECT_VERSION', '0.5.1' );
+define( 'PRESSER_CONNECT_VERSION', '0.6.0' );
 define( 'PRESSER_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-presser-connect-auth.php';
 require_once __DIR__ . '/includes/class-presser-connect-rest.php';
 require_once __DIR__ . '/includes/class-presser-connect-admin.php';
 require_once __DIR__ . '/includes/class-presser-connect-login.php';
+require_once __DIR__ . '/includes/class-presser-connect-plugins.php';
 
 register_activation_hook( __FILE__, array( 'Presser_Connect_Auth', 'ensure_credentials' ) );
 add_action( 'rest_api_init', array( 'Presser_Connect_Rest', 'register_routes' ) );
