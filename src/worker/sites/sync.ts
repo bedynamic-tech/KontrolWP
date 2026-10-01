@@ -30,6 +30,12 @@ export async function syncSite(
   }
   if (!site) return { ok: false, error: "Site not found" };
 
+  const excluded = await env.DB
+    .prepare("SELECT updates_excluded FROM sites WHERE id = ?")
+    .bind(siteId)
+    .first<{ updates_excluded: number }>();
+  const checkUpdates = !excluded?.updates_excluded;
+
   let status: PluginStatus;
   let updates: PluginUpdates;
   let comments: PluginComments;
@@ -38,7 +44,10 @@ export async function syncSite(
   try {
     [status, updates, comments] = await Promise.all([
       callSite<PluginStatus>(site, "GET", `${REST_NAMESPACE}/status`),
-      callSite<PluginUpdates>(site, "GET", `${REST_NAMESPACE}/updates`),
+      // An excluded site is not asked for updates at all.
+      checkUpdates
+        ? callSite<PluginUpdates>(site, "GET", `${REST_NAMESPACE}/updates`)
+        : Promise.resolve<PluginUpdates>({ core: null, plugins: [], themes: [] }),
       callSite<PluginComments>(site, "GET", `${REST_NAMESPACE}/comments`),
     ]);
   } catch (error) {
@@ -125,7 +134,7 @@ export async function syncSite(
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
   // Presser Connect's own update comes from this dashboard and runs by itself.
-  await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
+  if (checkUpdates) await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };
 }
 

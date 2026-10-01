@@ -86,6 +86,11 @@ other error marks it failed with the site's message, shown on the update with
 **Try again**; the next job still runs. A job left running for 15 minutes is
 marked failed, and the cron restarts any site whose queue stalled.
 
+A site the owner excludes from update checks (site menu) is synced for its
+status and comments only: Presser never calls `/updates` for it, drops its
+listed and queued updates, refuses new ones, and skips Presser Connect's own
+update.
+
 ## Presser Connect updates
 
 The dashboard ships the plugin it was built with (`src/shared/plugin-version.ts`,

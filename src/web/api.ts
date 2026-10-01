@@ -100,3 +100,6 @@ export const setMagicLoginUser = (siteId: number, userId: number | null) =>
 
 export const createMagicLogin = (siteId: number) =>
   request<{ url: string }>(`/sites/${siteId}/magic-login`, { method: "POST" });
+
+export const setUpdatesExcluded = (siteId: number, excluded: boolean) =>
+  request<SiteSummary>(`/sites/${siteId}/updates-excluded`, { method: "PUT", json: { excluded } });

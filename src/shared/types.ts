@@ -22,6 +22,8 @@ export interface SiteSummary {
   self_update_status: UpdateJobStatus | null;
   self_update_version: string | null;
   self_update_error: string | null;
+  /** The owner excluded the site from update checks. */
+  updates_excluded: boolean;
 }
 
 /** An administrator on a site, as Presser Connect lists them for Magic Login. */

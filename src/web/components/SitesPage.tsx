@@ -38,7 +38,7 @@ export function SitesPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{plural(site.update_count, "update")}</span>
+                    <span>{site.updates_excluded ? "Updates excluded" : plural(site.update_count, "update")}</span>
                     <span>{plural(site.pending_comments, "comment")}</span>
                     {/* Version, sync time and status live on the site's page; only a problem shows here. */}
                     {site.status !== "connected" && <StatusBadge status={site.status} />}
