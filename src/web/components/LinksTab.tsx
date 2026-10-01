@@ -204,8 +204,8 @@ export function LinksTab(props: { site: SiteSummary }) {
       )}
 
       <section className="mt-8">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <div className="flex max-w-full gap-1 overflow-x-auto [scrollbar-width:none]">
+        <div className="mb-3 flex flex-wrap items-center gap-2 xl:flex-nowrap">
+          <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
             {chips
               .filter((chip) => chip.value === "problems" || chip.count > 0 || chip.value === filter)
               .map((chip) => (
@@ -222,31 +222,33 @@ export function LinksTab(props: { site: SiteSummary }) {
                 </Button>
               ))}
           </div>
-          {onUnlink && brokenLinks.length > 0 && filter !== "ignored" && (
-            <Button size="sm" variant="outline" className="flex-none" onClick={() => onUnlink(brokenLinks)}>
-              <UnlinkIcon /> Remove broken links ({brokenLinks.length})
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="flex-none" disabled={!shown.length}>
-                <DownloadIcon /> Download <ChevronDownIcon />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {onUnlink && brokenLinks.length > 0 && filter !== "ignored" && (
+              <Button size="sm" variant="outline" className="flex-none" onClick={() => onUnlink(brokenLinks)}>
+                <UnlinkIcon /> Remove broken links ({brokenLinks.length})
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => exportLinks("csv")}>CSV</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => exportLinks("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <div className="relative ml-auto w-full sm:w-64">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search links or posts"
-              aria-label="Search links or posts"
-              className="pl-8"
-            />
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="flex-none" disabled={!shown.length}>
+                  <DownloadIcon /> Download <ChevronDownIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => exportLinks("csv")}>CSV</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => exportLinks("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="relative w-full sm:w-64">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search links or posts"
+                aria-label="Search links or posts"
+                className="pl-8"
+              />
+            </div>
           </div>
         </div>
         {unlinked && <UnlinkNotice result={unlinked} onClose={() => setUnlinked(null)} />}
