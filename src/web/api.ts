@@ -8,6 +8,7 @@ import type {
   FleetUsers,
   NewUser,
   SiteContent,
+  SiteSitemap,
   SiteUsers,
   UserAction,
   CommentAction,
@@ -149,6 +150,8 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
 
 export const setLinksExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });
+
+export const fetchSitePages = (siteId: number) => request<SiteSitemap>(`/sites/${siteId}/pages`);
 
 export const fetchPlugins = (siteId: number) => request<SitePlugins>(`/sites/${siteId}/plugins`);
 

@@ -46,6 +46,7 @@ import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
 import { ContentTab } from "./ContentTab";
 import { LinksTab } from "./LinksTab";
+import { SitemapTab } from "./SitemapTab";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
@@ -53,9 +54,9 @@ import { updatesRefetchInterval } from "./UpdatesList";
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
 const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "domain"];
-const STATIC_TABS = ["overview", "analytics", "domain"];
+const STATIC_TABS = ["overview", "analytics", "pages", "domain"];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
-const CLOUDFLARE_TABS = ["overview", "analytics", "deployments", "domain"];
+const CLOUDFLARE_TABS = ["overview", "analytics", "pages", "deployments", "domain"];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
 
 export function SitePage() {
@@ -229,11 +230,16 @@ export function SitePage() {
             </TabsTrigger>
           )}
           {isStatic ? (
-            onCloudflare && (
-              <TabsTrigger value="deployments" className="flex-none px-3">
-                Deployments
+            <>
+              <TabsTrigger value="pages" className="flex-none px-3">
+                Pages
               </TabsTrigger>
-            )
+              {onCloudflare && (
+                <TabsTrigger value="deployments" className="flex-none px-3">
+                  Deployments
+                </TabsTrigger>
+              )}
+            </>
           ) : (
             <>
               <TabsTrigger value="content" className="flex-none px-3">
@@ -284,6 +290,9 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="analytics">
           <AnalyticsTab site={site} />
+        </TabsContent>
+        <TabsContent value="pages" className={TAB_CLASS}>
+          {isStatic && <SitemapTab site={site} />}
         </TabsContent>
         <TabsContent value="deployments" className={TAB_CLASS}>
           {onCloudflare && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
