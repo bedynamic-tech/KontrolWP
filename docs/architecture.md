@@ -156,6 +156,21 @@ earliest other administrator. The Worker refuses to delete or demote the
 administrator Magic Login signs in as. Password resets and new-user emails
 are sent by the site, so they depend on its mail setup.
 
+## Domain
+
+A site's Domain tab asks `GET /api/sites/:id/domain`, which looks the domain up
+live from public sources; nothing is stored and no key is needed. DNS records
+come from Cloudflare's DNS-over-HTTPS resolver (`cloudflare-dns.com`): A, AAAA,
+CNAME, MX, NS, TXT, CAA and SOA at the registered domain, and CNAME, A and
+AAAA at the site's own host when it differs. Registration comes from the
+registry's RDAP service, found through IANA's bootstrap file (cached for a
+day): registrar, registration, last change and expiry dates, nameservers,
+DNSSEC and status codes. Without a public-suffix list, the lookup drops a
+label at a time from the host until the registry knows the name, so
+`www.example.co.uk` resolves to `example.co.uk`. Registries without RDAP
+(some country-code domains) show DNS only, with a note. The tab warns when the
+domain expires within 30 days.
+
 ## Auto-updates
 
 KontrolWP can turn WordPress's own auto-updates on and off (KontrolWP Connect

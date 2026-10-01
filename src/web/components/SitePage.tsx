@@ -37,13 +37,14 @@ import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { ConnectionBanner } from "./ConnectionBanner";
+import { DomainSection } from "./DomainSection";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const TABS = ["overview", "plugins", "users"];
+const TABS = ["overview", "plugins", "users", "domain"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -185,6 +186,9 @@ export function SitePage() {
           <TabsTrigger value="users" className="flex-none px-3">
             Users
           </TabsTrigger>
+          <TabsTrigger value="domain" className="flex-none px-3">
+            Domain
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
@@ -217,6 +221,9 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="users" className={TAB_CLASS}>
           <UsersSection site={site} />
+        </TabsContent>
+        <TabsContent value="domain" className={TAB_CLASS}>
+          <DomainSection site={site} />
         </TabsContent>
       </Tabs>
 
