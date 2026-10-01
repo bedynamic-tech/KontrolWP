@@ -23,7 +23,7 @@ subject to Cloudflare's quotas and billing.
 
 ## 1. Deploy the dashboard
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/Presser)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/KontrolWP)
 
 1. Sign in to Cloudflare and connect GitHub when prompted. The source
    repository must be public for other people to use this button.

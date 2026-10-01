@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       KontrolWP Connect
- * Plugin URI:        https://github.com/bedynamic-tech/Presser
+ * Plugin URI:        https://github.com/bedynamic-tech/KontrolWP
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
  * Version:           0.8.0
  * Requires at least: 6.0

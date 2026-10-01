@@ -10,7 +10,7 @@ in to each site.
 
 Everything runs in your own Cloudflare account, behind Cloudflare Access.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/Presser)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/KontrolWP)
 
 ## What it does today
 
