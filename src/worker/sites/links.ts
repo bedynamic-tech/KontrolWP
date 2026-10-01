@@ -1,7 +1,7 @@
-import { compareVersions, LINK_RECHECK_SINCE } from "../../shared/plugin-version.ts";
+import { compareVersions, LINK_RECHECK_SINCE, LINK_UNLINK_SINCE } from "../../shared/plugin-version.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import type { LinkRef, LinkScan, LinkStatus, SiteLink, SiteLinks } from "../../shared/types.ts";
-import { callSite, SiteRequestError } from "./client.ts";
+import type { LinkRef, LinkScan, LinkStatus, LinkUnlinkResult, SiteLink, SiteLinks } from "../../shared/types.ts";
+import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { getCredentials } from "./store.ts";
 
 /**
@@ -373,7 +373,7 @@ async function stillLinked(env: Env, siteId: number, url: string): Promise<boole
     .first<{ plugin_version: string | null }>();
   if (!version?.plugin_version || compareVersions(version.plugin_version, LINK_RECHECK_SINCE) < 0) return true;
   const { results } = await env.DB.prepare(
-    "SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ? AND url = ? ORDER BY post_id LIMIT 100",
+    "SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ? AND url = ? ORDER BY post_id LIMIT 50",
   )
     .bind(siteId, url)
     .all<{ post_id: number }>();
@@ -381,14 +381,23 @@ async function stillLinked(env: Env, siteId: number, url: string): Promise<boole
   if (!postIds.length) return true;
   const site = await getCredentials(env, siteId);
   if (!site) return true;
-
-  let listing: LinksPage;
   try {
-    listing = await callSite<LinksPage>(site, "POST", `${REST_NAMESPACE}/links`, { post_ids: postIds, per_page: 100 });
+    await rereadPosts(env, site, postIds);
   } catch (error) {
     if (error instanceof SiteRequestError) return true;
     throw error;
   }
+
+  const still = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
+    .bind(siteId, url)
+    .first();
+  return !!still;
+}
+
+/** Ask the site for these posts again (up to 50: D1 binds at most 100 values per statement) and replace where their links appear. */
+async function rereadPosts(env: Env, site: SiteCredentials, postIds: number[]): Promise<void> {
+  const siteId = site.id;
+  const listing = await callSite<LinksPage>(site, "POST", `${REST_NAMESPACE}/links`, { post_ids: postIds, per_page: 100 });
 
   const inPosts = `site_id = ? AND post_id IN (${postIds.map(() => "?").join(", ")})`;
   const { results: before } = await env.DB.prepare(`SELECT DISTINCT url FROM site_link_refs WHERE ${inPosts}`)
@@ -416,10 +425,6 @@ async function stillLinked(env: Env, siteId: number, url: string): Promise<boole
   }
   for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100));
 
-  const still = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
-    .bind(siteId, url)
-    .first();
-  return !!still;
 }
 
 function refStatement(db: D1Database, siteId: number, url: string, post: ListedPost, link: ListedPost["links"][number]) {
@@ -438,6 +443,66 @@ function refStatement(db: D1Database, siteId: number, url: string, post: ListedP
       String(link.text ?? "").slice(0, 200),
       link.kind === "image" ? "image" : "link",
     );
+}
+
+/** Thrown when links can't be removed on this site, phrased for the dashboard. */
+export class UnlinkError extends Error {}
+
+/**
+ * Take the links to these addresses out of every post they appear in,
+ * keeping the link text, then re-read those posts so the list matches.
+ */
+export async function unlinkLinks(env: Env, siteId: number, urls: string[]): Promise<LinkUnlinkResult> {
+  const version = await env.DB.prepare("SELECT plugin_version FROM sites WHERE id = ?")
+    .bind(siteId)
+    .first<{ plugin_version: string | null }>();
+  if (!version?.plugin_version || compareVersions(version.plugin_version, LINK_UNLINK_SINCE) < 0) {
+    throw new UnlinkError(
+      `Removing links needs KontrolWP Connect ${LINK_UNLINK_SINCE} or later. It updates automatically; select Sync now to check.`,
+    );
+  }
+  const site = await getCredentials(env, siteId);
+  if (!site) throw new UnlinkError("Site not found");
+
+  const result: LinkUnlinkResult = { links_removed: 0, posts_changed: 0, buttons_kept: 0, images_kept: 0 };
+  const touched = new Set<number>();
+  for (let i = 0; i < urls.length; i += 50) {
+    const items: { url: string; post_ids: number[] }[] = [];
+    for (const url of urls.slice(i, i + 50)) {
+      const { results } = await env.DB.prepare(
+        `SELECT DISTINCT post_id, kind FROM site_link_refs WHERE site_id = ? AND url = ? AND post_id > 0 ORDER BY post_id`,
+      )
+        .bind(siteId, url)
+        .all<{ post_id: number; kind: string }>();
+      // Only links are removed; an image that doesn't load is left for the owner.
+      if (results.some((row) => row.kind === "image")) result.images_kept++;
+      const postIds = [...new Set(results.filter((row) => row.kind === "link").map((row) => row.post_id))].slice(0, 100);
+      if (postIds.length) items.push({ url, post_ids: postIds });
+    }
+    if (!items.length) continue;
+    const response = await callSite<{ results?: { posts_changed?: number; buttons_kept?: number }[] }>(
+      site,
+      "POST",
+      `${REST_NAMESPACE}/links/unlink`,
+      { items },
+    );
+    for (const row of Array.isArray(response.results) ? response.results : []) {
+      result.posts_changed += Number(row.posts_changed) || 0;
+      result.buttons_kept += Number(row.buttons_kept) || 0;
+    }
+    for (const item of items) for (const id of item.post_ids) touched.add(id);
+  }
+
+  const before = await countLinks(env.DB, siteId);
+  const ids = [...touched];
+  for (let i = 0; i < ids.length; i += 50) await rereadPosts(env, site, ids.slice(i, i + 50));
+  result.links_removed = before - (await countLinks(env.DB, siteId));
+  return result;
+}
+
+async function countLinks(db: D1Database, siteId: number): Promise<number> {
+  const row = await db.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ?").bind(siteId).first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 export async function ignoreLink(db: D1Database, siteId: number, url: string, ignored: boolean): Promise<boolean> {

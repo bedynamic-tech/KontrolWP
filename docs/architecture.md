@@ -236,7 +236,12 @@ Messages from a replaced scan are dropped by `scan_id`, and a scan with no
 progress for 15 minutes shows as stopped. Owners can check one link again
 after fixing it, or ignore it. Check again first asks the site for just the
 posts the link was found in (`post_ids`, 0.9.2), so a link taken out of them
-leaves the list without a full scan; older sites only re-check the address. A site keeps at most 5,000 addresses.
+leaves the list without a full scan; older sites only re-check the address.
+Remove link (0.9.3), per link or for every broken one, asks the site to
+unwrap the link in each post it appears in (`POST /links/unlink`): the link
+text stays, buttons are left alone since unwrapping breaks the block, and
+images are not touched. Posts are saved with `wp_update_post`, so WordPress
+keeps a revision to restore, then re-read so the list matches. A site keeps at most 5,000 addresses.
 
 ## Plugin routes (`kontrolwp/v1`)
 
@@ -256,6 +261,7 @@ leaves the list without a full scan; older sites only re-check the address. A si
 | `POST /users/create` | `{login, email, role, first_name, last_name, password, notify}`. Adds a user through `wp_insert_user`; an empty password gets a random one, and `notify` sends WordPress's set-your-password email. Added in 0.8.0. |
 | `POST /users/manage` | `{user_id, action: set-role, reset-password or delete, role}`. Refuses to demote or delete the only administrator; delete gives the user's content to the earliest other administrator. Added in 0.8.0. |
 | `POST /links` | `{page, per_page, post_ids}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. With `post_ids` (up to 100), just those posts, if still published. Added in 0.9.0; `post_ids` in 0.9.2. |
+| `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 

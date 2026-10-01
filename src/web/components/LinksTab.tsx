@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { EyeOffIcon, ImageIcon, PencilIcon, RefreshCwIcon, SearchIcon, UndoIcon } from "lucide-react";
+import { EyeOffIcon, ImageIcon, PencilIcon, RefreshCwIcon, SearchIcon, UndoIcon, UnlinkIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { compareVersions, LINK_CHECK_SINCE, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version";
-import type { LinkRef, LinkScan, SiteLink, SiteLinks, SiteSummary } from "../../shared/types";
-import { createMagicLogin, fetchLinks, ignoreLink, recheckLink, scanLinks } from "../api";
+import { compareVersions, LINK_CHECK_SINCE, LINK_UNLINK_SINCE, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version";
+import type { LinkRef, LinkScan, LinkUnlinkResult, SiteLink, SiteLinks, SiteSummary } from "../../shared/types";
+import { createMagicLogin, fetchLinks, ignoreLink, recheckLink, scanLinks, unlinkLinks } from "../api";
 import { plural, timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
@@ -31,6 +39,10 @@ function supported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) >= 0;
 }
 
+/** Remove link takes a broken or unresponsive link out of posts; images, ignored links and ones that couldn't be checked are left alone. */
+const removable = (link: SiteLink) =>
+  !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link");
+
 const running = (scan: LinkScan | null | undefined) => scan?.status === "collecting" || scan?.status === "checking";
 
 /** The Links tab: scan published posts and pages for broken links, and fix them one by one. */
@@ -39,6 +51,9 @@ export function LinksTab(props: { site: SiteSummary }) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("problems");
   const [search, setSearch] = useState("");
+  const [unlinking, setUnlinking] = useState<SiteLink[] | null>(null);
+  const [unlinked, setUnlinked] = useState<LinkUnlinkResult | null>(null);
+  const canUnlink = !!site.plugin_version && compareVersions(site.plugin_version, LINK_UNLINK_SINCE) >= 0;
   const links = useQuery({
     queryKey: ["site", site.id, "links"],
     queryFn: () => fetchLinks(site.id),
@@ -115,6 +130,9 @@ export function LinksTab(props: { site: SiteSummary }) {
     );
   });
 
+  const brokenLinks = data.links.filter((link) => link.status === "broken" && removable(link));
+  const onUnlink = canUnlink ? (urls: SiteLink[]) => setUnlinking(urls) : undefined;
+
   const chips: { value: Filter; label: string; count: number }[] = [
     { value: "problems", label: "All problems", count: problems },
     { value: "broken", label: "Broken", count: counts.broken },
@@ -153,6 +171,11 @@ export function LinksTab(props: { site: SiteSummary }) {
                 </Button>
               ))}
           </div>
+          {onUnlink && brokenLinks.length > 0 && filter !== "ignored" && (
+            <Button size="sm" variant="outline" className="flex-none" onClick={() => onUnlink(brokenLinks)}>
+              <UnlinkIcon /> Remove broken links ({brokenLinks.length})
+            </Button>
+          )}
           <div className="relative ml-auto w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -164,9 +187,10 @@ export function LinksTab(props: { site: SiteSummary }) {
             />
           </div>
         </div>
+        {unlinked && <UnlinkNotice result={unlinked} onClose={() => setUnlinked(null)} />}
         <div className="overflow-hidden rounded-xl border bg-background">
           {shown.length ? (
-            <LinkList site={site} links={shown} onChange={setData} />
+            <LinkList site={site} links={shown} onChange={setData} onUnlink={onUnlink} />
           ) : (
             <EmptyRow>
               {query
@@ -185,7 +209,101 @@ export function LinksTab(props: { site: SiteSummary }) {
           <p className="mt-2 text-xs text-muted-foreground">Showing the first 1,000 links that need a look.</p>
         )}
       </section>
+      <UnlinkDialog
+        site={site}
+        links={unlinking}
+        onClose={() => setUnlinking(null)}
+        onDone={(response) => {
+          setData(response.links);
+          setUnlinked(response.result);
+          setUnlinking(null);
+        }}
+      />
     </>
+  );
+}
+
+/** Confirms Remove link, for one link or every broken one. */
+function UnlinkDialog(props: {
+  site: SiteSummary;
+  links: SiteLink[] | null;
+  onClose: () => void;
+  onDone: (response: { result: LinkUnlinkResult; links: SiteLinks }) => void;
+}) {
+  const links = props.links ?? [];
+  const unlink = useMutation({
+    mutationFn: () =>
+      unlinkLinks(
+        props.site.id,
+        links.map((link) => link.url),
+      ),
+    onSuccess: props.onDone,
+  });
+  const posts = new Set(
+    links.flatMap((link) => link.refs.filter((ref) => ref.kind === "link").map((ref) => ref.post_id)),
+  );
+  const one = links.length === 1 ? links[0] : null;
+  return (
+    <Dialog
+      open={props.links !== null}
+      onOpenChange={(open) => {
+        if (!open && !unlink.isPending) {
+          unlink.reset();
+          props.onClose();
+        }
+      }}
+    >
+      <DialogContent className="[&>*]:min-w-0">
+        <DialogHeader>
+          <DialogTitle>{one ? "Remove this link?" : `Remove ${links.length} broken links?`}</DialogTitle>
+          <DialogDescription>
+            {one ? (
+              <>
+                The link to{" "}
+                <span className="font-medium break-all text-foreground">{one.url.replace(/^https?:\/\//, "")}</span>{" "}
+                comes out of {plural(posts.size, "post")}.
+              </>
+            ) : (
+              <>These links come out of {plural(posts.size, "post")}.</>
+            )}{" "}
+            The linked text stays as plain text. WordPress saves a revision of each post, so you can undo this from the
+            post's Revisions.
+          </DialogDescription>
+        </DialogHeader>
+        {unlink.error && <p className="text-sm text-destructive">{unlink.error.message}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={props.onClose} disabled={unlink.isPending}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={() => unlink.mutate()} loading={unlink.isPending}>
+            {unlink.isPending ? "Removing..." : one ? "Remove link" : "Remove links"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UnlinkNotice(props: { result: LinkUnlinkResult; onClose: () => void }) {
+  const { result } = props;
+  const notes = [
+    result.posts_changed
+      ? `Removed from ${plural(result.posts_changed, "post")}.`
+      : "Nothing changed; the posts no longer had these links.",
+    result.buttons_kept
+      ? `${plural(result.buttons_kept, "button")} kept, since removing a button's link breaks it; edit those posts to change them.`
+      : "",
+    result.images_kept
+      ? `Images using ${result.images_kept === 1 ? "this address" : "these addresses"} were left in place.`
+      : "",
+  ].filter(Boolean);
+  return (
+    <div className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-900 dark:text-emerald-200">
+      <p>{notes.join(" ")}</p>
+      <button type="button" className="text-xs underline-offset-2 hover:underline" onClick={props.onClose}>
+        Dismiss
+      </button>
+    </div>
   );
 }
 
@@ -255,7 +373,12 @@ function Stat(props: { label: string; value: number; tone?: "bad" | "warn" }) {
   );
 }
 
-function LinkList(props: { site: SiteSummary; links: SiteLink[]; onChange: (data: SiteLinks) => void }) {
+function LinkList(props: {
+  site: SiteSummary;
+  links: SiteLink[];
+  onChange: (data: SiteLinks) => void;
+  onUnlink?: (links: SiteLink[]) => void;
+}) {
   return (
     <>
       {/* Phones: one link per row, its posts under it. */}
@@ -267,7 +390,7 @@ function LinkList(props: { site: SiteSummary; links: SiteLink[]; onChange: (data
               <LinkCell link={link} />
             </div>
             <Refs site={props.site} refs={link.refs} />
-            <Actions site={props.site} link={link} onChange={props.onChange} />
+            <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} />
           </li>
         ))}
       </ul>
@@ -295,7 +418,7 @@ function LinkList(props: { site: SiteSummary; links: SiteLink[]; onChange: (data
                 <Refs site={props.site} refs={link.refs} />
               </td>
               <td className="px-4 py-3">
-                <Actions site={props.site} link={link} onChange={props.onChange} />
+                <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} />
               </td>
             </tr>
           ))}
@@ -435,7 +558,12 @@ function EditButton(props: { site: SiteSummary; postId: number }) {
   );
 }
 
-function Actions(props: { site: SiteSummary; link: SiteLink; onChange: (data: SiteLinks) => void }) {
+function Actions(props: {
+  site: SiteSummary;
+  link: SiteLink;
+  onChange: (data: SiteLinks) => void;
+  onUnlink?: (links: SiteLink[]) => void;
+}) {
   const { site, link } = props;
   const recheck = useMutation({
     mutationFn: () => recheckLink(site.id, link.url),
@@ -459,16 +587,34 @@ function Actions(props: { site: SiteSummary; link: SiteLink; onChange: (data: Si
           {!recheck.isPending && <RefreshCwIcon />}
           Check again
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => ignore.mutate()}
-          loading={ignore.isPending}
-          title={link.ignored ? "Show this link with the problems again" : "Hide this link from the problems"}
-        >
-          {!ignore.isPending && (link.ignored ? <UndoIcon /> : <EyeOffIcon />)}
-          {link.ignored ? "Unignore" : "Ignore"}
-        </Button>
+        {props.onUnlink && removable(link) && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={() => props.onUnlink!([link])}
+            title="Take this link out of its posts, keeping the text"
+          >
+            <UnlinkIcon /> Remove link
+          </Button>
+        )}
+        {link.ignored ? (
+          <Button size="sm" variant="ghost" onClick={() => ignore.mutate()} loading={ignore.isPending}>
+            {!ignore.isPending && <UndoIcon />}
+            Unignore
+          </Button>
+        ) : (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => ignore.mutate()}
+            loading={ignore.isPending}
+            title="Ignore: hide this link from the problems"
+            aria-label="Ignore"
+          >
+            {!ignore.isPending && <EyeOffIcon />}
+          </Button>
+        )}
       </div>
       {error && <p className="text-xs text-destructive">{error.message}</p>}
     </div>

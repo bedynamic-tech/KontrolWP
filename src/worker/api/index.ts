@@ -17,6 +17,7 @@ import type {
   SiteAdmin,
   SiteDetail,
   SiteDomain,
+  LinkUnlinkResult,
   SiteLinks,
   SiteAnalytics,
   SiteAnalyticsDetails,
@@ -32,7 +33,7 @@ import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
-import { ignoreLink, listLinks, recheckLink, startLinkScan } from "../sites/links.ts";
+import { ignoreLink, listLinks, recheckLink, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import {
@@ -602,6 +603,25 @@ api.post("/sites/:id/links/recheck", async (c) => {
   if (!id || !parsed.success) return c.json({ error: "Invalid link" }, 400);
   if (!(await recheckLink(c.env, id, parsed.data.url))) return c.json({ error: "Link not found" }, 404);
   return c.json<SiteLinks>(await listLinks(c.env.DB, id));
+});
+
+const linkUnlink = z.object({ urls: z.array(z.string().min(1).max(2048)).min(1).max(1000) });
+
+/** Take links to these addresses out of the site's posts, keeping the link text. */
+api.post("/sites/:id/links/unlink", async (c) => {
+  const id = siteId(c);
+  const parsed = linkUnlink.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid links" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  let result: LinkUnlinkResult;
+  try {
+    result = await unlinkLinks(c.env, id, [...new Set(parsed.data.urls)]);
+  } catch (error) {
+    if (error instanceof UnlinkError) return c.json({ error: error.message }, 400);
+    if (error instanceof SiteRequestError) return c.json({ error: error.message }, 502);
+    throw error;
+  }
+  return c.json<{ result: LinkUnlinkResult; links: SiteLinks }>({ result, links: await listLinks(c.env.DB, id) });
 });
 
 const linkIgnore = linkTarget.extend({ ignored: z.boolean() });

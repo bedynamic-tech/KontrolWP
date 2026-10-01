@@ -48,6 +48,42 @@ class KontrolWP_Connect_Links {
 				),
 			)
 		);
+
+		register_rest_route(
+			KontrolWP_Connect_Rest::NAMESPACE_V1,
+			'/links/unlink',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'unlink' ),
+				'permission_callback' => $auth,
+				'args'                => array(
+					// [{url, post_ids}]: take the link to url out of each post, keeping its text (0.9.3).
+					'items' => array(
+						'type'     => 'array',
+						'required' => true,
+						'minItems' => 1,
+						'maxItems' => 50,
+						'items'    => array(
+							'type'       => 'object',
+							'properties' => array(
+								'url'      => array(
+									'type'      => 'string',
+									'maxLength' => 2048,
+								),
+								'post_ids' => array(
+									'type'     => 'array',
+									'maxItems' => self::MAX_PER_PAGE,
+									'items'    => array(
+										'type'    => 'integer',
+										'minimum' => 1,
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		);
 	}
 
 	/** Public content types: posts, pages and any public custom type, without media. */
@@ -169,6 +205,100 @@ class KontrolWP_Connect_Links {
 		}
 
 		return array_values( $found );
+	}
+
+	/**
+	 * Remove links to the given addresses from the given posts, keeping the
+	 * link text. Buttons are left alone, since unwrapping one breaks its
+	 * block. Each changed post is saved through wp_update_post, so WordPress
+	 * keeps a revision to restore.
+	 *
+	 * @param WP_REST_Request $request Incoming request.
+	 */
+	public static function unlink( $request ) {
+		$results = array();
+		foreach ( (array) $request['items'] as $item ) {
+			$url     = isset( $item['url'] ) ? (string) $item['url'] : '';
+			$changed = 0;
+			$kept    = 0;
+			foreach ( array_unique( array_map( 'intval', isset( $item['post_ids'] ) ? (array) $item['post_ids'] : array() ) ) as $post_id ) {
+				$post = get_post( $post_id );
+				if ( ! $post || 'publish' !== $post->post_status || ! in_array( $post->post_type, self::post_types(), true ) ) {
+					continue;
+				}
+				$permalink = get_permalink( $post );
+				$base      = $permalink ? $permalink : home_url( '/' );
+				$skipped   = 0;
+				$content   = preg_replace_callback(
+					'/<a\b([^>]*)>(.*?)<\/a>/is',
+					static function ( $match ) use ( $url, $base, &$skipped ) {
+						if ( ! preg_match( '/\bhref\s*=\s*(["\'])(.*?)\1/is', $match[1], $href ) ) {
+							return $match[0];
+						}
+						$absolute = self::absolute( trim( html_entity_decode( $href[2], ENT_QUOTES, 'UTF-8' ) ), $base );
+						if ( ! $absolute || ! self::same_url( $absolute, $url ) ) {
+							return $match[0];
+						}
+						if ( preg_match( '/\bclass\s*=\s*(["\'])[^"\']*wp-block-button__link/i', $match[1] ) ) {
+							++$skipped;
+							return $match[0];
+						}
+						return $match[2];
+					},
+					(string) $post->post_content
+				);
+				$kept += $skipped;
+				if ( null === $content || $content === $post->post_content ) {
+					continue;
+				}
+				$saved = self::save_content( $post->ID, $content );
+				if ( $saved ) {
+					++$changed;
+				}
+			}
+			$results[] = array(
+				'url'           => $url,
+				'posts_changed' => $changed,
+				'buttons_kept'  => $kept,
+			);
+		}
+		return array( 'results' => $results );
+	}
+
+	/** Whether two addresses are the same once the host's case and an empty path are set aside, as the dashboard stores them. */
+	private static function same_url( $a, $b ) {
+		$normal = static function ( $url ) {
+			$parts = wp_parse_url( $url );
+			if ( ! $parts || empty( $parts['host'] ) ) {
+				return $url;
+			}
+			return strtolower( $parts['scheme'] ) . '://' . strtolower( $parts['host'] )
+				. ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' )
+				. ( isset( $parts['path'] ) && '' !== $parts['path'] ? $parts['path'] : '/' )
+				. ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' );
+		};
+		return $normal( $a ) === $normal( $b );
+	}
+
+	/** Save new content as written: KontrolWP's request has no user, and kses would strip what the author was allowed. */
+	private static function save_content( $post_id, $content ) {
+		$kses = false !== has_filter( 'content_save_pre', 'wp_filter_post_kses' );
+		if ( $kses ) {
+			kses_remove_filters();
+		}
+		$result = wp_update_post(
+			wp_slash(
+				array(
+					'ID'           => $post_id,
+					'post_content' => $content,
+				)
+			),
+			true
+		);
+		if ( $kses ) {
+			kses_init_filters();
+		}
+		return ! is_wp_error( $result ) && $result;
 	}
 
 	/** The visible text of the first link to $href, for the table's "Link text" column. */
