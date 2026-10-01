@@ -1,3 +1,4 @@
+import { compareVersions, LINK_RECHECK_SINCE } from "../../shared/plugin-version.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { LinkRef, LinkScan, LinkStatus, SiteLink, SiteLinks } from "../../shared/types.ts";
 import { callSite, SiteRequestError } from "./client.ts";
@@ -132,21 +133,7 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
           ).bind(siteId, url, scanId),
         );
       }
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO site_link_refs (site_id, url, post_id, post_title, post_type, permalink, link_text, kind)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(
-          siteId,
-          url,
-          Number(post.post_id) || 0,
-          String(post.title ?? "").slice(0, 300),
-          String(post.type ?? "").slice(0, 40),
-          String(post.permalink ?? "").slice(0, 2048),
-          String(link.text ?? "").slice(0, 200),
-          link.kind === "image" ? "image" : "link",
-        ),
-      );
+      statements.push(refStatement(env.DB, siteId, url, post, link));
     }
   }
   for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100));
@@ -356,17 +343,101 @@ export async function listLinks(db: D1Database, siteId: number, now = nowSeconds
   };
 }
 
-/** Check one address again now, after it was fixed. Returns false if the site has no such link. */
+/**
+ * Check one address again now, after it was fixed. First the site re-reads
+ * the posts it was found in, so a link taken out of them leaves the list
+ * instead of being checked. Returns false if the site has no such link.
+ */
 export async function recheckLink(env: Env, siteId: number, url: string, fetcher: typeof fetch = fetch): Promise<boolean> {
   const exists = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
     .bind(siteId, url)
     .first();
   if (!exists) return false;
+  if (!(await stillLinked(env, siteId, url))) return true;
   const check = await checkUrl(url, fetcher);
   await env.DB.prepare("UPDATE site_links SET status = ?, http_status = ?, error = ?, checked_at = ? WHERE site_id = ? AND url = ?")
     .bind(check.status, check.http_status, check.error, nowSeconds(), siteId, url)
     .run();
   return true;
+}
+
+/**
+ * Re-read the posts an address was found in and replace where their links
+ * appear. Drops addresses no post links to any more; returns whether this
+ * one is still in any. Sites before 0.9.2 can't list chosen posts, so the
+ * answer there is always yes, as is any failure to reach the site.
+ */
+async function stillLinked(env: Env, siteId: number, url: string): Promise<boolean> {
+  const version = await env.DB.prepare("SELECT plugin_version FROM sites WHERE id = ?")
+    .bind(siteId)
+    .first<{ plugin_version: string | null }>();
+  if (!version?.plugin_version || compareVersions(version.plugin_version, LINK_RECHECK_SINCE) < 0) return true;
+  const { results } = await env.DB.prepare(
+    "SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ? AND url = ? ORDER BY post_id LIMIT 100",
+  )
+    .bind(siteId, url)
+    .all<{ post_id: number }>();
+  const postIds = results.map((row) => row.post_id).filter((id) => id > 0);
+  if (!postIds.length) return true;
+  const site = await getCredentials(env, siteId);
+  if (!site) return true;
+
+  let listing: LinksPage;
+  try {
+    listing = await callSite<LinksPage>(site, "POST", `${REST_NAMESPACE}/links`, { post_ids: postIds, per_page: 100 });
+  } catch (error) {
+    if (error instanceof SiteRequestError) return true;
+    throw error;
+  }
+
+  const inPosts = `site_id = ? AND post_id IN (${postIds.map(() => "?").join(", ")})`;
+  const { results: before } = await env.DB.prepare(`SELECT DISTINCT url FROM site_link_refs WHERE ${inPosts}`)
+    .bind(siteId, ...postIds)
+    .all<{ url: string }>();
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(`DELETE FROM site_link_refs WHERE ${inPosts}`).bind(siteId, ...postIds),
+  ];
+  for (const post of Array.isArray(listing.items) ? listing.items : []) {
+    // Only the posts asked about; anything else is not ours to replace.
+    if (!postIds.includes(Number(post.post_id))) continue;
+    for (const link of Array.isArray(post.links) ? post.links : []) {
+      const linkUrl = cleanUrl(link.url);
+      if (linkUrl) statements.push(refStatement(env.DB, siteId, linkUrl, post, link));
+    }
+  }
+  // Addresses these posts linked to that no post links to any more leave the list.
+  for (const { url: old } of before) {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM site_links WHERE site_id = ? AND url = ? AND NOT EXISTS
+           (SELECT 1 FROM site_link_refs r WHERE r.site_id = site_links.site_id AND r.url = site_links.url)`,
+      ).bind(siteId, old),
+    );
+  }
+  for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100));
+
+  const still = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
+    .bind(siteId, url)
+    .first();
+  return !!still;
+}
+
+function refStatement(db: D1Database, siteId: number, url: string, post: ListedPost, link: ListedPost["links"][number]) {
+  return db
+    .prepare(
+      `INSERT INTO site_link_refs (site_id, url, post_id, post_title, post_type, permalink, link_text, kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      siteId,
+      url,
+      Number(post.post_id) || 0,
+      String(post.title ?? "").slice(0, 300),
+      String(post.type ?? "").slice(0, 40),
+      String(post.permalink ?? "").slice(0, 2048),
+      String(link.text ?? "").slice(0, 200),
+      link.kind === "image" ? "image" : "link",
+    );
 }
 
 export async function ignoreLink(db: D1Database, siteId: number, url: string, ignored: boolean): Promise<boolean> {

@@ -35,6 +35,16 @@ class KontrolWP_Connect_Links {
 						'maximum' => self::MAX_PER_PAGE,
 						'default' => 50,
 					),
+					// Just these posts, to see whether a link is still in them (0.9.2).
+					'post_ids' => array(
+						'type'     => 'array',
+						'items'    => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+						'maxItems' => self::MAX_PER_PAGE,
+						'default'  => array(),
+					),
 				),
 			)
 		);
@@ -53,17 +63,31 @@ class KontrolWP_Connect_Links {
 	 * @param WP_REST_Request $request Incoming request.
 	 */
 	public static function index( $request ) {
+		$ids  = array_values( array_unique( array_map( 'intval', (array) $request['post_ids'] ) ) );
+		$args = array(
+			'posts_per_page' => (int) $request['per_page'],
+			'paged'          => (int) $request['page'],
+		);
+		if ( $ids ) {
+			// A post that is gone, unpublished or not public content is left out.
+			$args = array(
+				'post__in'       => $ids,
+				'posts_per_page' => count( $ids ),
+				'paged'          => 1,
+			);
+		}
 		$query = new WP_Query(
-			array(
-				'post_type'              => self::post_types(),
-				'post_status'            => 'publish',
-				'posts_per_page'         => (int) $request['per_page'],
-				'paged'                  => (int) $request['page'],
-				'orderby'                => 'ID',
-				'order'                  => 'ASC',
-				'no_found_rows'          => false,
-				'update_post_meta_cache' => false,
-				'update_post_term_cache' => false,
+			array_merge(
+				$args,
+				array(
+					'post_type'              => self::post_types(),
+					'post_status'            => 'publish',
+					'orderby'                => 'ID',
+					'order'                  => 'ASC',
+					'no_found_rows'          => false,
+					'update_post_meta_cache' => false,
+					'update_post_term_cache' => false,
+				)
 			)
 		);
 

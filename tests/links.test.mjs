@@ -182,3 +182,46 @@ test("a scan that stops making progress shows as stopped", async () => {
   const result = await listLinks(env.DB, 1, 1000 + 16 * 60);
   assert.equal(result.scan.status, "stopped");
 });
+
+test("Check again drops a link taken out of its posts, and keeps one still there", async () => {
+  const content = {
+    1: post(1, "Home", [{ url: "https://gone.test/", text: "Gone", kind: "link" }, { url: "https://also.test/", text: "", kind: "link" }]),
+    2: post(2, "About", [{ url: "https://also.test/", text: "", kind: "link" }]),
+  };
+  const { db, env } = await setup([{ items: Object.values(content), page: 1, total_pages: 1, total_posts: 2 }]);
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  await checkLinks(env, 1, scanId, web({ "https://gone.test/": 404, "https://also.test/": 404 }));
+  assert.equal((await listLinks(env.DB, 1)).links.length, 2);
+
+  // The owner removes both links from Home; About still links to also.test.
+  content[1] = post(1, "Home", [{ url: "https://new.test/", text: "", kind: "link" }]);
+  const asked = [];
+  globalThis.fetch = async (_url, init) => {
+    const { post_ids } = JSON.parse(init.body);
+    asked.push(post_ids);
+    return json({ items: post_ids.map((id) => content[id]).filter(Boolean), page: 1, total_pages: 1, total_posts: post_ids.length });
+  };
+
+  // A site before 0.9.2 can't list chosen posts: the address is only checked.
+  db.sqlite.prepare("UPDATE sites SET plugin_version = '0.9.1' WHERE id = 1").run();
+  assert.equal(await recheckLink(env, 1, "https://gone.test/", web({ "https://gone.test/": 404 })), true);
+  assert.equal(asked.length, 0);
+  assert.equal((await listLinks(env.DB, 1)).links.length, 2);
+
+  db.sqlite.prepare("UPDATE sites SET plugin_version = '0.9.2' WHERE id = 1").run();
+  const checked = [];
+  assert.equal(await recheckLink(env, 1, "https://gone.test/", web({}, checked)), true);
+  assert.deepEqual(asked, [[1]]);
+  assert.deepEqual(checked, []);
+  let result = await listLinks(env.DB, 1);
+  assert.deepEqual(result.links.map((link) => [link.url, link.refs.map((ref) => ref.post_title)]), [["https://also.test/", ["About"]]]);
+
+  // Still linked from About, so it is checked; now it loads.
+  assert.equal(await recheckLink(env, 1, "https://also.test/", web({}, checked)), true);
+  assert.deepEqual(asked[1], [2]);
+  assert.equal(checked.length, 1);
+  result = await listLinks(env.DB, 1);
+  assert.equal(result.links.length, 0);
+  assert.equal(result.counts.ok, 1);
+});
