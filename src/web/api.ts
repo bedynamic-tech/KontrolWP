@@ -21,6 +21,8 @@ import type {
   SitePlugins,
   SiteDetail,
   SiteDomain,
+  LinkScanSchedule,
+  LinkScanSettings,
   LinkUnlinkResult,
   SiteLinks,
   SiteSummary,
@@ -195,6 +197,9 @@ export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
   return request<SiteAnalytics>(`/sites/${siteId}/analytics?range=${range}&tz=${encodeURIComponent(tz)}`);
 };
 
+export const fetchLinkScanSettings = () => request<LinkScanSchedule>("/settings/links");
+export const saveLinkScanSettings = (settings: Partial<LinkScanSettings>) =>
+  request<LinkScanSchedule>("/settings/links", { method: "PUT", json: settings });
 export const fetchSyncSettings = () => request<SyncSettings>("/settings/sync");
 export const saveSyncSettings = (settings: SyncSettings) =>
   request<SyncSettings>("/settings/sync", { method: "PUT", json: settings });

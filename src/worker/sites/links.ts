@@ -59,8 +59,12 @@ function loadScan(db: D1Database, siteId: number): Promise<ScanRow | null> {
   return db.prepare("SELECT * FROM link_scans WHERE site_id = ?").bind(siteId).first<ScanRow>();
 }
 
-/** Start a new scan of the site, replacing any running one. */
-export async function startLinkScan(env: Env, siteId: number, now = nowSeconds()): Promise<number> {
+/**
+ * Start a new scan of the site, replacing any running one. With
+ * `delaySeconds` the scan waits in the queue that long first (scheduled
+ * checks space sites out); its start time is set to when it begins.
+ */
+export async function startLinkScan(env: Env, siteId: number, now = nowSeconds(), delaySeconds = 0): Promise<number> {
   const row = await env.DB.prepare(
     `INSERT INTO link_scans (site_id, scan_id, status, posts_scanned, total_urls, checked_urls, started_at, updated_at)
      VALUES (?, 1, 'collecting', 0, 0, 0, ?, ?)
@@ -69,10 +73,13 @@ export async function startLinkScan(env: Env, siteId: number, now = nowSeconds()
        checked_urls = 0, started_at = excluded.started_at, updated_at = excluded.updated_at, finished_at = NULL
      RETURNING scan_id`,
   )
-    .bind(siteId, now, now)
+    .bind(siteId, now + delaySeconds, now + delaySeconds)
     .first<{ scan_id: number }>();
   const scanId = row!.scan_id;
-  await env.SYNC_QUEUE.send({ type: "links-collect", siteId, scanId, page: 1 });
+  await env.SYNC_QUEUE.send(
+    { type: "links-collect", siteId, scanId, page: 1 },
+    delaySeconds ? { delaySeconds } : undefined,
+  );
   return scanId;
 }
 

@@ -26,7 +26,8 @@ import type {
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
-import { SYNC_INTERVALS } from "../../shared/types.ts";
+import { LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { linkScanSchedule, loadLinkScanSettings, saveLinkScanSettings, validTimeZone as isTimeZone } from "../sites/link-schedule.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
@@ -991,6 +992,26 @@ api.put("/settings/sync", async (c) => {
   const settings: SyncSettings = { interval_minutes: interval };
   await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', ?)").bind(JSON.stringify(settings)).run();
   return c.json(settings);
+});
+
+/** Scheduled link checks: how often, and the time zone midnight is in. */
+api.get("/settings/links", async (c) => c.json(await linkScanSchedule(c.env)));
+
+api.put("/settings/links", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { interval_days?: unknown; time_zone?: unknown } | null;
+  const current = await loadLinkScanSettings(c.env);
+  const interval =
+    body?.interval_days === undefined
+      ? current.interval_days
+      : LINK_SCAN_INTERVALS.find((days) => days === body.interval_days);
+  if (interval === undefined) return c.json({ error: "Choose one of the offered intervals" }, 400);
+  let zone = current.time_zone;
+  if (body?.time_zone !== undefined) {
+    if (typeof body.time_zone !== "string" || !isTimeZone(body.time_zone)) return c.json({ error: "Unknown time zone" }, 400);
+    zone = body.time_zone;
+  }
+  await saveLinkScanSettings(c.env, { interval_days: interval, time_zone: zone });
+  return c.json(await linkScanSchedule(c.env));
 });
 
 api.get("/settings/layout", async (c) => c.json(await loadLayout(c.env)));

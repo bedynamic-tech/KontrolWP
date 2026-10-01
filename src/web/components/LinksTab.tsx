@@ -43,7 +43,12 @@ function supported(site: SiteSummary): boolean {
 const removable = (link: SiteLink) =>
   !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link");
 
-const running = (scan: LinkScan | null | undefined) => scan?.status === "collecting" || scan?.status === "checking";
+/** A scheduled check waiting its turn in the queue (sites are spaced a couple of minutes apart). */
+const queued = (scan: LinkScan | null | undefined) =>
+  scan?.status === "collecting" && scan.started_at > Math.floor(Date.now() / 1000);
+
+const running = (scan: LinkScan | null | undefined) =>
+  (scan?.status === "collecting" || scan?.status === "checking") && !queued(scan);
 
 /** The Links tab: scan published posts and pages for broken links, and fix them one by one. */
 export function LinksTab(props: { site: SiteSummary }) {
@@ -59,7 +64,8 @@ export function LinksTab(props: { site: SiteSummary }) {
     queryFn: () => fetchLinks(site.id),
     enabled: supported(site),
     // Follow a scan while it runs; otherwise results only change on request.
-    refetchInterval: (query) => (running(query.state.data?.scan) ? 3000 : false),
+    refetchInterval: (query) =>
+      running(query.state.data?.scan) ? 3000 : queued(query.state.data?.scan) ? 60_000 : false,
   });
   const setData = (data: SiteLinks) => queryClient.setQueryData(["site", site.id, "links"], data);
   const scan = useMutation({
@@ -309,6 +315,14 @@ function UnlinkNotice(props: { result: LinkUnlinkResult; onClose: () => void }) 
 
 function ScanSummary(props: { scan: LinkScan; counts: SiteLinks["counts"] }) {
   const { scan, counts } = props;
+  if (queued(scan)) {
+    const minutes = Math.max(1, Math.ceil((scan.started_at - Date.now() / 1000) / 60));
+    return (
+      <p className="px-4 py-4 text-sm text-muted-foreground">
+        The scheduled check is queued and starts in {plural(minutes, "minute")}. Sites are checked one at a time.
+      </p>
+    );
+  }
   if (scan.status === "collecting" || scan.status === "checking") {
     const percent =
       scan.status === "checking" && scan.total_urls ? Math.round((scan.checked_urls / scan.total_urls) * 100) : 0;

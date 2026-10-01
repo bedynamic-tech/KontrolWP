@@ -4,13 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SYNC_INTERVALS, type SyncInterval, type UmamiMode } from "../../shared/types";
+import {
+  LINK_SCAN_INTERVALS,
+  SYNC_INTERVALS,
+  type LinkScanInterval,
+  type SyncInterval,
+  type UmamiMode,
+} from "../../shared/types";
 import {
   deleteUmamiSettings,
   fetchLayoutSettings,
+  fetchLinkScanSettings,
   fetchSyncSettings,
   fetchUmamiSettings,
   saveLayoutSettings,
+  saveLinkScanSettings,
   saveSyncSettings,
   saveUmamiSettings,
 } from "../api";
@@ -22,6 +30,7 @@ export function SettingsPage() {
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       <SyncSettingsSection />
+      <LinkScanSettingsSection />
       <LayoutSettingsSection />
       <UmamiSettingsSection />
     </div>
@@ -45,12 +54,16 @@ function SyncSettingsSection() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings", "sync"] }),
   });
   return (
-    <Section title="Background sync" action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}>
+    <Section
+      title="Background sync"
+      action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}
+    >
       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span>
           <span className="block text-sm font-medium">Check every site</span>
           <span className="block text-xs text-muted-foreground">
-            Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at once.
+            Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at
+            once.
           </span>
         </span>
         <select
@@ -69,6 +82,131 @@ function SyncSettingsSection() {
       </div>
       {(sync.error || save.error) && (
         <p className="px-4 pb-3 text-sm text-destructive">{(sync.error ?? save.error)!.message}</p>
+      )}
+    </Section>
+  );
+}
+
+const LINK_SCAN_LABELS: Record<LinkScanInterval, string> = {
+  0: "Off",
+  1: "Every day",
+  3: "Every 3 days",
+  5: "Every 5 days",
+  7: "Every 7 days",
+};
+
+const SELECT_CLASS =
+  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+
+/** This browser's time zone, such as America/Chicago. */
+export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+function timeZones(current: string): string[] {
+  let zones: string[] = [];
+  try {
+    zones =
+      (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.("timeZone") ?? [];
+  } catch {
+    // Older browsers: just the saved zone and this browser's.
+  }
+  return [...new Set([current, browserTimeZone(), "UTC", ...zones])].sort();
+}
+
+/**
+ * Scheduled link checks run at midnight in a time zone the Worker can't
+ * guess, so the dashboard saves this browser's the first time it loads.
+ */
+export function useSaveTimeZoneOnce(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["settings", "links"],
+    queryFn: fetchLinkScanSettings,
+    refetchInterval: false,
+    enabled,
+  });
+  const needsZone = settings.data && settings.data.time_zone === null;
+  useEffect(() => {
+    if (!needsZone) return;
+    saveLinkScanSettings({ time_zone: browserTimeZone() })
+      .then((data) => queryClient.setQueryData(["settings", "links"], data))
+      .catch(() => undefined);
+  }, [needsZone, queryClient]);
+}
+
+function LinkScanSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["settings", "links"],
+    queryFn: fetchLinkScanSettings,
+    refetchInterval: false,
+  });
+  const save = useMutation({
+    mutationFn: saveLinkScanSettings,
+    onSuccess: (data) => queryClient.setQueryData(["settings", "links"], data),
+  });
+  const data = settings.data;
+  const zone = data?.time_zone ?? browserTimeZone();
+  return (
+    <Section
+      title="Link checks"
+      action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}
+    >
+      <div className="divide-y">
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            <span className="block text-sm font-medium">Check every site's links</span>
+            <span className="block text-xs text-muted-foreground">
+              At midnight, one site at a time, a couple of minutes apart.
+              {data?.next_run_at
+                ? ` Next: ${new Date(data.next_run_at * 1000).toLocaleString(undefined, {
+                    timeZone: zone,
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}.`
+                : ""}
+            </span>
+          </span>
+          <select
+            aria-label="Link check interval"
+            className={SELECT_CLASS}
+            value={data?.interval_days ?? 7}
+            disabled={settings.isPending || save.isPending}
+            onChange={(e) => save.mutate({ interval_days: Number(e.target.value) as LinkScanInterval })}
+          >
+            {LINK_SCAN_INTERVALS.map((days) => (
+              <option key={days} value={days}>
+                {LINK_SCAN_LABELS[days]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            <span className="block text-sm font-medium">Time zone</span>
+            <span className="block text-xs text-muted-foreground">
+              Where midnight is. Set from this browser at first.
+            </span>
+          </span>
+          <select
+            aria-label="Time zone"
+            className={SELECT_CLASS}
+            value={zone}
+            disabled={settings.isPending || save.isPending}
+            onChange={(e) => save.mutate({ time_zone: e.target.value })}
+          >
+            {timeZones(zone).map((name) => (
+              <option key={name} value={name}>
+                {name.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {(settings.error || save.error) && (
+        <p className="px-4 pb-3 text-sm text-destructive">{(settings.error ?? save.error)!.message}</p>
       )}
     </Section>
   );
@@ -100,7 +238,10 @@ function LayoutSettingsSection() {
     </label>
   );
   return (
-    <Section title="Site page layout" action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}>
+    <Section
+      title="Site page layout"
+      action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}
+    >
       <div className="divide-y">
         {option(1, "One column", "On a site's Overview tab, Analytics, Updates and Comments one below the other.")}
         {option(
