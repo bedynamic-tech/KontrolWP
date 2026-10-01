@@ -639,25 +639,26 @@ function Actions(props: {
         {/* Ignored links are never checked again. */}
         {!link.ignored && (
           <Button
-            size="sm"
+            size="icon-sm"
             variant="outline"
             onClick={() => recheck.mutate()}
             loading={recheck.isPending}
             title="Check this link again now"
+            aria-label="Check again"
           >
             {!recheck.isPending && <RefreshCwIcon />}
-            Check again
           </Button>
         )}
         {props.onUnlink && removable(link) && (
           <Button
-            size="sm"
+            size="icon-sm"
             variant="outline"
             className="text-destructive hover:text-destructive"
             onClick={() => props.onUnlink!([link])}
             title="Take this link out of its posts, keeping the text"
+            aria-label="Remove link"
           >
-            <UnlinkIcon /> Remove link
+            <UnlinkIcon />
           </Button>
         )}
         {link.ignored ? (
