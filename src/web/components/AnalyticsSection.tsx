@@ -96,7 +96,7 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
       </div>
     );
   } else {
-    body = <AnalyticsBody site={site} data={analytics.data} />;
+    body = <AnalyticsBody data={analytics.data} />;
   }
 
   return (
@@ -109,17 +109,12 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   );
 }
 
-function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
+function AnalyticsBody(props: { data: SiteAnalytics }) {
   const { data } = props;
   return (
     <div>
       <StatsRow data={data} />
       <TrendChart data={data} />
-      <AnalyticsFooter site={props.site} data={data}>
-        <Link to="?tab=analytics" className="hover:text-foreground hover:underline">
-          More in Analytics
-        </Link>
-      </AnalyticsFooter>
     </div>
   );
 }
@@ -288,7 +283,8 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
   const save = useMutation({
     mutationFn: (websiteId: string | null) => setSiteUmamiWebsite(props.site.id, websiteId),
     onSuccess: () => props.compact && setOpen(false),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", props.site.id, "analytics"] }),
+    // The site (its chosen website) and every analytics query under it.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", props.site.id] }),
   });
 
   if (!open) {

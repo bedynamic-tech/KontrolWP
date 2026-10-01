@@ -30,6 +30,8 @@ export interface SiteSummary {
   core_auto_update_locked: boolean;
   /** False when the site turns plugin auto-updates off in code. */
   plugin_auto_updates: boolean;
+  /** The Umami website the owner chose for this site; null matches by domain. */
+  umami_website_id: string | null;
 }
 
 /** Core auto-updates: every new version, maintenance and security releases only, or none. */

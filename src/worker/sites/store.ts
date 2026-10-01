@@ -8,7 +8,7 @@ const SUMMARY_COLUMNS = `
   s.id, s.name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded,
-  s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates,
+  s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates, s.umami_website_id,
   j.status AS self_update_status, j.version AS self_update_version, j.error AS self_update_error,
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
