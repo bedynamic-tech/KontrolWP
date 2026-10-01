@@ -16,6 +16,7 @@ import type {
   PluginStatus,
   SiteAdmin,
   SiteDetail,
+  SiteDomain,
   SiteAnalytics,
   SitePlugins,
   SiteUsers,
@@ -27,6 +28,7 @@ import { callSite, SiteRequestError, type SiteCredentials } from "../sites/clien
 import { base64, queueSelfUpdatesAfterDeploy, SELF_UPDATE } from "../sites/kontrolwp-connect.ts";
 import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
+import { lookupDomain } from "../domain.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import {
@@ -549,6 +551,14 @@ async function manageUser(env: Env, site: SiteCredentials, input: UserActionInpu
 }
 
 /** A site's users and roles, straight from the site. */
+/** The site's domain: DNS records and registration, from public sources. */
+api.get("/sites/:id/domain", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  return c.json<SiteDomain>(await lookupDomain(site.url));
+});
+
 api.get("/sites/:id/users", (c) => userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)));
 
 /** Add a user to one site. */

@@ -252,6 +252,40 @@ export interface SyncSettings {
   interval_minutes: SyncInterval;
 }
 
+/** One DNS record, as a public resolver answers for it. */
+export interface DnsRecord {
+  type: "A" | "AAAA" | "CNAME" | "MX" | "NS" | "TXT" | "CAA" | "SOA";
+  name: string;
+  value: string;
+  ttl: number;
+}
+
+/** Registration details from the registry (RDAP); times in Unix seconds. */
+export interface DomainRegistration {
+  registrar: string | null;
+  registered_at: number | null;
+  updated_at: number | null;
+  expires_at: number | null;
+  /** EPP status codes, such as "client transfer prohibited". */
+  statuses: string[];
+  nameservers: string[];
+  /** Whether the registry has DNSSEC on for the domain; null when it doesn't say. */
+  dnssec: boolean | null;
+}
+
+/** A site's domain, looked up live when the Domain tab opens. */
+export interface SiteDomain {
+  /** The registered domain, such as example.co.uk. */
+  domain: string;
+  /** The site's own host, such as www.example.co.uk. */
+  host: string;
+  registration: DomainRegistration | null;
+  registration_error: string | null;
+  dns: DnsRecord[];
+  dns_error: string | null;
+  checked_at: number;
+}
+
 /** A WordPress role on a site: its slug and display name. */
 export interface UserRole {
   slug: string;

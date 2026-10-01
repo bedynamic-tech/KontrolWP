@@ -19,6 +19,7 @@ import type {
   SiteAdmin,
   SitePlugins,
   SiteDetail,
+  SiteDomain,
   SiteSummary,
   SiteUpdate,
 } from "../shared/types";
@@ -195,6 +196,7 @@ export const fetchLayoutSettings = () => request<LayoutSettings>("/settings/layo
 export const saveLayoutSettings = (layout: LayoutSettings) =>
   request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });
 
+export const fetchDomain = (siteId: number) => request<SiteDomain>(`/sites/${siteId}/domain`);
 export const fetchUsers = (siteId: number) => request<SiteUsers>(`/sites/${siteId}/users`);
 
 export const createUser = (siteId: number, user: NewUser) =>
