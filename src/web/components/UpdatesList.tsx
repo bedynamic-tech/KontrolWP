@@ -9,6 +9,7 @@ import type { SiteUpdate, UpdateJobStatus } from "../../shared/types";
 import { applyUpdate } from "../api";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow } from "./Section";
+import { Spinner } from "./Spinner";
 
 /** Poll quickly while an update is waiting or running, so its row follows along. */
 export function updatesRefetchInterval(updates: SiteUpdate[] | undefined): number {
@@ -148,7 +149,12 @@ const JOB_LABELS: Record<UpdateJobStatus, string> = {
 function UpdateButton(props: { status: string | null; onClick: () => void; disabled: boolean }) {
   return (
     <div className="flex shrink-0 items-center gap-3">
-      {props.status && <span className="text-xs text-muted-foreground">{props.status}</span>}
+      {props.status && (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {props.status !== "Updated" && <Spinner className="size-3" />}
+          {props.status}
+        </span>
+      )}
       <Button size="sm" onClick={props.onClick} disabled={props.disabled}>
         Update
       </Button>
@@ -169,7 +175,7 @@ export function UpdateAllButton(props: { updates: SiteUpdate[] }) {
   });
   if (!props.updates.length) return null;
   return (
-    <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || !pending.length}>
+    <Button size="sm" onClick={() => mutation.mutate()} disabled={!pending.length} loading={mutation.isPending}>
       Update all
     </Button>
   );

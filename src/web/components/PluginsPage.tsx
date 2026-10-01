@@ -12,7 +12,8 @@ import type { FleetPlugin, FleetPlugins } from "../../shared/types";
 import { plural } from "../format";
 import { applyUpdate, bulkPluginAction, fetchFleetPlugins, fetchOverview, installPluginOnSites } from "../api";
 import { autoUpdatesSupported } from "./CoreAutoUpdate";
-import { PluginBulkBar, SelectBox, type BulkAction } from "./PluginBulkBar";
+import { Spinner } from "./Spinner";
+import { PluginBulkBar, SelectBox, type BulkAction, type BulkProgress } from "./PluginBulkBar";
 import { InstallDialog } from "./PluginsSection";
 import { SitePicker } from "./SitePicker";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
@@ -141,6 +142,7 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
   const queryClient = useQueryClient();
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
+  const [progress, setProgress] = useState<BulkProgress | null>(null);
 
   // Checked rows that still exist (a sync may have removed some).
   const selected = props.plugins.filter((plugin) => !plugin.protected && checked.has(keyOf(plugin)));
@@ -159,14 +161,22 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
   const action = useMutation({
     mutationFn: async (next: BulkAction): Promise<{ key: string; ok: boolean; error?: string }[]> => {
       const targets = selected.filter(TARGETS[next]);
+      let done = 0;
+      const advance = (count: number) => {
+        done += count;
+        setProgress({ done, total: targets.length });
+      };
+      setProgress({ done: 0, total: targets.length });
       if (next === "update") {
         // Updates go through each site's update queue, as on the Overview.
         return Promise.all(
           targets.map((plugin) =>
-            applyUpdate(plugin.site_id, { kind: "plugin", slug: plugin.file, new_version: plugin.new_version! }).then(
-              () => ({ key: keyOf(plugin), ok: true }),
-              (err: Error) => ({ key: keyOf(plugin), ok: false, error: err.message }),
-            ),
+            applyUpdate(plugin.site_id, { kind: "plugin", slug: plugin.file, new_version: plugin.new_version! })
+              .then(
+                () => ({ key: keyOf(plugin), ok: true }),
+                (err: Error) => ({ key: keyOf(plugin), ok: false, error: err.message }),
+              )
+              .finally(() => advance(1)),
           ),
         );
       }
@@ -181,6 +191,7 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
         } catch (err) {
           for (const plugin of plugins) results.push({ key: keyOf(plugin), ok: false, error: (err as Error).message });
         }
+        advance(plugins.length);
       }
       return results;
     },
@@ -213,6 +224,7 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
         onToggleAll={() => toggle(selectable, !allChecked)}
         onRun={(next) => action.mutate(next)}
         pending={action.isPending ? action.variables : null}
+        progress={action.isPending ? progress : null}
         deleteTitle={`Delete ${plural(files, "plugin")} from ${plural(sites, "site")}?`}
         error={
           action.error?.message ??
@@ -278,7 +290,12 @@ function PluginGroup(props: {
               {versions.length > 0 && ` · ${versions.length === 1 ? "Version" : "Versions"} ${versions.join(", ")}`}
               {first.author && ` · ${first.author}`}
               {autoUpdating > 0 && ` · ${autoUpdating} auto-updating`}
-              {busyJobs > 0 && ` · ${busyJobs} updating`}
+              {busyJobs > 0 && (
+                <>
+                  {" · "}
+                  <Spinner className="inline size-3 align-[-2px]" /> {busyJobs} updating
+                </>
+              )}
               {failedJobs > 0 && <span className="text-destructive">{` · ${failedJobs} failed`}</span>}
               {isProtected && " · Connects each site to Presser"}
               {!isProtected && checkedCount > 0 && !all && ` · ${checkedCount} of ${plugins.length} sites checked`}
@@ -335,7 +352,15 @@ function SiteRow(props: { plugin: FleetPlugin; checked: boolean; onToggle: () =>
           {plugin.version ? `Version ${plugin.version}` : "No version"}
           {update && ` · ${plugin.new_version} available`}
           {update && plugin.updates_excluded && " · Excluded from updates"}
-          {plugin.job_status && ` · ${JOB_LABELS[plugin.job_status]}`}
+          {plugin.job_status && (
+            <>
+              {" · "}
+              {(plugin.job_status === "queued" || plugin.job_status === "running") && (
+                <Spinner className="mr-1 inline size-3 align-[-2px]" />
+              )}
+              {JOB_LABELS[plugin.job_status]}
+            </>
+          )}
           {!plugin.protected && autoUpdatesSupported(plugin.site_plugin_version) && (
             plugin.site_plugin_auto_updates
               ? ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`

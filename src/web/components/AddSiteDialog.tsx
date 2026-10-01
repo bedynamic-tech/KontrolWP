@@ -117,7 +117,7 @@ export function AddSiteDialog() {
             </label>
             {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
             <DialogFooter>
-              <Button type="submit" disabled={create.isPending}>
+              <Button type="submit" loading={create.isPending}>
                 {create.isPending ? "Connecting..." : "Add site"}
               </Button>
             </DialogFooter>

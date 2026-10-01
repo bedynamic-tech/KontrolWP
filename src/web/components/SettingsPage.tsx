@@ -13,6 +13,7 @@ import {
   saveUmamiSettings,
 } from "../api";
 import { Section } from "./Section";
+import { Spinner } from "./Spinner";
 
 export function SettingsPage() {
   return (
@@ -50,7 +51,7 @@ function LayoutSettingsSection() {
     </label>
   );
   return (
-    <Section title="Site page layout">
+    <Section title="Site page layout" action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}>
       <div className="divide-y">
         {option(1, "One column", "Analytics, Updates, Plugins and Comments one below the other.")}
         {option(
@@ -198,7 +199,7 @@ function UmamiSettingsSection() {
           )}
           {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" disabled={save.isPending}>
+            <Button type="submit" size="sm" loading={save.isPending}>
               {save.isPending ? "Checking..." : "Save and test"}
             </Button>
             {settings.data.configured && (
@@ -207,7 +208,7 @@ function UmamiSettingsSection() {
                 size="sm"
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
-                disabled={disconnect.isPending}
+                loading={disconnect.isPending}
                 onClick={() => disconnect.mutate()}
               >
                 Disconnect

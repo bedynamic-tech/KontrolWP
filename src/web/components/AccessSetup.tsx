@@ -55,7 +55,7 @@ export function AccessSetup(props: { error: ApiError; onRetry: () => void; retry
           </Step>
         </ol>
 
-        <Button className="mt-6" onClick={props.onRetry} disabled={props.retrying}>
+        <Button className="mt-6" onClick={props.onRetry} loading={props.retrying}>
           {props.retrying ? "Checking..." : "Check again"}
         </Button>
       </div>

@@ -230,3 +230,19 @@
   --sidebar-border: oklch(0.28 0.007 265);
   --sidebar-ring: oklch(0.55 0.015 265);
 }
+
+/* The global activity bar: a short stripe sliding across while work runs. */
+@keyframes activity-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-stripe {
+    animation-duration: 3s !important;
+  }
+}

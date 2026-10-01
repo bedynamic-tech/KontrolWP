@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogInIcon } from "lucide-react";
+import { Loader2Icon, LogInIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version";
@@ -51,7 +51,7 @@ export function MagicLoginButton(props: { site: SiteSummary; onChooseUser: () =>
         disabled={pending || !magicLoginSupported(site)}
         title={magicLoginSupported(site) ? undefined : `Needs Presser Connect ${MAGIC_LOGIN_SINCE} or later`}
       >
-        <LogInIcon />
+        {pending ? <Loader2Icon className="animate-spin" /> : <LogInIcon />}
         {pending ? "Opening..." : "Magic Login"}
       </Button>
       {error && <p className="max-w-72 text-right text-xs text-destructive">{error}</p>}
@@ -156,7 +156,7 @@ export function MagicLoginUserForm(props: {
       </p>
       {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={!selected || save.isPending || !admins.data}>
+        <Button type="submit" size="sm" disabled={!selected || !admins.data} loading={save.isPending}>
           {save.isPending ? "Saving..." : props.submitLabel}
         </Button>
         {secondary}

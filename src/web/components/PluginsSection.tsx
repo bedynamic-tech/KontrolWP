@@ -16,7 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version";
 import type { InstalledPlugin, SiteSummary, SiteUpdate } from "../../shared/types";
 import { applyUpdate, fetchPlugins, installPlugin, managePlugin, type PluginInstall } from "../api";
-import { PluginBulkBar, SelectBox, type BulkAction } from "./PluginBulkBar";
+import { PluginBulkBar, SelectBox, type BulkAction, type BulkProgress } from "./PluginBulkBar";
+import { Spinner } from "./Spinner";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 
@@ -100,6 +101,8 @@ function SitePluginList(props: {
   const queryClient = useQueryClient();
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
+  const [progress, setProgress] = useState<BulkProgress | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
 
   const offers = new Map(
     props.updates
@@ -125,8 +128,11 @@ function SitePluginList(props: {
   const action = useMutation({
     mutationFn: async (next: BulkAction): Promise<Result[]> => {
       const results: Result[] = [];
+      const chosen = selected.filter(targets[next]);
+      setProgress({ done: 0, total: chosen.length });
       // One at a time: WordPress changes plugins one request after another.
-      for (const plugin of selected.filter(targets[next])) {
+      for (const plugin of chosen) {
+        setWorking(plugin.file);
         try {
           if (next === "update") await applyUpdate(siteId, offers.get(plugin.file)!);
           else await managePlugin(siteId, plugin.file, next);
@@ -134,6 +140,7 @@ function SitePluginList(props: {
         } catch (err) {
           results.push({ file: plugin.file, ok: false, error: (err as Error).message });
         }
+        setProgress({ done: results.length, total: chosen.length });
       }
       return results;
     },
@@ -144,6 +151,7 @@ function SitePluginList(props: {
       setChecked(new Set(failed.map((result) => result.file)));
     },
     onSettled: () => {
+      setWorking(null);
       queryClient.invalidateQueries({ queryKey: ["site", siteId] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
       queryClient.invalidateQueries({ queryKey: ["fleet-plugins"] });
@@ -168,6 +176,7 @@ function SitePluginList(props: {
         onToggleAll={() => setChecked(allChecked ? new Set() : new Set(selectable.map((plugin) => plugin.file)))}
         onRun={(next) => action.mutate(next)}
         pending={action.isPending ? action.variables : null}
+        progress={action.isPending ? progress : null}
         deleteTitle={selected.length === 1 ? `Delete ${selected[0].name}?` : `Delete ${selected.length} plugins?`}
         error={
           action.error?.message ??
@@ -184,6 +193,7 @@ function SitePluginList(props: {
             checked={checked.has(plugin.file)}
             onToggle={() => toggle(plugin.file)}
             error={errors.get(plugin.file) ?? null}
+            working={action.isPending && working === plugin.file}
           />
         ))}
       </ul>
@@ -198,8 +208,11 @@ function PluginRow(props: {
   checked: boolean;
   onToggle: () => void;
   error: string | null;
+  /** A bulk action is changing this plugin right now. */
+  working: boolean;
 }) {
   const { plugin, update } = props;
+  const jobActive = update?.job_status === "queued" || update?.job_status === "running";
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:items-center">
       <RemoteIcon
@@ -223,14 +236,22 @@ function PluginRow(props: {
           {!plugin.protected && props.autoUpdates === false && " · Auto-updates turned off in code"}
           {!plugin.protected && props.autoUpdates && plugin.auto_update !== undefined &&
             ` · Auto-updates ${plugin.auto_update ? "on" : "off"}`}
-          {update?.job_status && update.job_status !== "failed" && ` · Update ${update.job_status === "running" ? "running" : update.job_status}`}
+          {update?.job_status === "done" && " · Updated"}
         </p>
+        {jobActive && (
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Spinner className="size-3" />
+            {update.job_status === "running" ? `Updating to ${update.new_version}...` : `Update to ${update.new_version} queued`}
+          </p>
+        )}
         {update?.job_status === "failed" && update.job_error && (
           <p className="mt-1 text-xs text-destructive">{update.job_error}</p>
         )}
         {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
       </div>
-      {!plugin.protected && (
+      {props.working ? (
+        <Spinner className="mt-1 size-4 text-muted-foreground sm:mt-0" label={`Changing ${plugin.name}`} />
+      ) : !plugin.protected && (
         <SelectBox
           className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
           checked={props.checked}
@@ -366,7 +387,7 @@ export function InstallDialog(props: {
             <Button type="button" variant="outline" onClick={() => close(false)} disabled={install.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={install.isPending || props.canSubmit === false}>
+            <Button type="submit" disabled={props.canSubmit === false} loading={install.isPending}>
               {install.isPending ? "Installing..." : "Install"}
             </Button>
           </DialogFooter>
