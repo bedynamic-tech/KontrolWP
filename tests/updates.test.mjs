@@ -11,7 +11,7 @@ import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 const SITE = "https://example.com";
 
-/** A database with one site, and a stubbed Presser Connect behind fetch. */
+/** A database with one site, and a stubbed KontrolWP Connect behind fetch. */
 async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
   const db = fakeD1();
   await applyMigrations(db, migrations);
@@ -56,7 +56,7 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
       return json({
         plugins: [
           { file: "akismet/akismet.php", name: "Akismet", version: "5.3", author: "Automattic", active: true, network_active: false, protected: false, auto_update: true, icon_url: "https://ps.w.org/akismet/assets/icon.svg" },
-          { file: "presser-connect/presser-connect.php", name: "Presser Connect", version: plugin_version, author: "Presser", active: true, network_active: false, protected: true },
+          { file: "presser-connect/presser-connect.php", name: "KontrolWP Connect", version: plugin_version, author: "KontrolWP", active: true, network_active: false, protected: true },
         ],
         can_modify_files: true,
         auto_updates: true,
@@ -128,7 +128,7 @@ test("a failed update does not stop the next one", async () => {
   assert.deepEqual(t.jobs(), [{ slug: "a/a.php", status: "failed", error: "Download failed." }]);
 });
 
-test("an older Presser Connect is updated automatically and never listed", async () => {
+test("an older KontrolWP Connect is updated automatically and never listed", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.3.0");
   await syncSite(t.env, 1);
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
@@ -142,7 +142,7 @@ test("an older Presser Connect is updated automatically and never listed", async
   assert.deepEqual(t.applied[0], { version: PRESSER_CONNECT_VERSION, package: "UEsDBA==" });
 });
 
-test("a current Presser Connect is left alone", async () => {
+test("a current KontrolWP Connect is left alone", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }));
   await syncSite(t.env, 1);
   assert.deepEqual(t.jobs(), []);
@@ -158,16 +158,16 @@ test("a failed self-update is not retried by the sync that follows it", async ()
   assert.equal(t.sent.length, sentBefore);
 });
 
-test("a Presser Connect too old to update itself says how to fix it", async () => {
+test("a KontrolWP Connect too old to update itself says how to fix it", async () => {
   const t = await setup(async (_body, json) => json({ code: "rest_no_route", message: "No route" }, 404), "0.3.0");
   await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "presser-connect" });
   await runNextUpdate(t.env, 1);
   assert.match(t.jobs()[0].error, /cannot update itself/);
 });
 
-test("a Presser Connect updated by hand since the last sync counts as done", async () => {
+test("a KontrolWP Connect updated by hand since the last sync counts as done", async () => {
   const t = await setup(
-    async (_body, json) => json({ code: "presser_up_to_date", message: "Presser Connect is already up to date." }, 409),
+    async (_body, json) => json({ code: "presser_up_to_date", message: "KontrolWP Connect is already up to date." }, 409),
     "0.3.0",
   );
   await syncSite(t.env, 1);
@@ -204,7 +204,7 @@ test("updates count as active until the sync after them clears the row", async (
   assert.equal((await listUpdates(db, 1)).length, 6);
 });
 
-test("a newer Presser Connect is queued at once, even right after the last self-update", async () => {
+test("a newer KontrolWP Connect is queued at once, even right after the last self-update", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.0.1");
   // The previous release's self-update finished an hour ago. Jobs from before
   // versions were recorded have none.
@@ -269,13 +269,13 @@ test("Magic Login defaults to the site's first administrator, and keeps the owne
   assert.deepEqual(user(), { login_user_id: 7, login_user_name: "Chief" });
 });
 
-test("a Presser Connect without Magic Login is not asked for administrators", async () => {
+test("a KontrolWP Connect without Magic Login is not asked for administrators", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.4.1");
   await syncSite(t.env, 1);
   assert.equal(t.env.DB.sqlite.prepare("SELECT login_user_id FROM sites WHERE id = 1").get().login_user_id, null);
 });
 
-test("a site excluded from update checks is not asked for updates but still updates Presser Connect", async () => {
+test("a site excluded from update checks is not asked for updates but still updates KontrolWP Connect", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.0.1");
   const asked = [];
   const fetchSite = globalThis.fetch;
@@ -292,7 +292,7 @@ test("a site excluded from update checks is not asked for updates but still upda
   assert.deepEqual(
     t.jobs().map((job) => job.slug),
     ["presser-connect"],
-    "only Presser Connect's own update",
+    "only KontrolWP Connect's own update",
   );
   assert.equal(t.env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_updates").get().n, 0);
   assert.equal((await getSite(t.env.DB, 1)).updates_excluded, true);
@@ -322,7 +322,7 @@ test("sync keeps each site's plugins for the Plugins page, with their updates", 
   assert.deepEqual(fleet.unsupported_sites, []);
 });
 
-test("a site whose Presser Connect cannot list plugins is reported, not listed", async () => {
+test("a site whose KontrolWP Connect cannot list plugins is reported, not listed", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }), "0.5.1");
   await syncSite(t.env, 1);
   const fleet = await listFleetPlugins(t.env.DB);
@@ -330,7 +330,7 @@ test("a site whose Presser Connect cannot list plugins is reported, not listed",
   assert.deepEqual(fleet.unsupported_sites.map((s) => ({ ...s })), [{ id: 1, name: "Example", plugin_version: "0.5.1" }]);
 });
 
-test("sync keeps WordPress's auto-update settings, and an older Presser Connect leaves them unknown", async () => {
+test("sync keeps WordPress's auto-update settings, and an older KontrolWP Connect leaves them unknown", async () => {
   const t = await setup(async (_body, json) => json({ ok: true }));
   await syncSite(t.env, 1);
   const site = await getSite(t.env.DB, 1);

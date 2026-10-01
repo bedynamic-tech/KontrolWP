@@ -2,7 +2,7 @@
 /**
  * Magic Login: the dashboard asks for a one-time link (a signed request),
  * and opening that link signs the browser in as the administrator the owner
- * chose in Presser. A link works once, for one minute, and only while that
+ * chose in KontrolWP. A link works once, for one minute, and only while that
  * user is still an administrator.
  */
 
@@ -90,7 +90,7 @@ class Presser_Connect_Login {
 
 		if ( ! $spent || (int) $grant['expires'] < time() || ! $user || ! user_can( $user, 'manage_options' ) ) {
 			wp_die(
-				esc_html__( 'This Magic Login link has expired or was already used. Start Magic Login again from Presser.', 'presser-connect' ),
+				esc_html__( 'This Magic Login link has expired or was already used. Start Magic Login again from KontrolWP.', 'presser-connect' ),
 				esc_html__( 'Magic Login', 'presser-connect' ),
 				array(
 					'response'  => 403,

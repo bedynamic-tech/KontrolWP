@@ -47,7 +47,7 @@ export function App() {
           className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
         >
           <DownloadIcon />
-          <span>Presser Connect plugin</span>
+          <span>KontrolWP Connect</span>
         </a>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -64,8 +64,8 @@ export function App() {
             <a
               href={PLUGIN_ZIP_URL}
               download
-              aria-label="Download the Presser Connect plugin"
-              title="Presser Connect plugin"
+              aria-label="Download the KontrolWP Connect plugin"
+              title="KontrolWP Connect plugin"
               className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
             >
               <DownloadIcon />
@@ -91,8 +91,8 @@ export function App() {
 function Brand() {
   return (
     <div className="flex items-center gap-2 px-2">
-      <img src="/presser.svg" alt="" className="size-6" />
-      <span className="text-sm font-semibold tracking-tight">Presser</span>
+      <img src="/kontrolwp.svg" alt="" className="size-6" />
+      <span className="text-sm font-semibold tracking-tight">KontrolWP</span>
     </div>
   );
 }

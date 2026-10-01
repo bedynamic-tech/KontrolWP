@@ -1,4 +1,4 @@
-# Deploy your own Presser
+# Deploy your own KontrolWP
 
 The recommended path is Cloudflare's guided deployment, followed by turning on
 Access. No local CLI or API keys are needed.
@@ -18,7 +18,7 @@ subject to Cloudflare's quotas and billing.
 2. Open the dashboard and follow its setup screen: turn on Access for the
    Worker, then paste the two values it shows. The API rejects requests until
    this is done.
-3. Install Presser Connect on a site, then add the site in Presser with its
+3. Install KontrolWP Connect on a site, then add the site in KontrolWP with its
    address and the Connection Key the plugin shows.
 
 ## 1. Deploy the dashboard
@@ -41,7 +41,7 @@ subject to Cloudflare's quotas and billing.
    empty, because the deploy script builds the app itself. If Cloudflare
    pre-fills `npm run build`, clearing it avoids building twice.
 5. Deploy and wait for Workers Builds to finish. The script builds the
-   dashboard and the Presser Connect zip, applies pending D1 migrations, then
+   dashboard and the KontrolWP Connect zip, applies pending D1 migrations, then
    deploys the Worker and its assets. On the first deploy it also creates the
    `SITE_SECRETS_KEY` Worker secret that encrypts site secrets; later deploys
    keep it. Never delete or change it, or every site will need a new
@@ -62,13 +62,13 @@ name; Wrangler uses that ID when present.
 
 ## 2. Turn on Cloudflare Access
 
-Open the Worker's URL. Until Access protects the Worker, Presser shows a setup
+Open the Worker's URL. Until Access protects the Worker, KontrolWP shows a setup
 screen instead of the dashboard:
 
 1. In **Workers & Pages**, open your Worker's **Access** tab and select
    **Enable access** with the **Cloudflare account** policy. The setup screen
    links straight to this tab.
-2. Reload the page. Presser now shows the two values to add under **Settings,
+2. Reload the page. KontrolWP now shows the two values to add under **Settings,
    Variables and Secrets**: `WEB_ACCESS_TEAM_DOMAIN` and `WEB_ACCESS_AUD`.
 3. Select **Check again**.
 
@@ -79,9 +79,9 @@ two variables across deploys.
 ## 3. Connect a site
 
 Download `presser-connect.zip` from the dashboard (the sidebar or the Sites
-page), then install and activate it on the site. Under **Settings, Presser
-Connect** on the site, copy the Connection Key. In Presser, select **Add
-site** and enter the site's https address and the key. Presser checks the
+page), then install and activate it on the site. Under **Settings, KontrolWP
+Connect** on the site, copy the Connection Key. In KontrolWP, select **Add
+site** and enter the site's https address and the key. KontrolWP checks the
 connection, names the site after its WordPress title and syncs it.
 
 ## Manual deployment
@@ -120,18 +120,18 @@ new migrations before the new Worker goes live.
 - **D1 database not found:** `database_name` in `wrangler.jsonc` must match a
   database in the account. For manual setup, create it before running
   migrations.
-- **"Add Presser's encryption key" screen:** the Worker has no
+- **"Add KontrolWP's encryption key" screen:** the Worker has no
   `SITE_SECRETS_KEY`, usually because the deploy command is not
   `npm run deploy` (a plain `wrangler deploy` does not create it). Follow the
   screen: it generates a key in your browser to add as a Worker secret. Also
   set the deploy command to `npm run deploy` under the Worker's **Settings,
   Build**.
-- **"Presser could not update its database":** the Worker tried to apply a
+- **"KontrolWP could not update its database":** the Worker tried to apply a
   missing migration and D1 refused it. The message names the migration and
   the reason. Fix the cause, then run `npm run db:migrate`, which records
   what it applies so the Worker does not try again.
-- **"Presser could not decrypt this site's secret":** the key changed since
-  the site was added. Copy the Connection Key from Settings, Presser Connect
+- **"KontrolWP could not decrypt this site's secret":** the key changed since
+  the site was added. Copy the Connection Key from Settings, KontrolWP Connect
   on the site and use **Replace connection key** on the site's page.
 - **Sites never sync on their own:** check that the `presser-sync` queue
   exists and that the Worker's **Settings, Triggers** shows the cron schedule.

@@ -1,24 +1,24 @@
 <?php
 /**
- * Plugin Name:       Presser Connect
+ * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://github.com/bedynamic-tech/Presser
- * Description:       Connects this site to your Presser dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.7.1
+ * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
+ * Version:           0.7.2
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            Presser
+ * Author:            KontrolWP
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       presser-connect
  */
 
 /*
- * Presser Connect is free software: you can redistribute it and/or modify it
+ * KontrolWP Connect is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
  * Software Foundation, either version 2 of the License, or (at your option)
  * any later version.
  *
- * Presser Connect is distributed in the hope that it will be useful, but
+ * KontrolWP Connect is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
  * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PRESSER_CONNECT_VERSION', '0.7.1' );
+define( 'PRESSER_CONNECT_VERSION', '0.7.2' );
 define( 'PRESSER_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-presser-connect-auth.php';

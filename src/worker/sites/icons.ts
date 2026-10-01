@@ -60,7 +60,7 @@ export function findIcon(html: string, pageUrl: string): string | null {
 export async function discoverIcon(siteUrl: string): Promise<string | null> {
   try {
     const response = await fetch(siteUrl, {
-      headers: { Accept: "text/html", "User-Agent": "Presser" },
+      headers: { Accept: "text/html", "User-Agent": "KontrolWP" },
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     });

@@ -28,7 +28,7 @@ export function SitePicker(props: {
       {props.loading ? (
         <p className="text-sm text-muted-foreground">Loading sites...</p>
       ) : !sites.length ? (
-        <p className="text-sm text-muted-foreground">No sites can install plugins from Presser yet.</p>
+        <p className="text-sm text-muted-foreground">No sites can install plugins from KontrolWP yet.</p>
       ) : (
         <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border px-3 py-2">
           {sites.map((site) => (

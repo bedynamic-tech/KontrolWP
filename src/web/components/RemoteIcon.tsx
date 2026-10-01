@@ -33,7 +33,7 @@ export function RemoteIcon(props: { sources: Array<string | null | undefined>; n
 
 /**
  * Where a plugin's icon may be: what WordPress reported, then WordPress.org's
- * usual icon files for the plugin's folder (sites on an older Presser Connect
+ * usual icon files for the plugin's folder (sites on an older KontrolWP Connect
  * report none). A plugin not on WordPress.org falls through to its letter.
  */
 export function pluginIconSources(file: string, iconUrl?: string | null): string[] {

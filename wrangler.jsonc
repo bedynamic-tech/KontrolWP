@@ -15,7 +15,7 @@
   // Worker Settings > Variables and Secrets. Missing values deny all API access.
   "keep_vars": true,
   "assets": {
-    // Lets the Worker read the Presser Connect zip it pushes to sites.
+    // Lets the Worker read the KontrolWP Connect zip it pushes to sites.
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]

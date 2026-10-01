@@ -21,7 +21,7 @@ export class SecretsKeyError extends Error {
 }
 
 const UNREADABLE =
-  "Presser could not decrypt this site's secret. If SITE_SECRETS_KEY changed, create a new connection key for the site.";
+  "KontrolWP could not decrypt this site's secret. If SITE_SECRETS_KEY changed, create a new connection key for the site.";
 
 /** True when SITE_SECRETS_KEY decodes to 32 bytes (base64 or base64url). */
 export function isValidSecretsKey(value: string | undefined): boolean {
@@ -62,7 +62,7 @@ export function encryptSetting(keyValue: string | undefined, name: string, secre
 }
 
 export function decryptSetting(keyValue: string | undefined, name: string, stored: string): Promise<string> {
-  return open(keyValue, settingAad(name), stored, "Presser could not decrypt a saved setting. If SITE_SECRETS_KEY changed, enter it again in Settings.");
+  return open(keyValue, settingAad(name), stored, "KontrolWP could not decrypt a saved setting. If SITE_SECRETS_KEY changed, enter it again in Settings.");
 }
 
 async function seal(keyValue: string | undefined, additionalData: Uint8Array, secret: string): Promise<string> {

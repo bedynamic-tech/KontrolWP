@@ -13,7 +13,7 @@ export type SyncResult = { ok: true } | { ok: false; error: string };
  * Pull status, available updates and pending comments from one site and
  * replace its stored snapshot. A failure is recorded on the site rather than
  * thrown, so the dashboard shows it; only unexpected errors throw.
- * `retrySelfUpdate` (Sync now) retries a failed Presser Connect update at once.
+ * `retrySelfUpdate` (Sync now) retries a failed KontrolWP Connect update at once.
  */
 export async function syncSite(
   env: Env,
@@ -82,7 +82,7 @@ export async function syncSite(
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
     env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(siteId),
     // Finished updates are gone from the fresh list, so their jobs are too.
-    // Presser Connect's own job stays: its start time spaces out retries.
+    // KontrolWP Connect's own job stays: its start time spaces out retries.
     env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status = 'done' AND slug != ?").bind(siteId, SELF_UPDATE.slug),
   ];
 
@@ -91,7 +91,7 @@ export async function syncSite(
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   // An offer of the version already installed is stale data from the site
-  // (Presser Connect before 0.5.1 could report one after a core update).
+  // (KontrolWP Connect before 0.5.1 could report one after a core update).
   if (updates.core && text(updates.core.new_version) !== text(updates.core.current)) {
     statements.push(
       insertUpdate.bind(
@@ -136,7 +136,7 @@ export async function syncSite(
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
   await storePlugins(env, site, text(status.plugin_version));
-  // Presser Connect's own update comes from this dashboard and runs by itself,
+  // KontrolWP Connect's own update comes from this dashboard and runs by itself,
   // even on a site excluded from update checks.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
   return { ok: true };

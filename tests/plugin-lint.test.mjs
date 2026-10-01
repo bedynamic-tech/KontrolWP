@@ -14,7 +14,7 @@ function phpFiles(dir) {
   });
 }
 
-test("every Presser Connect PHP file parses", { skip: !hasPhp && "php is not installed" }, () => {
+test("every KontrolWP Connect PHP file parses", { skip: !hasPhp && "php is not installed" }, () => {
   for (const file of phpFiles("plugin/presser-connect")) {
     const result = spawnSync("php", ["-l", file], { encoding: "utf8" });
     assert.equal(result.status, 0, `${file}\n${result.stdout}${result.stderr}`);

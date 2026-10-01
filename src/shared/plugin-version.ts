@@ -1,11 +1,11 @@
 /**
- * The Presser Connect version this dashboard ships in
+ * The KontrolWP Connect version this dashboard ships in
  * public/downloads/presser-connect.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const PRESSER_CONNECT_VERSION = "0.7.1";
+export const PRESSER_CONNECT_VERSION = "0.7.2";
 
-/** The first Presser Connect that can take updates from the dashboard. */
+/** The first KontrolWP Connect that can take updates from the dashboard. */
 export const SELF_UPDATING_SINCE = "0.4.0";
 
 /** Compare dotted versions numerically; missing parts count as 0. */
@@ -19,11 +19,11 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** The first Presser Connect with Magic Login. */
+/** The first KontrolWP Connect with Magic Login. */
 export const MAGIC_LOGIN_SINCE = "0.5.0";
 
-/** The first Presser Connect that can list, install and remove plugins. */
+/** The first KontrolWP Connect that can list, install and remove plugins. */
 export const PLUGIN_MANAGEMENT_SINCE = "0.6.0";
 
-/** The first Presser Connect that can turn WordPress's auto-updates on and off. */
+/** The first KontrolWP Connect that can turn WordPress's auto-updates on and off. */
 export const AUTO_UPDATES_SINCE = "0.7.0";

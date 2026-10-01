@@ -1,6 +1,6 @@
 <?php
 /**
- * The REST routes the Presser dashboard calls. Every route requires a
+ * The REST routes the KontrolWP dashboard calls. Every route requires a
  * signature from Presser_Connect_Auth; none are reachable by site visitors.
  */
 
@@ -224,7 +224,7 @@ class Presser_Connect_Rest {
 	}
 
 	/**
-	 * Tell page caches and CDNs never to keep Presser's answers, so the
+	 * Tell page caches and CDNs never to keep KontrolWP's answers, so the
 	 * dashboard always sees the site as it is now.
 	 *
 	 * @param WP_REST_Response $response Outgoing response.
@@ -309,7 +309,7 @@ class Presser_Connect_Rest {
 	}
 
 	/**
-	 * Update Presser Connect itself with the package the dashboard sent. The
+	 * Update KontrolWP Connect itself with the package the dashboard sent. The
 	 * dashboard sits behind Cloudflare Access, so WordPress cannot download
 	 * from it; the signed request carries the zip instead, and its signature
 	 * covers every byte. The package is then offered to WordPress as a normal
@@ -323,7 +323,7 @@ class Presser_Connect_Rest {
 		}
 		$version = (string) $request['version'];
 		if ( version_compare( $version, PRESSER_CONNECT_VERSION, '<=' ) ) {
-			return new WP_Error( 'presser_up_to_date', __( 'Presser Connect is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
+			return new WP_Error( 'presser_up_to_date', __( 'KontrolWP Connect is already up to date.', 'presser-connect' ), array( 'status' => 409 ) );
 		}
 		$package = base64_decode( (string) $request['package'], true );
 		if ( false === $package || 'PK' !== substr( $package, 0, 2 ) ) {

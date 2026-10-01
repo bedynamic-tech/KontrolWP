@@ -1,9 +1,9 @@
-# Presser
+# KontrolWP
 
 Self-hosted WordPress manager on Cloudflare.
 
-Presser is one dashboard for all your WordPress sites. Each site runs the
-**Presser Connect** plugin, and the dashboard pulls in what needs your
+KontrolWP is one dashboard for all your WordPress sites. Each site runs the
+**KontrolWP Connect** plugin, and the dashboard pulls in what needs your
 attention: plugin, theme and core updates, and comments waiting for review.
 Update WordPress, plugins and themes and moderate comments without logging
 in to each site.
@@ -14,11 +14,11 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 
 ## What it does today
 
-- **Sites.** Install Presser Connect, then add the site with its address and
+- **Sites.** Install KontrolWP Connect, then add the site with its address and
   the Connection Key the plugin shows. The name comes from WordPress.
 - **Updates.** Every available core, plugin and theme update across all sites,
   each queued with one click. Each site installs its updates one at a time.
-  Presser Connect itself updates automatically from the dashboard.
+  KontrolWP Connect itself updates automatically from the dashboard.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** every site is re-checked every 6 hours.
@@ -28,9 +28,9 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 1. **Deploy.** Click **Deploy to Cloudflare** above. The database, queue and
    migrations are set up for you.
 2. **Secure.** The setup screen walks you through turning on Cloudflare Access.
-3. **Connect.** Install Presser Connect on the site, then select **Add site**
+3. **Connect.** Install KontrolWP Connect on the site, then select **Add site**
    and enter the site's address and the Connection Key from Settings,
-   Presser Connect.
+   KontrolWP Connect.
 
 Prefer to set things up by hand? Follow the
 [manual deployment guide](docs/deployment.md#manual-deployment).

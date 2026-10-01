@@ -2,7 +2,7 @@ import { compareVersions, PRESSER_CONNECT_VERSION } from "../../shared/plugin-ve
 import { SiteRequestError } from "./client.ts";
 
 /**
- * The update job for Presser Connect itself. The dashboard supplies it and
+ * The update job for KontrolWP Connect itself. The dashboard supplies it and
  * queues it on its own; it never appears in the updates lists.
  */
 export const SELF_UPDATE = {
@@ -18,7 +18,7 @@ export const SELF_UPDATE = {
 const RETRY_FAILED_AFTER_SECONDS = 6 * 60 * 60;
 
 /**
- * Queue Presser Connect's own update when the site runs an older one, unless
+ * Queue KontrolWP Connect's own update when the site runs an older one, unless
  * it is already queued or running, or this version finished or failed
  * recently. `retry` (Sync now) skips the wait.
  */
@@ -45,7 +45,7 @@ export async function queueSelfUpdate(env: Env, siteId: number, siteVersion: str
   if (queued) await env.SYNC_QUEUE.send({ type: "update", siteId });
 }
 
-/** True when the site runs an older Presser Connect than this dashboard ships. */
+/** True when the site runs an older KontrolWP Connect than this dashboard ships. */
 export function needsSelfUpdate(siteVersion: string): boolean {
   return !!siteVersion && compareVersions(siteVersion, PRESSER_CONNECT_VERSION) < 0;
 }
@@ -53,7 +53,7 @@ export function needsSelfUpdate(siteVersion: string): boolean {
 /** The zip the build put in the static assets, base64-encoded for a signed request. */
 export async function loadPackage(env: Env): Promise<string> {
   const response = await env.ASSETS.fetch("https://assets.invalid/downloads/presser-connect.zip");
-  if (!response.ok) throw new SiteRequestError(`The Presser Connect package is missing from this deployment (HTTP ${response.status})`);
+  if (!response.ok) throw new SiteRequestError(`The KontrolWP Connect package is missing from this deployment (HTTP ${response.status})`);
   return base64(new Uint8Array(await response.arrayBuffer()));
 }
 

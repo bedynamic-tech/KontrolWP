@@ -28,7 +28,7 @@ export function OverviewPage() {
         <div className="mt-8 rounded-xl border bg-background px-6 py-12 text-center">
           <h2 className="text-base font-medium">Add your first site</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Connect a WordPress site with the Presser Connect plugin, from the sidebar, to see
+            Connect a WordPress site with the KontrolWP Connect plugin, from the sidebar, to see
             its updates and comments here.
           </p>
           <Link to="/sites" className="mt-4 inline-block text-sm font-medium underline underline-offset-4">

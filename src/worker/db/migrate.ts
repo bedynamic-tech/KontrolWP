@@ -74,7 +74,7 @@ export async function applyMigrations(db: D1Database, migrations: Migration[]): 
       applied = await appliedNames(db);
       if (applied.has(migration.name)) continue;
       const reason = error instanceof Error ? error.message : String(error);
-      throw new MigrationError(`Presser could not update its database (${migration.name}): ${reason}`);
+      throw new MigrationError(`KontrolWP could not update its database (${migration.name}): ${reason}`);
     }
   }
   return ran;
