@@ -234,7 +234,7 @@ follows redirects, and gives up after 10 seconds:
 A rescan keeps the last result on each address until it is checked again.
 Messages from a replaced scan are dropped by `scan_id`, and a scan with no
 progress for 15 minutes shows as stopped. Owners can check one link again
-after fixing it, or ignore it. Check again first asks the site for just the
+after fixing it, or ignore it; ignored links are never checked again. Check again first asks the site for just the
 posts the link was found in (`post_ids`, 0.9.2), so a link taken out of them
 leaves the list without a full scan; older sites only re-check the address.
 Remove link (0.9.3), per link or for every broken one, asks the site to
