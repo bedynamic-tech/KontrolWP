@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon } from "lucide-react";
+import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
@@ -13,6 +13,7 @@ import { PluginsPage } from "./components/PluginsPage";
 import { SitePage } from "./components/SitePage";
 import { SitesPage } from "./components/SitesPage";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { UsersPage } from "./components/UsersPage";
 
 export function App() {
   // The overview doubles as the Access check: every page needs the API.
@@ -39,6 +40,7 @@ export function App() {
           <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
           <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
           <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
+          <NavItem to="/users" icon={<UsersIcon />} label="Users" />
           <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
         </nav>
         <a
@@ -52,12 +54,13 @@ export function App() {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
-          <Brand />
+          <Brand compact />
           <div className="flex items-center gap-1">
             <nav className="flex gap-1">
               <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
               <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
               <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
+              <NavItem to="/users" icon={<UsersIcon />} label="Users" compact />
               <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" compact />
             </nav>
             {/* The sidebar is hidden on small screens, so its download link moves here. */}
@@ -79,6 +82,7 @@ export function App() {
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/sites/:siteId" element={<SitePage />} />
             <Route path="/plugins" element={<PluginsPage />} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -88,11 +92,17 @@ export function App() {
   );
 }
 
-function Brand() {
+/** compact keeps only the logo on the narrowest phones, where the header nav needs the room. */
+function Brand(props: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2 px-2">
-      <img src="/kontrolwp.svg" alt="" className="size-6" />
-      <span className="text-sm font-semibold tracking-tight">KontrolWP</span>
+      <img src="/kontrolwp.svg" alt="KontrolWP" className="size-6" />
+      <span
+        className={`text-sm font-semibold tracking-tight ${props.compact ? "max-[439px]:sr-only" : ""}`}
+        aria-hidden="true"
+      >
+        KontrolWP
+      </span>
     </div>
   );
 }

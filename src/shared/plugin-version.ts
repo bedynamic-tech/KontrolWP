@@ -3,7 +3,7 @@
  * public/downloads/presser-connect.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const PRESSER_CONNECT_VERSION = "0.7.2";
+export const PRESSER_CONNECT_VERSION = "0.8.0";
 
 /** The first KontrolWP Connect that can take updates from the dashboard. */
 export const SELF_UPDATING_SINCE = "0.4.0";
@@ -27,3 +27,6 @@ export const PLUGIN_MANAGEMENT_SINCE = "0.6.0";
 
 /** The first KontrolWP Connect that can turn WordPress's auto-updates on and off. */
 export const AUTO_UPDATES_SINCE = "0.7.0";
+
+/** The first KontrolWP Connect that can list, add, change and remove users. */
+export const USER_MANAGEMENT_SINCE = "0.8.0";

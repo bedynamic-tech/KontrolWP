@@ -8,6 +8,8 @@ export function SitePicker(props: {
   onChange: (selected: Set<number>) => void;
   /** A short note beside each site, such as its current setting. */
   detail?: (site: SiteSummary) => string | null;
+  /** Shown when no site can be picked. */
+  empty?: string;
 }) {
   const { sites, selected } = props;
   const all = sites.length > 0 && sites.every((site) => selected.has(site.id));
@@ -28,7 +30,7 @@ export function SitePicker(props: {
       {props.loading ? (
         <p className="text-sm text-muted-foreground">Loading sites...</p>
       ) : !sites.length ? (
-        <p className="text-sm text-muted-foreground">No sites can install plugins from KontrolWP yet.</p>
+        <p className="text-sm text-muted-foreground">{props.empty ?? "No sites can install plugins from KontrolWP yet."}</p>
       ) : (
         <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border px-3 py-2">
           {sites.map((site) => (

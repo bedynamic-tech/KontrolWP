@@ -243,3 +243,72 @@ export interface LayoutSettings {
   /** The site page below its summary: one column, or Updates and the rest left of Analytics. */
   site_columns: 1 | 2;
 }
+
+/** A WordPress role on a site: its slug and display name. */
+export interface UserRole {
+  slug: string;
+  name: string;
+}
+
+/** One WordPress user, as KontrolWP Connect 0.8.0+ lists them. */
+export interface SiteUser {
+  id: number;
+  login: string;
+  email: string;
+  display_name: string;
+  roles: string[];
+  /** Unix seconds. */
+  registered: number;
+}
+
+export interface SiteUsers {
+  users: SiteUser[];
+  roles: UserRole[];
+  /** Every user on the site; the list stops at 2000. */
+  total: number;
+}
+
+export type UserAction = "set-role" | "reset-password" | "delete";
+
+export interface NewUser {
+  login: string;
+  email: string;
+  role: string;
+  first_name?: string;
+  last_name?: string;
+  /** Empty: the user sets their own from the welcome email. */
+  password?: string;
+  /** Send WordPress's new-user email with a link to set a password. */
+  notify: boolean;
+}
+
+/** One user on one site, for the Users page. */
+export interface FleetUser {
+  site_id: number;
+  site_name: string;
+  site_url: string;
+  site_icon_url: string | null;
+  user_id: number;
+  login: string;
+  email: string;
+  display_name: string;
+  roles: string[];
+  registered: number;
+  /** The administrator Magic Login signs in as on this site. */
+  magic_login: boolean;
+}
+
+export interface FleetUsers {
+  users: FleetUser[];
+  /** Every role found on any site, for choosing one. */
+  roles: UserRole[];
+  /** Connected sites whose KontrolWP Connect cannot manage users yet. */
+  unsupported_sites: { id: number; name: string; plugin_version: string | null }[];
+}
+
+export interface BulkUserResult {
+  site_id: number;
+  user_id: number;
+  ok: boolean;
+  error?: string;
+}

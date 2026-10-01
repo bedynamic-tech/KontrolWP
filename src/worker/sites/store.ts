@@ -1,5 +1,5 @@
-import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { FleetPlugin, FleetPlugins, PendingComment, SiteSummary, SiteUpdate } from "../../shared/types.ts";
+import { compareVersions, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
+import type { FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
 import { SELF_UPDATE } from "./presser-connect.ts";
 import { decryptSecret } from "./secrets.ts";
@@ -124,5 +124,47 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
     unsupported_sites: sites.filter(
       (site) => !site.plugin_version || compareVersions(site.plugin_version, PLUGIN_MANAGEMENT_SINCE) < 0,
     ),
+  };
+}
+
+export async function listFleetUsers(db: D1Database): Promise<FleetUsers> {
+  const [{ results }, { results: sites }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT u.site_id, s.name AS site_name, s.url AS site_url, s.icon_url AS site_icon_url,
+                u.user_id, u.login, u.email, u.display_name, u.roles, u.registered,
+                (s.login_user_id = u.user_id) AS magic_login
+         FROM site_users u JOIN sites s ON s.id = u.site_id
+         ORDER BY LOWER(COALESCE(NULLIF(u.email, ''), u.login)), s.name COLLATE NOCASE`,
+      )
+      .all<Record<string, unknown>>(),
+    db.prepare("SELECT id, name, plugin_version, user_roles FROM sites ORDER BY name COLLATE NOCASE").all<{
+      id: number;
+      name: string;
+      plugin_version: string | null;
+      user_roles: string;
+    }>(),
+  ]);
+  // Every role any site has, named as the first site that has it names it.
+  const roles = new Map<string, UserRole>();
+  for (const site of sites) {
+    let list: UserRole[] = [];
+    try {
+      list = JSON.parse(site.user_roles || "[]");
+    } catch {
+      // A malformed list counts as none.
+    }
+    for (const role of Array.isArray(list) ? list : []) if (role?.slug && !roles.has(role.slug)) roles.set(role.slug, role);
+  }
+  return {
+    users: results.map((row) => ({
+      ...(row as unknown as FleetUser),
+      roles: String(row.roles ?? "").split(",").filter(Boolean),
+      magic_login: Boolean(row.magic_login),
+    })),
+    roles: [...roles.values()],
+    unsupported_sites: sites
+      .filter((site) => !site.plugin_version || compareVersions(site.plugin_version, USER_MANAGEMENT_SINCE) < 0)
+      .map(({ id, name, plugin_version }) => ({ id, name, plugin_version })),
   };
 }
