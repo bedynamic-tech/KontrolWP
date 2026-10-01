@@ -30,3 +30,19 @@ export function RemoteIcon(props: { sources: Array<string | null | undefined>; n
     />
   );
 }
+
+/**
+ * Where a plugin's icon may be: what WordPress reported, then WordPress.org's
+ * usual icon files for the plugin's folder (sites on an older Presser Connect
+ * report none). A plugin not on WordPress.org falls through to its letter.
+ */
+export function pluginIconSources(file: string, iconUrl?: string | null): string[] {
+  const sources = iconUrl && iconUrl.startsWith("https://") ? [iconUrl] : [];
+  const folder = file.includes("/") ? file.split("/")[0] : "";
+  if (/^[a-z0-9-]+$/.test(folder)) {
+    for (const name of ["icon-128x128.png", "icon-256x256.png", "icon.svg"]) {
+      sources.push(`https://ps.w.org/${folder}/assets/${name}`);
+    }
+  }
+  return sources;
+}

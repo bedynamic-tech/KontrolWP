@@ -213,7 +213,7 @@ class Presser_Connect_Rest {
 	 *
 	 * @param array|object $icons Icon URLs keyed by svg, 2x, 1x or default.
 	 */
-	private static function plugin_icon( $icons ) {
+	public static function plugin_icon( $icons ) {
 		$icons = (array) $icons;
 		foreach ( array( 'svg', '2x', '1x', 'default' ) as $size ) {
 			if ( ! empty( $icons[ $size ] ) && is_string( $icons[ $size ] ) ) {

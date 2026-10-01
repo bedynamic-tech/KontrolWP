@@ -162,8 +162,8 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
     throw error;
   }
   const insert = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected, auto_update)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected, auto_update, icon_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const plugins = (Array.isArray(list.plugins) ? list.plugins : []).slice(0, 500).filter((p) => text(p.file));
   await env.DB.batch([
@@ -179,6 +179,7 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
         p.network_active ? 1 : 0,
         p.protected ? 1 : 0,
         p.auto_update ? 1 : 0,
+        iconUrl(p.icon_url) ?? "",
       ),
     ),
     env.DB.prepare("UPDATE sites SET plugin_auto_updates = ? WHERE id = ?").bind(list.auto_updates === false ? 0 : 1, site.id),

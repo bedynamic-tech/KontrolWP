@@ -7,13 +7,17 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SiteUpdate, UpdateJobStatus } from "../../shared/types";
 import { applyUpdate } from "../api";
-import { RemoteIcon } from "./RemoteIcon";
+import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow } from "./Section";
 
 /** Poll quickly while an update is waiting or running, so its row follows along. */
 export function updatesRefetchInterval(updates: SiteUpdate[] | undefined): number {
   const active = updates?.some((update) => update.job_active);
   return active ? 3_000 : 60_000;
+}
+
+function updateIconSources(update: SiteUpdate): Array<string | null> {
+  return update.kind === "plugin" ? pluginIconSources(update.slug, update.icon_url) : [update.icon_url];
 }
 
 const KIND_ORDER = { core: 0, plugin: 1, theme: 2 } as const;
@@ -94,7 +98,7 @@ function UpdateGroup(props: { updates: SiteUpdate[] }) {
     <li>
       <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <RemoteIcon sources={[first.icon_url]} name={first.name} className="size-9 text-sm" />
+          <RemoteIcon sources={updateIconSources(first)} name={first.name} className="size-9 text-sm" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate text-sm font-medium">{first.name}</span>
@@ -222,7 +226,7 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <RemoteIcon sources={[update.icon_url]} name={update.name} className="size-9 text-sm" />
+        <RemoteIcon sources={updateIconSources(update)} name={update.name} className="size-9 text-sm" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium">{update.name}</span>
