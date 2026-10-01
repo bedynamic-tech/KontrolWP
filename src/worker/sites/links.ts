@@ -83,6 +83,24 @@ export async function startLinkScan(env: Env, siteId: number, now = nowSeconds()
   return scanId;
 }
 
+/**
+ * Exclude a site from broken link detection, or include it again. Excluding
+ * drops its scan and every link found, which also ends a scan still queued;
+ * including it leaves the Links tab ready to scan.
+ */
+export async function setLinksExcluded(db: D1Database, siteId: number, excluded: boolean): Promise<void> {
+  await db.batch([
+    db.prepare("UPDATE sites SET links_excluded = ? WHERE id = ?").bind(excluded ? 1 : 0, siteId),
+    ...(excluded
+      ? [
+          db.prepare("DELETE FROM site_link_refs WHERE site_id = ?").bind(siteId),
+          db.prepare("DELETE FROM site_links WHERE site_id = ?").bind(siteId),
+          db.prepare("DELETE FROM link_scans WHERE site_id = ?").bind(siteId),
+        ]
+      : []),
+  ]);
+}
+
 async function failScan(env: Env, siteId: number, scanId: number, error: string): Promise<void> {
   const now = nowSeconds();
   await env.DB.prepare(

@@ -50,7 +50,7 @@ import {
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
-import { ignoreLink, listLinks, recheckLink, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
+import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
 import { inspectStaticSite, syncStaticSite } from "../sites/static.ts";
@@ -178,7 +178,7 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
 
 // A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -468,6 +468,16 @@ api.put("/sites/:id/updates-excluded", async (c) => {
   return c.json(await getSite(c.env.DB, id));
 });
 
+/** Exclude a site from broken link detection, or include it again; excluding clears what it found. */
+api.put("/sites/:id/links-excluded", async (c) => {
+  const id = siteId(c);
+  const parsed = updatesExcluded.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid setting" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  await setLinksExcluded(c.env.DB, id, parsed.data.excluded);
+  return c.json(await getSite(c.env.DB, id));
+});
+
 /** An older KontrolWP Connect has no plugin routes; it updates itself on the next sync. */
 function pluginsError(error: SiteRequestError): string {
   if (error.status === 404 && !error.code) {
@@ -701,6 +711,7 @@ api.post("/sites/:id/links/scan", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (site.links_excluded) return c.json({ error: "This site is excluded from broken link detection" }, 409);
   if (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0) {
     return c.json(
       {

@@ -147,6 +147,9 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
   return request<SiteContent>(`/sites/${siteId}/content?${query}`);
 };
 
+export const setLinksExcluded = (siteId: number, excluded: boolean) =>
+  request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });
+
 export const fetchPlugins = (siteId: number) => request<SitePlugins>(`/sites/${siteId}/plugins`);
 
 export const managePlugin = (siteId: number, plugin: string, action: PluginAction) =>
