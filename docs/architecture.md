@@ -86,7 +86,7 @@ other error marks it failed with the site's message, shown on the update with
 **Try again**; the next job still runs. A job left running for 15 minutes is
 marked failed, and the cron restarts any site whose queue stalled.
 
-A site the owner excludes from update checks (site menu) is synced for its
+A site the owner excludes from update checks (Site settings on its page) is synced for its
 status and comments only: Presser never calls `/updates` for it, drops its
 listed and queued updates, and refuses new ones. Presser Connect still
 updates itself there, since the exclusion covers WordPress core, plugin and

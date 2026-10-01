@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { SiteSummary, SiteUpdate } from "../../shared/types";
-import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { Section } from "./Section";
 import { UpdateAllButton, UpdatesList } from "./UpdatesList";
 
@@ -13,11 +12,8 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
   if (site.updates_excluded) {
     return (
       <Section title="Updates">
-        <Part title="WordPress">
-          <CoreAutoUpdateRow site={site} />
-        </Part>
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          This site is excluded from update checks. Include it again from the menu next to Sync now.
+          This site is excluded from update checks. Include it again in Site settings, next to Sync now.
         </p>
       </Section>
     );
@@ -26,7 +22,6 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
   return (
     <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
       <Part title="WordPress">
-        <CoreAutoUpdateRow site={site} />
         <List updates={of("core")} empty="WordPress is up to date." />
       </Part>
       <Part title="Plugins">

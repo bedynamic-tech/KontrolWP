@@ -1,17 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, EllipsisVerticalIcon, ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import type { SiteSummary } from "../../shared/types";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +28,7 @@ import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
 import { AnalyticsSection } from "./AnalyticsSection";
+import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
@@ -52,6 +46,12 @@ export function SitePage() {
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [choosingLoginUser, setChoosingLoginUser] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Each of these opens its own dialog in place of the settings.
+  const fromSettings = (open: (value: boolean) => void) => () => {
+    setSettingsOpen(false);
+    open(true);
+  };
   const closeKeyDialog = (open: boolean) => {
     setReplacingKey(open);
     if (!open) {
@@ -131,29 +131,15 @@ export function SitePage() {
             <RefreshCwIcon className={sync.isPending ? "animate-spin" : ""} />
             {sync.isPending ? "Syncing..." : "Sync now"}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-sm" aria-label="More actions" aria-busy={excludeUpdates.isPending || undefined}>
-                {excludeUpdates.isPending ? <Spinner className="size-4" /> : <EllipsisVerticalIcon />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => setChoosingLoginUser(true)}>
-                Change Magic Login administrator
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setReplacingKey(true)}>Change connection key</DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={excludeUpdates.isPending}
-                onSelect={() => excludeUpdates.mutate(!site.updates_excluded)}
-              >
-                {site.updates_excluded ? "Include in update checks" : "Exclude from update checks"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmRemove(true)}>
-                Remove site
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Site settings"
+            title="Site settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SettingsIcon />
+          </Button>
         </div>
       </div>
 
@@ -185,7 +171,6 @@ export function SitePage() {
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
 
-      {excludeUpdates.error && <p className="mt-4 text-sm text-destructive">{excludeUpdates.error.message}</p>}
       {(() => {
         const main = (
           <>
@@ -211,6 +196,54 @@ export function SitePage() {
           </>
         );
       })()}
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-xl [&>*]:min-w-0">
+          <DialogHeader>
+            <DialogTitle>Site settings</DialogTitle>
+            <DialogDescription>{site.name}</DialogDescription>
+          </DialogHeader>
+          <div className="divide-y border-y">
+            <CoreAutoUpdateRow site={site} className="py-3" />
+            <SettingRow
+              title="Update checks"
+              detail={
+                site.updates_excluded
+                  ? "Excluded. Presser does not check for or apply WordPress, plugin or theme updates here. Presser Connect still updates itself."
+                  : "Included. Presser lists this site's WordPress, plugin and theme updates."
+              }
+              error={excludeUpdates.error?.message}
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                loading={excludeUpdates.isPending}
+                onClick={() => excludeUpdates.mutate(!site.updates_excluded)}
+              >
+                {site.updates_excluded ? "Include" : "Exclude"}
+              </Button>
+            </SettingRow>
+            <SettingRow
+              title="Magic Login administrator"
+              detail={site.login_user_name ? `Signs you in as ${site.login_user_name}.` : "Not chosen yet."}
+            >
+              <Button size="sm" variant="outline" onClick={fromSettings(setChoosingLoginUser)}>
+                Change
+              </Button>
+            </SettingRow>
+            <SettingRow title="Connection key" detail="Paste a new key after creating one in Presser Connect.">
+              <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
+                Change
+              </Button>
+            </SettingRow>
+            <SettingRow title="Remove site" detail="Presser forgets this site. Nothing changes on the site itself.">
+              <Button size="sm" variant="destructive" onClick={fromSettings(setConfirmRemove)}>
+                Remove
+              </Button>
+            </SettingRow>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={choosingLoginUser} onOpenChange={setChoosingLoginUser}>
         <DialogContent>
@@ -289,6 +322,19 @@ export function SitePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SettingRow(props: { title: string; detail: string; error?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{props.title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>
+        {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
+      </div>
+      <div className="shrink-0">{props.children}</div>
     </div>
   );
 }
