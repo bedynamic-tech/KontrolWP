@@ -18,6 +18,7 @@ import type {
   SiteDetail,
   SiteDomain,
   SiteAnalytics,
+  SiteAnalyticsDetails,
   SitePlugins,
   SiteUsers,
   SyncSettings,
@@ -38,6 +39,7 @@ import {
   matchWebsite,
   saveUmamiConfig,
   siteAnalytics,
+  siteAnalyticsDetails,
   umamiClient,
   UmamiError,
   type UmamiConfig,
@@ -853,6 +855,35 @@ api.get("/sites/:id/analytics", (c) =>
       return c.json<SiteAnalytics>({ website: null, chosen: !!site.umami_website_id, range, stats: null, series: [], pages: [], referrers: [] });
     }
     return c.json<SiteAnalytics>({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) });
+  }),
+);
+
+/** The Analytics tab: everything in the summary, plus Umami's other breakdowns. */
+api.get("/sites/:id/analytics/details", (c) =>
+  umamiRequest(c, async (config) => {
+    const id = siteId(c);
+    const site = id && (await c.env.DB.prepare("SELECT url, umami_website_id FROM sites WHERE id = ?").bind(id).first<{ url: string; umami_website_id: string | null }>());
+    if (!site) return c.json({ error: "Site not found" }, 404);
+    const range = analyticsRange.catch("7d").parse(c.req.query("range"));
+    const tz = validTimeZone(c.req.query("tz"));
+    const client = await umamiClient(config);
+    const websites = await listUmamiWebsites(client);
+    const chosen = site.umami_website_id ? websites.find((website) => website.id === site.umami_website_id) ?? null : null;
+    const website = chosen ?? (site.umami_website_id ? null : matchWebsite(websites, site.url));
+    if (!website) {
+      return c.json<SiteAnalyticsDetails>({
+        website: null,
+        chosen: !!site.umami_website_id,
+        range,
+        stats: null,
+        series: [],
+        pages: [],
+        referrers: [],
+        breakdowns: null,
+        active: null,
+      });
+    }
+    return c.json<SiteAnalyticsDetails>({ website, chosen: !!chosen, ...(await siteAnalyticsDetails(client, website, range, tz)) });
   }),
 );
 

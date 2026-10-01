@@ -204,6 +204,13 @@ Umami 2's stats format (`{value, prev}`) and later versions' (numbers plus
 `comparison`), and asks for the `path` metric, falling back to Umami 2's `url`.
 Nothing is stored; the page refreshes it every five minutes.
 
+The site page's Analytics tab (shown once Umami is connected) asks
+`GET /api/sites/:id/analytics/details`, which adds Umami's other breakdowns
+for the same period: entry and exit pages, countries, cities, browsers,
+operating systems, devices and events, plus visitors online now from
+`/websites/:id/active`. A breakdown the Umami version rejects (entry and exit
+pages came in Umami 3) is left out rather than failing the page.
+
 ## Plugin routes (`kontrolwp/v1`)
 
 | Route | Does |

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyticsWindow, bareHost, listUmamiWebsites, matchWebsite, siteAnalytics, umamiClient, UmamiError } from "../src/worker/umami.ts";
+import { analyticsWindow, bareHost, listUmamiWebsites, matchWebsite, siteAnalytics, siteAnalyticsDetails, umamiClient, UmamiError } from "../src/worker/umami.ts";
 
 /** Stub fetch with a handler per path; records each request. */
 function stubFetch(routes) {
@@ -93,4 +93,33 @@ test("analytics read both stats formats, fill empty days and fall back to the ur
   const old = await siteAnalytics(client, { id: "w1", name: "E", domain: "example.com" }, "24h", "UTC");
   assert.deepEqual(old.stats.pageviews, { value: 5, previous: 3 });
   assert.equal(old.series.length, 24);
+});
+
+test("the Analytics tab adds Umami's breakdowns and visitors online, skipping ones this Umami lacks", async () => {
+  const types = [];
+  stubFetch({
+    "/v1/websites/w1/stats": () => [200, { pageviews: 10, visitors: 4, visits: 5, bounces: 1, totaltime: 300, comparison: {} }],
+    "/v1/websites/w1/pageviews": () => [200, { pageviews: [], sessions: [] }],
+    "/v1/websites/w1/active": () => [200, { visitors: 3 }],
+    "/v1/websites/w1/metrics": (u) => {
+      const type = u.searchParams.get("type");
+      types.push(type);
+      if (type === "entry" || type === "exit") return [400, { error: "invalid type" }];
+      if (type === "country") return [200, [{ x: "US", y: 3 }, { x: null, y: 1 }]];
+      if (type === "device") return [200, [{ x: "mobile", y: 2 }]];
+      return [200, []];
+    },
+  });
+  const client = await umamiClient({ mode: "cloud", url: "", username: "", secret: "k" });
+  const result = await siteAnalyticsDetails(client, { id: "w1", name: "E", domain: "example.com" }, "7d", "UTC", Date.UTC(2026, 9, 1, 12));
+  assert.equal(result.active, 3);
+  assert.equal(result.breakdowns.entry, null, "an older Umami without entry pages hides the card");
+  assert.equal(result.breakdowns.exit, null);
+  assert.deepEqual(result.breakdowns.countries, [{ label: "US", count: 3 }, { label: "Unknown", count: 1 }]);
+  assert.deepEqual(result.breakdowns.devices, [{ label: "mobile", count: 2 }]);
+  assert.deepEqual(result.breakdowns.pages, result.pages);
+  for (const type of ["entry", "exit", "country", "city", "browser", "os", "device", "event", "path", "referrer"]) {
+    assert.ok(types.includes(type), `asks Umami for ${type}`);
+  }
+  assert.equal(result.stats.visitors.value, 4);
 });

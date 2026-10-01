@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PencilIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -10,19 +10,19 @@ import { hostname } from "../format";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 
-const RANGE_LABELS: Record<AnalyticsRange, string> = {
+export const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "24h": "Last 24 hours",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
 };
 
-const SELECT_CLASS =
+export const SELECT_CLASS =
   "h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 /** The site's Umami analytics; shows nothing until Umami is connected in Settings. */
-export function AnalyticsSection(props: { site: SiteSummary }) {
-  const { site } = props;
+/** The chosen date range, remembered in this browser and shared by the Overview card and the Analytics tab. */
+export function useAnalyticsRange(): [AnalyticsRange, (next: AnalyticsRange) => void] {
   const [range, setRange] = useState<AnalyticsRange>(() => {
     try {
       const saved = localStorage.getItem("kontrolwp:analytics-range");
@@ -31,6 +31,37 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
       return "7d";
     }
   });
+  const choose = (next: AnalyticsRange) => {
+    setRange(next);
+    try {
+      localStorage.setItem("kontrolwp:analytics-range", next);
+    } catch {
+      // Remembering the range is only a convenience.
+    }
+  };
+  return [range, choose];
+}
+
+export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: AnalyticsRange) => void }) {
+  return (
+    <select
+      aria-label="Date range"
+      value={props.range}
+      onChange={(event) => props.onChange(event.target.value as AnalyticsRange)}
+      className={SELECT_CLASS}
+    >
+      {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((value) => (
+        <option key={value} value={value}>
+          {RANGE_LABELS[value]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function AnalyticsSection(props: { site: SiteSummary }) {
+  const { site } = props;
+  const [range, chooseRange] = useAnalyticsRange();
   const settings = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
   const analytics = useQuery({
     queryKey: ["site", site.id, "analytics", range],
@@ -41,15 +72,6 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   });
 
   if (!settings.data?.configured) return null;
-
-  const chooseRange = (next: AnalyticsRange) => {
-    setRange(next);
-    try {
-      localStorage.setItem("kontrolwp:analytics-range", next);
-    } catch {
-      // Remembering the range is only a convenience.
-    }
-  };
 
   let body;
   if (analytics.isPending) {
@@ -80,20 +102,7 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   return (
     <Section
       title="Analytics"
-      action={
-        <select
-          aria-label="Date range"
-          value={range}
-          onChange={(event) => chooseRange(event.target.value as AnalyticsRange)}
-          className={SELECT_CLASS}
-        >
-          {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((value) => (
-            <option key={value} value={value}>
-              {RANGE_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      }
+      action={<RangeSelect range={range} onChange={chooseRange} />}
     >
       <div className={cn("@container", analytics.isPlaceholderData && "opacity-60 transition-opacity")}>{body}</div>
     </Section>
@@ -102,7 +111,43 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
 
 function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
   const { data } = props;
-  const stats = data.stats!;
+  return (
+    <div>
+      <StatsRow data={data} />
+      <TrendChart data={data} />
+      <div className="grid border-t @xl:grid-cols-2 @xl:divide-x">
+        <TopList title="Top pages" rows={data.pages} empty="No pageviews in this period." />
+        <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t @xl:border-t-0" />
+      </div>
+      <AnalyticsFooter site={props.site} data={data}>
+        <Link to="?tab=analytics" className="hover:text-foreground hover:underline">
+          More in Analytics
+        </Link>
+      </AnalyticsFooter>
+    </div>
+  );
+}
+
+/** Which Umami website is shown, with the pencil to change it and a link to Settings. */
+export function AnalyticsFooter(props: { site: SiteSummary; data: SiteAnalytics; children?: ReactNode }) {
+  const { data } = props;
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
+      <span>Connected to {data.website!.name || data.website!.domain}</span>
+      <WebsitePicker site={props.site} current={data.website!.id} chosen={data.chosen} compact />
+      <span className="ml-auto flex items-center gap-3">
+        {props.children}
+        <Link to="/settings" className="hover:text-foreground hover:underline">
+          Umami settings
+        </Link>
+      </span>
+    </div>
+  );
+}
+
+/** Visitors, visits, pageviews, bounce rate and visit duration, each against the period before. */
+export function StatsRow(props: { data: SiteAnalytics }) {
+  const stats = props.data.stats!;
   const rate = (stat: AnalyticsStat, of: AnalyticsStat): AnalyticsStat => ({
     value: of.value ? stat.value / of.value : 0,
     previous: stat.previous !== null && of.previous ? stat.previous / of.previous : null,
@@ -111,31 +156,17 @@ function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
   const visitTime = rate(stats.totaltime, stats.visits);
 
   return (
-    <div>
-      <dl className="grid grid-cols-2 gap-px border-b bg-border @2xl:grid-cols-5 [&>*:last-child]:col-span-2 @2xl:[&>*:last-child]:col-span-1">
-        <Stat label="Visitors" stat={stats.visitors} format={count} />
-        <Stat label="Visits" stat={stats.visits} format={count} />
-        <Stat label="Pageviews" stat={stats.pageviews} format={count} />
-        <Stat label="Bounce rate" stat={bounceRate} format={percent} lowerIsBetter />
-        <Stat label="Visit duration" stat={visitTime} format={duration} />
-      </dl>
-      <TrendChart data={data} />
-      <div className="grid border-t @xl:grid-cols-2 @xl:divide-x">
-        <TopList title="Top pages" rows={data.pages} empty="No pageviews in this period." />
-        <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t @xl:border-t-0" />
-      </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
-        <span>Connected to {data.website!.name || data.website!.domain}</span>
-        <WebsitePicker site={props.site} current={data.website!.id} chosen={data.chosen} compact />
-        <Link to="/settings" className="ml-auto hover:text-foreground hover:underline">
-          Umami settings
-        </Link>
-      </div>
-    </div>
+    <dl className="grid grid-cols-2 gap-px border-b bg-border @2xl:grid-cols-5 [&>*:last-child]:col-span-2 @2xl:[&>*:last-child]:col-span-1">
+      <Stat label="Visitors" stat={stats.visitors} format={count} />
+      <Stat label="Visits" stat={stats.visits} format={count} />
+      <Stat label="Pageviews" stat={stats.pageviews} format={count} />
+      <Stat label="Bounce rate" stat={bounceRate} format={percent} lowerIsBetter />
+      <Stat label="Visit duration" stat={visitTime} format={duration} />
+    </dl>
   );
 }
 
-const count = (value: number) => Math.round(value).toLocaleString();
+export const count = (value: number) => Math.round(value).toLocaleString();
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 function duration(seconds: number): string {
   const total = Math.round(seconds);
@@ -171,7 +202,7 @@ function Stat(props: { label: string; stat: AnalyticsStat; format: (value: numbe
 }
 
 /** Pageviews as bars, with the visitors share drawn darker inside each one. */
-function TrendChart(props: { data: SiteAnalytics }) {
+export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
   const { series, range } = props.data;
   const max = Math.max(1, ...series.map((point) => point.pageviews));
   const hourly = range === "24h";
@@ -192,7 +223,7 @@ function TrendChart(props: { data: SiteAnalytics }) {
           <span className="size-2.5 rounded-sm bg-primary" /> Visitors
         </span>
       </div>
-      <div className="mt-3 flex h-40 items-end gap-[2px]" role="img" aria-label="Pageviews and visitors over time">
+      <div className={cn("mt-3 flex items-end gap-[2px]", props.tall ? "h-64" : "h-40")} role="img" aria-label="Pageviews and visitors over time">
         {series.map((point) => (
           <div
             key={point.label}
@@ -220,13 +251,21 @@ function TrendChart(props: { data: SiteAnalytics }) {
   );
 }
 
-function TopList(props: { title: string; rows: { label: string; count: number }[]; empty: string; className?: string }) {
+export function TopList(props: {
+  title: string;
+  rows: { label: string; count: number }[];
+  empty: string;
+  className?: string;
+  /** The right-hand column heading. */
+  unit?: string;
+  format?: (label: string) => string;
+}) {
   const max = Math.max(1, ...props.rows.map((row) => row.count));
   return (
     <div className={cn("min-w-0 px-4 py-3", props.className)}>
       <div className="mb-2 flex justify-between text-xs font-medium text-muted-foreground">
         <span>{props.title}</span>
-        <span>Views</span>
+        <span>{props.unit ?? "Views"}</span>
       </div>
       {props.rows.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted-foreground">{props.empty}</p>
@@ -235,7 +274,7 @@ function TopList(props: { title: string; rows: { label: string; count: number }[
           {props.rows.map((row) => (
             <li key={row.label} className="relative flex items-center justify-between gap-3 rounded px-2 py-1 text-sm">
               <span className="absolute inset-y-0 left-0 rounded bg-muted" style={{ width: `${(row.count / max) * 100}%` }} />
-              <span className="relative truncate">{row.label}</span>
+              <span className="relative truncate" title={row.label}>{props.format ? props.format(row.label) : row.label}</span>
               <span className="relative shrink-0 tabular-nums text-muted-foreground">{count(row.count)}</span>
             </li>
           ))}
@@ -246,7 +285,7 @@ function TopList(props: { title: string; rows: { label: string; count: number }[
 }
 
 /** Choose the site's Umami website, or go back to matching by domain. */
-function WebsitePicker(props: { site: SiteSummary; current: string | null; chosen: boolean; compact?: boolean }) {
+export function WebsitePicker(props: { site: SiteSummary; current: string | null; chosen: boolean; compact?: boolean }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(!props.compact);
   const websites = useQuery({ queryKey: ["umami", "websites"], queryFn: fetchUmamiWebsites, enabled: open, refetchInterval: false });
