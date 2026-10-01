@@ -19,6 +19,10 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
 - **Updates.** Every available core, plugin and theme update across all sites,
   each queued with one click. Each site installs its updates one at a time.
   KontrolWP Connect itself updates automatically from the dashboard.
+- **Plugins.** Every plugin across all sites: install, activate, deactivate,
+  delete and auto-updates, on one site or many at once.
+- **Users.** Every user across all sites, grouped by email: add, change role,
+  send a password reset or delete, on one site or many at once.
 - **Comments.** Every pending comment across all sites, with Approve, Spam and
   Trash.
 - **Background sync.** every site is re-checked every 6 hours.

@@ -134,6 +134,25 @@ for that site and does not stop the others. Updates go through each site's
 update queue, as on the Overview, and skip sites excluded from updates.
 KontrolWP Connect is listed but has no actions.
 
+## Users across sites
+
+Each sync stores the site's users in `site_users` and its roles in
+`sites.user_roles` (sites on KontrolWP Connect 0.8.0 or later; a failed
+listing keeps the last rows). A site page's Users section reads the site live
+(`GET /api/sites/:id/users`) and adds, changes the role of, sends a password
+reset to, or deletes its users one request at a time. The Users page reads the
+stored rows from `GET /api/users` and groups them by email address, so one
+person on several sites is one row that expands to each site. Its actions
+(`POST /api/users/bulk`) and Add user (`POST /api/users`) call each chosen
+site directly, six at a time, then sync it; a failure on one site is reported
+for that user on that site and does not stop the others.
+
+Two guards keep a site reachable. KontrolWP Connect refuses to delete or
+demote a site's only administrator, and gives a deleted user's posts to the
+earliest other administrator. The Worker refuses to delete or demote the
+administrator Magic Login signs in as. Password resets and new-user emails
+are sent by the site, so they depend on its mail setup.
+
 ## Auto-updates
 
 KontrolWP can turn WordPress's own auto-updates on and off (KontrolWP Connect
@@ -181,6 +200,9 @@ Nothing is stored; the page refreshes it every five minutes.
 | `POST /plugins/manage` | `{plugin, action: activate, deactivate, delete, enable-auto-update or disable-auto-update}`. Delete deactivates first, then uses `delete_plugins`. KontrolWP Connect refuses to deactivate or delete itself. Added in 0.6.0; auto-update actions in 0.7.0. |
 | `POST /core/auto-update` | `{mode: all, minor or off}`. Sets WordPress core auto-updates; refuses when wp-config.php decides them. Added in 0.7.0. |
 | `POST /plugins/install` | `{source: wordpress.org, url or zip, slug, url or package, activate}`. Installs through `Plugin_Upgrader::install`: a WordPress.org slug resolves through `plugins_api`, a link is downloaded by the site, a zip (up to 10 MB, base64 in the signed body) is written to a temp file. Added in 0.6.0. |
+| `GET /users` | Up to 2,000 users with login, email, display name, roles and registration time, the site's roles, and the total. Added in 0.8.0. |
+| `POST /users/create` | `{login, email, role, first_name, last_name, password, notify}`. Adds a user through `wp_insert_user`; an empty password gets a random one, and `notify` sends WordPress's set-your-password email. Added in 0.8.0. |
+| `POST /users/manage` | `{user_id, action: set-role, reset-password or delete, role}`. Refuses to demote or delete the only administrator; delete gives the user's content to the earliest other administrator. Added in 0.8.0. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
 | `POST /comments/moderate` | `{id, action: approve, spam or trash}`. |
 

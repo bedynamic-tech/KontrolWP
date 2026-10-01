@@ -30,6 +30,7 @@ import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./Ma
 import { AnalyticsSection } from "./AnalyticsSection";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
+import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
@@ -176,6 +177,7 @@ export function SitePage() {
           <>
             <SiteUpdatesSection site={site} updates={updates} />
             <PluginsSection site={site} updates={updates} />
+            <UsersSection site={site} />
             <Section title={`Comments awaiting review (${site.pending_comments})`}>
               <CommentsList comments={comments} showSite={false} />
             </Section>

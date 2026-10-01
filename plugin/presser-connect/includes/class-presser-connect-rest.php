@@ -80,6 +80,7 @@ class Presser_Connect_Rest {
 			)
 		);
 		Presser_Connect_Plugins::register_routes( $auth );
+		Presser_Connect_Users::register_routes( $auth );
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/admins',

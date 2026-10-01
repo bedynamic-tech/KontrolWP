@@ -8,7 +8,9 @@ import {
 } from "../../shared/protocol.ts";
 import type {
   BulkPluginResult,
+  BulkUserResult,
   FleetPlugins,
+  FleetUsers,
   LayoutSettings,
   Overview,
   PluginStatus,
@@ -16,11 +18,12 @@ import type {
   SiteDetail,
   SiteAnalytics,
   SitePlugins,
+  SiteUsers,
   UmamiSettings,
 } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "../sites/client.ts";
 import { base64, SELF_UPDATE } from "../sites/presser-connect.ts";
-import { getCredentials, getSite, listComments, listFleetPlugins, listSites, listUpdates } from "../sites/store.ts";
+import { getCredentials, getSite, listComments, listFleetPlugins, listFleetUsers, listSites, listUpdates } from "../sites/store.ts";
 import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secrets.ts";
 import { coreAutoUpdate, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
@@ -476,6 +479,157 @@ api.post("/plugins/install", async (c) => {
   return c.json({
     results: await forEachSite(c.env, request.siteIds, (site) =>
       callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, request.payload),
+    ),
+  });
+});
+
+/** An older KontrolWP Connect has no user routes; it updates itself on the next sync. */
+function usersError(error: SiteRequestError): string {
+  if (error.status === 404 && !error.code) {
+    return "KontrolWP Connect on this site is too old to manage users. It updates automatically; select Sync now to check.";
+  }
+  return error.message;
+}
+
+/** A user change KontrolWP refuses before asking the site. */
+class UserActionError extends Error {}
+
+/** Run a user request against the site, with errors phrased for users. */
+async function userRequest(c: AppContext, request: (site: SiteCredentials) => Promise<unknown>) {
+  const id = siteId(c);
+  const site = id && (await getCredentials(c.env, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  try {
+    return c.json((await request(site)) ?? { ok: true });
+  } catch (error) {
+    if (error instanceof SiteRequestError) return c.json({ error: usersError(error) }, 502);
+    if (error instanceof UserActionError) return c.json({ error: error.message }, 409);
+    throw error;
+  }
+}
+
+const newUser = z.object({
+  login: z.string().trim().min(1).max(60),
+  email: z.string().trim().email().max(100),
+  role: z.string().trim().min(1).max(100),
+  first_name: z.string().trim().max(100).optional(),
+  last_name: z.string().trim().max(100).optional(),
+  password: z.string().max(200).optional(),
+  notify: z.boolean(),
+});
+
+const userAction = z
+  .object({
+    user_id: z.number().int().positive(),
+    action: z.enum(["set-role", "reset-password", "delete"]),
+    role: z.string().trim().min(1).max(100).optional(),
+  })
+  .refine((value) => value.action !== "set-role" || !!value.role, { message: "Choose a role" });
+
+type UserActionInput = z.infer<typeof userAction>;
+
+/**
+ * Change one user. Magic Login's administrator keeps their account and
+ * role, so Magic Login keeps working; choose another one first.
+ */
+async function manageUser(env: Env, site: SiteCredentials, input: UserActionInput): Promise<void> {
+  const removesAdmin = input.action === "delete" || (input.action === "set-role" && input.role !== "administrator");
+  if (removesAdmin) {
+    const row = await env.DB.prepare("SELECT login_user_id FROM sites WHERE id = ?").bind(site.id).first<{ login_user_id: number | null }>();
+    if (row?.login_user_id === input.user_id) {
+      throw new UserActionError(
+        "This is the administrator Magic Login signs in as. Choose another one in Site settings first.",
+      );
+    }
+  }
+  await callSite(site, "POST", `${REST_NAMESPACE}/users/manage`, input);
+}
+
+/** A site's users and roles, straight from the site. */
+api.get("/sites/:id/users", (c) => userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)));
+
+/** Add a user to one site. */
+api.post("/sites/:id/users", async (c) => {
+  const parsed = newUser.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter a username, a valid email address and a role" }, 400);
+  return userRequest(c, async (site) => {
+    const result = await callSite(site, "POST", `${REST_NAMESPACE}/users/create`, parsed.data);
+    c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
+    return result;
+  });
+});
+
+/** Change a user's role, send them a password reset, or delete them. */
+api.post("/sites/:id/users/manage", async (c) => {
+  const parsed = userAction.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid user action" }, 400);
+  return userRequest(c, async (site) => {
+    await manageUser(c.env, site, parsed.data);
+    c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
+    return { ok: true };
+  });
+});
+
+/** Every site's users, as last synced, for the Users page. */
+api.get("/users", async (c) => c.json<FleetUsers>(await listFleetUsers(c.env.DB)));
+
+const bulkUserAction = z
+  .object({
+    action: z.enum(["set-role", "reset-password", "delete"]),
+    role: z.string().trim().min(1).max(100).optional(),
+    targets: z
+      .array(z.object({ site_id: z.number().int().positive(), user_id: z.number().int().positive() }))
+      .min(1)
+      .max(2000),
+  })
+  .refine((value) => value.action !== "set-role" || !!value.role, { message: "Choose a role" });
+
+/** Change, reset or delete users across sites; each site's users go one at a time. */
+api.post("/users/bulk", async (c) => {
+  const parsed = bulkUserAction.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid user action" }, 400);
+  const { action, role, targets } = parsed.data;
+  const bySite = new Map<number, number[]>();
+  for (const target of targets) bySite.set(target.site_id, [...(bySite.get(target.site_id) ?? []), target.user_id]);
+  const results: BulkUserResult[] = [];
+  const siteResults = await forEachSite(c.env, [...bySite.keys()], async (site) => {
+    for (const user_id of bySite.get(site.id) ?? []) {
+      try {
+        await manageUser(c.env, site, { user_id, action, role });
+        results.push({ site_id: site.id, user_id, ok: true });
+      } catch (error) {
+        if (!(error instanceof SiteRequestError || error instanceof UserActionError)) throw error;
+        results.push({
+          site_id: site.id,
+          user_id,
+          ok: false,
+          error: error instanceof SiteRequestError ? usersError(error) : error.message,
+        });
+      }
+    }
+  });
+  // A site that could not be reached at all fails each of its users.
+  for (const site of siteResults) {
+    if (site.ok) continue;
+    for (const user_id of bySite.get(site.site_id) ?? []) {
+      if (!results.some((r) => r.site_id === site.site_id && r.user_id === user_id)) {
+        results.push({ site_id: site.site_id, user_id, ok: false, error: site.error });
+      }
+    }
+  }
+  return c.json({ results });
+});
+
+/** Add the same user to several sites. */
+api.post("/users", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = newUser.safeParse(body);
+  if (!parsed.success) return c.json({ error: "Enter a username, a valid email address and a role" }, 400);
+  const siteIds = siteIdList((body as { site_ids?: unknown }).site_ids);
+  if (!siteIds.length) return c.json({ error: "Choose at least one site" }, 400);
+  return c.json({
+    results: await forEachSite(c.env, siteIds, (site) =>
+      callSite(site, "POST", `${REST_NAMESPACE}/users/create`, parsed.data),
     ),
   });
 });

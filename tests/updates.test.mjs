@@ -5,7 +5,7 @@ import { PRESSER_CONNECT_VERSION } from "../src/shared/plugin-version.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
-import { getSite, listFleetPlugins, listUpdates } from "../src/worker/sites/store.ts";
+import { getSite, listFleetPlugins, listFleetUsers, listUpdates } from "../src/worker/sites/store.ts";
 import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
@@ -60,6 +60,16 @@ async function setup(handleApply, plugin_version = PRESSER_CONNECT_VERSION) {
         ],
         can_modify_files: true,
         auto_updates: true,
+      });
+    }
+    if (route === "/presser/v1/users") {
+      return json({
+        users: [
+          { id: 2, login: "owner", email: "Owner@Example.com", display_name: "Owner", roles: ["administrator"], registered: 1700000000 },
+          { id: 9, login: "writer", email: "writer@example.com", display_name: "Writer", roles: ["author"], registered: 1700000500 },
+        ],
+        roles: [{ slug: "administrator", name: "Administrator" }, { slug: "author", name: "Author" }],
+        total: 2,
       });
     }
     if (route === "/presser/v1/admins") {
@@ -341,4 +351,27 @@ test("sync keeps WordPress's auto-update settings, and an older KontrolWP Connec
   const old = await setup(async (_body, json) => json({ ok: true }), "0.6.1");
   await syncSite(old.env, 1);
   assert.equal((await getSite(old.env.DB, 1)).core_auto_update, null);
+});
+
+test("sync keeps each site's users and roles for the Users page", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  await syncSite(t.env, 1);
+  const fleet = await listFleetUsers(t.env.DB);
+  assert.deepEqual(
+    fleet.users.map((user) => [user.user_id, user.login, user.roles, user.magic_login]),
+    [
+      [2, "owner", ["administrator"], true],
+      [9, "writer", ["author"], false],
+    ],
+  );
+  assert.deepEqual(fleet.roles.map((role) => role.slug), ["administrator", "author"]);
+  assert.deepEqual(fleet.unsupported_sites, []);
+});
+
+test("a site whose KontrolWP Connect cannot manage users is reported, not asked", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }), "0.7.2");
+  await syncSite(t.env, 1);
+  const fleet = await listFleetUsers(t.env.DB);
+  assert.deepEqual(fleet.users, []);
+  assert.deepEqual(fleet.unsupported_sites.map((site) => site.id), [1]);
 });

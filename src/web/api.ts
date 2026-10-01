@@ -1,5 +1,10 @@
 import type {
   BulkPluginResult,
+  BulkUserResult,
+  FleetUsers,
+  NewUser,
+  SiteUsers,
+  UserAction,
   CommentAction,
   CoreAutoUpdate,
   AnalyticsRange,
@@ -184,3 +189,22 @@ export const fetchLayoutSettings = () => request<LayoutSettings>("/settings/layo
 
 export const saveLayoutSettings = (layout: LayoutSettings) =>
   request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });
+
+export const fetchUsers = (siteId: number) => request<SiteUsers>(`/sites/${siteId}/users`);
+
+export const createUser = (siteId: number, user: NewUser) =>
+  request<{ ok: true; user_id: number }>(`/sites/${siteId}/users`, { method: "POST", json: user });
+
+export const manageUser = (siteId: number, userId: number, action: UserAction, role?: string) =>
+  request<{ ok: true }>(`/sites/${siteId}/users/manage`, { method: "POST", json: { user_id: userId, action, role } });
+
+export const fetchFleetUsers = () => request<FleetUsers>("/users");
+
+export const bulkUserAction = (
+  action: UserAction,
+  targets: { site_id: number; user_id: number }[],
+  role?: string,
+) => request<{ results: BulkUserResult[] }>("/users/bulk", { method: "POST", json: { action, role, targets } });
+
+export const createUserOnSites = (siteIds: number[], user: NewUser) =>
+  request<{ results: BulkPluginResult[] }>("/users", { method: "POST", json: { ...user, site_ids: siteIds } });

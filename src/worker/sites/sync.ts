@@ -1,6 +1,6 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { CoreAutoUpdate, PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins } from "../../shared/types.ts";
+import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
+import type { CoreAutoUpdate, PluginComments, PluginStatus, PluginUpdates, SiteAdmin, SitePlugins, SiteUsers } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, SELF_UPDATE } from "./presser-connect.ts";
@@ -136,6 +136,7 @@ export async function syncSite(
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
   await storePlugins(env, site, text(status.plugin_version));
+  await storeUsers(env, site, text(status.plugin_version));
   // KontrolWP Connect's own update comes from this dashboard and runs by itself,
   // even on a site excluded from update checks.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
@@ -184,6 +185,47 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
       ),
     ),
     env.DB.prepare("UPDATE sites SET plugin_auto_updates = ? WHERE id = ?").bind(list.auto_updates === false ? 0 : 1, site.id),
+  ]);
+}
+
+/**
+ * Keep the site's users and roles for the Users page. Best effort: when the
+ * list cannot be read, the last one stays.
+ */
+async function storeUsers(env: Env, site: SiteCredentials, pluginVersion: string): Promise<void> {
+  if (!pluginVersion || compareVersions(pluginVersion, USER_MANAGEMENT_SINCE) < 0) return;
+  let list: SiteUsers;
+  try {
+    list = await callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`);
+  } catch (error) {
+    if (error instanceof SiteRequestError) return;
+    throw error;
+  }
+  const insert = env.DB.prepare(
+    `INSERT OR REPLACE INTO site_users (site_id, user_id, login, email, display_name, roles, registered)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const users = (Array.isArray(list.users) ? list.users : [])
+    .filter((user) => Number.isSafeInteger(user.id) && user.id > 0 && text(user.login))
+    .slice(0, 2000);
+  const roles = (Array.isArray(list.roles) ? list.roles : [])
+    .filter((role) => text(role.slug))
+    .slice(0, 100)
+    .map((role) => ({ slug: text(role.slug).slice(0, 100), name: text(role.name).slice(0, 100) || text(role.slug) }));
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM site_users WHERE site_id = ?").bind(site.id),
+    ...users.map((user) =>
+      insert.bind(
+        site.id,
+        user.id,
+        text(user.login).slice(0, 120),
+        text(user.email).slice(0, 200),
+        text(user.display_name).slice(0, 200),
+        (Array.isArray(user.roles) ? user.roles : []).map((role) => text(role).slice(0, 100)).join(","),
+        Math.max(0, Math.trunc(Number(user.registered) || 0)),
+      ),
+    ),
+    env.DB.prepare("UPDATE sites SET user_roles = ? WHERE id = ?").bind(JSON.stringify(roles), site.id),
   ]);
 }
 
