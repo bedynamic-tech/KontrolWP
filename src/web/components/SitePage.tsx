@@ -43,6 +43,7 @@ import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
 import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
+import { ContentTab } from "./ContentTab";
 import { LinksTab } from "./LinksTab";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
@@ -50,7 +51,7 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const WORDPRESS_TABS = ["overview", "analytics", "plugins", "users", "links", "domain"];
+const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "domain"];
 const STATIC_TABS = ["overview", "analytics", "domain"];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
 const CLOUDFLARE_TABS = ["overview", "analytics", "deployments", "domain"];
@@ -230,6 +231,9 @@ export function SitePage() {
             )
           ) : (
             <>
+              <TabsTrigger value="content" className="flex-none px-3">
+                Posts and pages
+              </TabsTrigger>
               <TabsTrigger value="plugins" className="flex-none px-3">
                 Plugins
               </TabsTrigger>
@@ -278,6 +282,9 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="deployments" className={TAB_CLASS}>
           {onCloudflare && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
+        </TabsContent>
+        <TabsContent value="content" className={TAB_CLASS}>
+          <ContentTab site={site} />
         </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />

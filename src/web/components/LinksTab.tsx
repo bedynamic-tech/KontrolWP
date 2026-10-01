@@ -593,7 +593,7 @@ function typeLabel(type: string): string {
 }
 
 /** Opens the post in the WordPress editor, signed in with Magic Login when it is set up. */
-function EditButton(props: { site: SiteSummary; postId: number }) {
+export function EditButton(props: { site: SiteSummary; postId: number }) {
   const { site, postId } = props;
   const [pending, setPending] = useState(false);
   const magic =

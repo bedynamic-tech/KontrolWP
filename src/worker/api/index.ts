@@ -21,11 +21,12 @@ import type {
   BuildLog,
   CloudflareSettings,
   CloudflareWorker,
+  SiteContent,
   SiteUsers,
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
-import { LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -177,7 +178,7 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
 
 // A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|admins|magic-login|comments|updates|updates-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -752,6 +753,40 @@ api.post("/sites/:id/links/ignore", async (c) => {
   if (!(await ignoreLink(c.env.DB, id, parsed.data.url, parsed.data.ignored)))
     return c.json({ error: "Link not found" }, 404);
   return c.json<SiteLinks>(await listLinks(c.env.DB, id));
+});
+
+const PAGE_SIZE = 25;
+
+const contentQuery = z.object({
+  type: z.enum(["all", "post", "page"]).default("all"),
+  status: z.enum(["all", ...CONTENT_STATUSES]).default("all"),
+  search: z.string().trim().max(200).default(""),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+
+/** One page of the site's posts and pages, filtered, straight from the site. */
+api.get("/sites/:id/content", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getCredentials(c.env, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  const parsed = contentQuery.safeParse(c.req.query());
+  if (!parsed.success) return c.json({ error: "Invalid filter" }, 400);
+  try {
+    return c.json<SiteContent>(
+      await callSite<SiteContent>(site, "POST", `${REST_NAMESPACE}/content`, { ...parsed.data, per_page: PAGE_SIZE }),
+    );
+  } catch (error) {
+    if (!(error instanceof SiteRequestError)) throw error;
+    return c.json(
+      {
+        error:
+          error.status === 404 && !error.code
+            ? "KontrolWP Connect on this site is too old to list posts and pages. It updates automatically; select Sync now to check."
+            : error.message,
+      },
+      502,
+    );
+  }
 });
 
 api.get("/sites/:id/users", (c) =>
