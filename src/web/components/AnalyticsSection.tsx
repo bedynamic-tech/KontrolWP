@@ -115,10 +115,6 @@ function AnalyticsBody(props: { site: SiteSummary; data: SiteAnalytics }) {
     <div>
       <StatsRow data={data} />
       <TrendChart data={data} />
-      <div className="grid border-t @xl:grid-cols-2 @xl:divide-x">
-        <TopList title="Top pages" rows={data.pages} empty="No pageviews in this period." />
-        <TopList title="Top referrers" rows={data.referrers} empty="No referrers in this period." className="border-t @xl:border-t-0" />
-      </div>
       <AnalyticsFooter site={props.site} data={data}>
         <Link to="?tab=analytics" className="hover:text-foreground hover:underline">
           More in Analytics
