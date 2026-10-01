@@ -4,6 +4,7 @@ import type {
   CoreAutoUpdate,
   AnalyticsRange,
   FleetPlugins,
+  LayoutSettings,
   SiteAnalytics,
   UmamiSettings,
   UmamiWebsite,
@@ -178,3 +179,8 @@ export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return request<SiteAnalytics>(`/sites/${siteId}/analytics?range=${range}&tz=${encodeURIComponent(tz)}`);
 };
+
+export const fetchLayoutSettings = () => request<LayoutSettings>("/settings/layout");
+
+export const saveLayoutSettings = (layout: LayoutSettings) =>
+  request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });

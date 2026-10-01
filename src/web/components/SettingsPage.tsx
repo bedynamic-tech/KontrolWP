@@ -5,15 +5,64 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { UmamiMode } from "../../shared/types";
-import { deleteUmamiSettings, fetchUmamiSettings, saveUmamiSettings } from "../api";
+import {
+  deleteUmamiSettings,
+  fetchLayoutSettings,
+  fetchUmamiSettings,
+  saveLayoutSettings,
+  saveUmamiSettings,
+} from "../api";
 import { Section } from "./Section";
 
 export function SettingsPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+      <LayoutSettingsSection />
       <UmamiSettingsSection />
     </div>
+  );
+}
+
+function LayoutSettingsSection() {
+  const queryClient = useQueryClient();
+  const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
+  const save = useMutation({
+    mutationFn: saveLayoutSettings,
+    onMutate: (next) => queryClient.setQueryData(["settings", "layout"], next),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings", "layout"] }),
+  });
+  const columns = layout.data?.site_columns ?? 1;
+  const option = (value: 1 | 2, title: string, detail: string) => (
+    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/40">
+      <input
+        type="radio"
+        name="site-columns"
+        className="mt-1 accent-primary"
+        checked={columns === value}
+        disabled={layout.isPending}
+        onChange={() => save.mutate({ ...layout.data, site_columns: value })}
+      />
+      <span>
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+    </label>
+  );
+  return (
+    <Section title="Site page layout">
+      <div className="divide-y">
+        {option(1, "One column", "Analytics, Updates, Plugins and Comments one below the other.")}
+        {option(
+          2,
+          "Two columns",
+          "Updates, Plugins and Comments on the left, Analytics on the right. Needs Umami connected below, and a wide enough window; narrow screens keep one column.",
+        )}
+      </div>
+      {(layout.error || save.error) && (
+        <p className="px-4 pb-3 text-sm text-destructive">{(layout.error ?? save.error)!.message}</p>
+      )}
+    </Section>
   );
 }
 

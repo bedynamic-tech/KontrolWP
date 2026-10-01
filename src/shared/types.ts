@@ -237,3 +237,9 @@ export interface SiteAnalytics {
   pages: { label: string; count: number }[];
   referrers: { label: string; count: number }[];
 }
+
+/** Dashboard layout choices from Settings. */
+export interface LayoutSettings {
+  /** The site page below its summary: one column, or Updates and the rest left of Analytics. */
+  site_columns: 1 | 2;
+}

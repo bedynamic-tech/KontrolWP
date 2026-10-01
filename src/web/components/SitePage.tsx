@@ -20,20 +20,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSite, fetchSite, replaceConnectionKey, setUpdatesExcluded, syncSite } from "../api";
+import {
+  deleteSite,
+  fetchLayoutSettings,
+  fetchSite,
+  fetchUmamiSettings,
+  replaceConnectionKey,
+  setUpdatesExcluded,
+  syncSite,
+} from "../api";
 import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm } from "./MagicLogin";
 import { AnalyticsSection } from "./AnalyticsSection";
-import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
-import { EmptyRow, Section } from "./Section";
+import { SiteUpdatesSection } from "./SiteUpdatesSection";
+import { Section } from "./Section";
 import { compareVersions, PRESSER_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
 import { SiteIcon } from "./SiteIcon";
 import { StatusBadge } from "./StatusBadge";
-import { UpdateAllButton, UpdatesList, updatesRefetchInterval } from "./UpdatesList";
+import { updatesRefetchInterval } from "./UpdatesList";
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -84,6 +92,10 @@ export function SitePage() {
       navigate("/sites");
     },
   });
+
+  const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
+  const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
+  const twoColumns = layout.data?.site_columns === 2 && !!umami.data?.configured;
 
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
@@ -172,26 +184,32 @@ export function SitePage() {
         <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
       </dl>
 
-      <AnalyticsSection site={site} />
-
       {excludeUpdates.error && <p className="mt-4 text-sm text-destructive">{excludeUpdates.error.message}</p>}
-      {site.updates_excluded ? (
-        <Section title="Updates">
-          <CoreAutoUpdateRow site={site} />
-          <EmptyRow>
-            This site is excluded from update checks. Include it again from the menu next to Sync now.
-          </EmptyRow>
-        </Section>
-      ) : (
-        <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
-          <CoreAutoUpdateRow site={site} />
-          <UpdatesList updates={updates} showSite={false} />
-        </Section>
-      )}
-      <PluginsSection site={site} updates={updates} />
-      <Section title={`Comments awaiting review (${site.pending_comments})`}>
-        <CommentsList comments={comments} showSite={false} />
-      </Section>
+      {(() => {
+        const main = (
+          <>
+            <SiteUpdatesSection site={site} updates={updates} />
+            <PluginsSection site={site} updates={updates} />
+            <Section title={`Comments awaiting review (${site.pending_comments})`}>
+              <CommentsList comments={comments} showSite={false} />
+            </Section>
+          </>
+        );
+        // Two columns only when there is analytics to put on the right.
+        return twoColumns ? (
+          <div className="grid items-start gap-x-6 lg:grid-cols-2">
+            <div className="min-w-0">{main}</div>
+            <div className="min-w-0">
+              <AnalyticsSection site={site} />
+            </div>
+          </div>
+        ) : (
+          <>
+            <AnalyticsSection site={site} />
+            {main}
+          </>
+        );
+      })()}
 
       <Dialog open={choosingLoginUser} onOpenChange={setChoosingLoginUser}>
         <DialogContent>
