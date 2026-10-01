@@ -1,4 +1,12 @@
-import type { AnalyticsRange, AnalyticsStat, SiteAnalytics, UmamiMode, UmamiWebsite } from "../shared/types.ts";
+import type {
+  AnalyticsBreakdown,
+  AnalyticsRange,
+  AnalyticsStat,
+  SiteAnalytics,
+  SiteAnalyticsDetails,
+  UmamiMode,
+  UmamiWebsite,
+} from "../shared/types.ts";
 import { decryptSetting, encryptSetting } from "./sites/secrets.ts";
 
 /**
@@ -249,4 +257,57 @@ export async function siteAnalytics(
     pages: topList(pages, "(unknown)"),
     referrers: topList(referrers, "Direct"),
   };
+}
+
+/** Umami's metric type for each breakdown, and the label for an empty value. */
+const BREAKDOWN_METRICS: Record<Exclude<AnalyticsBreakdown, "pages" | "referrers">, { type: string; fallback: string }> = {
+  entry: { type: "entry", fallback: "(unknown)" },
+  exit: { type: "exit", fallback: "(unknown)" },
+  countries: { type: "country", fallback: "Unknown" },
+  cities: { type: "city", fallback: "Unknown" },
+  browsers: { type: "browser", fallback: "Unknown" },
+  os: { type: "os", fallback: "Unknown" },
+  devices: { type: "device", fallback: "Unknown" },
+  events: { type: "event", fallback: "(no name)" },
+};
+
+/**
+ * The Analytics tab: the summary plus Umami's other breakdowns and the
+ * visitors online now. A breakdown this Umami version rejects (entry and exit
+ * pages came in Umami 3) is null rather than an error.
+ */
+export async function siteAnalyticsDetails(
+  client: UmamiClient,
+  website: UmamiWebsite,
+  range: AnalyticsRange,
+  timeZone: string,
+  now = Date.now(),
+): Promise<Omit<SiteAnalyticsDetails, "website" | "chosen">> {
+  const window = analyticsWindow(range, timeZone, now);
+  const base = `/websites/${encodeURIComponent(website.id)}`;
+  const metric = (type: string, fallback: string) =>
+    client<unknown>(`${base}/metrics`, { startAt: window.startAt, endAt: window.endAt, type, limit: 10 })
+      .then((rows) => topList(rows, fallback))
+      .catch((error) => {
+        if (error instanceof UmamiError && error.status === 400) return null;
+        throw error;
+      });
+  const entries = Object.entries(BREAKDOWN_METRICS) as [keyof typeof BREAKDOWN_METRICS, { type: string; fallback: string }][];
+  const [summary, active, ...lists] = await Promise.all([
+    siteAnalytics(client, website, range, timeZone, now),
+    client<Record<string, unknown>>(`${base}/active`).then(activeVisitors).catch(() => null),
+    ...entries.map(([, { type, fallback }]) => metric(type, fallback)),
+  ]);
+  const extra = Object.fromEntries(entries.map(([key], index) => [key, lists[index]]));
+  return {
+    ...summary,
+    active,
+    breakdowns: { pages: summary.pages, referrers: summary.referrers, ...extra } as SiteAnalyticsDetails["breakdowns"],
+  };
+}
+
+/** Umami 3 answers {visitors}; Umami 2 answered {x}. */
+function activeVisitors(body: Record<string, unknown>): number | null {
+  const value = body.visitors ?? body.x;
+  return value === undefined || value === null ? null : Number(value) || 0;
 }

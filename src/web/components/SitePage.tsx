@@ -29,6 +29,7 @@ import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
 import { AnalyticsSection } from "./AnalyticsSection";
+import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
 import { UsersSection } from "./UsersSection";
@@ -44,13 +45,13 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const TABS = ["overview", "plugins", "users", "domain"];
+const TABS = ["overview", "analytics", "plugins", "users", "domain"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
   // The tab lives in the address, so a refresh or a shared link opens the same one.
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = TABS.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
+  const requestedTab = TABS.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
   const setTab = (next: string) =>
     setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
   const queryClient = useQueryClient();
@@ -110,6 +111,8 @@ export function SitePage() {
   const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
   const twoColumns = layout.data?.site_columns === 2 && !!umami.data?.configured;
+  // The Analytics tab needs Umami connected in Settings.
+  const tab = requestedTab === "analytics" && umami.data && !umami.data.configured ? "overview" : requestedTab;
 
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
@@ -176,10 +179,18 @@ export function SitePage() {
       </dl>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
-        <TabsList variant="line" className="w-full justify-start border-b pb-1">
+        <TabsList
+          variant="line"
+          className="w-full justify-start overflow-x-auto overflow-y-hidden border-b pb-1.5 [scrollbar-width:none]"
+        >
           <TabsTrigger value="overview" className="flex-none px-3">
             Overview
           </TabsTrigger>
+          {umami.data?.configured && (
+            <TabsTrigger value="analytics" className="flex-none px-3">
+              Analytics
+            </TabsTrigger>
+          )}
           <TabsTrigger value="plugins" className="flex-none px-3">
             Plugins
           </TabsTrigger>
@@ -215,6 +226,9 @@ export function SitePage() {
               </>
             );
           })()}
+        </TabsContent>
+        <TabsContent value="analytics">
+          <AnalyticsTab site={site} />
         </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />

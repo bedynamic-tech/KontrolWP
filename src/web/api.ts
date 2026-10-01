@@ -12,6 +12,7 @@ import type {
   LayoutSettings,
   SyncSettings,
   SiteAnalytics,
+  SiteAnalyticsDetails,
   UmamiSettings,
   UmamiWebsite,
   Overview,
@@ -182,6 +183,10 @@ export const fetchUmamiWebsites = () => request<{ websites: UmamiWebsite[] }>("/
 export const setSiteUmamiWebsite = (siteId: number, websiteId: string | null) =>
   request<{ ok: true }>(`/sites/${siteId}/umami`, { method: "PUT", json: { website_id: websiteId } });
 
+export const fetchSiteAnalyticsDetails = (siteId: number, range: AnalyticsRange) => {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return request<SiteAnalyticsDetails>(`/sites/${siteId}/analytics/details?range=${range}&tz=${encodeURIComponent(tz)}`);
+};
 export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return request<SiteAnalytics>(`/sites/${siteId}/analytics?range=${range}&tz=${encodeURIComponent(tz)}`);

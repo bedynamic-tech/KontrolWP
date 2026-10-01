@@ -238,6 +238,29 @@ export interface SiteAnalytics {
   referrers: { label: string; count: number }[];
 }
 
+/** The Analytics tab's breakdowns, each Umami's top 10 for the period. */
+export const ANALYTICS_BREAKDOWNS = [
+  "pages",
+  "entry",
+  "exit",
+  "referrers",
+  "countries",
+  "cities",
+  "browsers",
+  "os",
+  "devices",
+  "events",
+] as const;
+export type AnalyticsBreakdown = (typeof ANALYTICS_BREAKDOWNS)[number];
+
+/** The Analytics tab: the summary, more breakdowns, and who is on the site now. */
+export interface SiteAnalyticsDetails extends SiteAnalytics {
+  /** A breakdown is null when this Umami version doesn't offer it. */
+  breakdowns: Record<AnalyticsBreakdown, { label: string; count: number }[] | null> | null;
+  /** Visitors in the last five minutes, when Umami reports it. */
+  active: number | null;
+}
+
 /** Dashboard layout choices from Settings. */
 export interface LayoutSettings {
   /** The site page below its summary: one column, or Updates and the rest left of Analytics. */

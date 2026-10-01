@@ -1,0 +1,156 @@
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
+import { fetchSiteAnalyticsDetails } from "../api";
+import { hostname } from "../format";
+import {
+  AnalyticsFooter,
+  count,
+  RangeSelect,
+  StatsRow,
+  TopList,
+  TrendChart,
+  useAnalyticsRange,
+  WebsitePicker,
+} from "./AnalyticsSection";
+import { Section } from "./Section";
+
+const regionNames = (() => {
+  try {
+    return new Intl.DisplayNames(undefined, { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+
+/** "US" as "United States"; anything else as it is. */
+function countryName(code: string): string {
+  if (!/^[A-Z]{2}$/i.test(code) || !regionNames) return code;
+  try {
+    return regionNames.of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+/** Each breakdown's card, in the order they appear. */
+const CARDS: { key: AnalyticsBreakdown; title: string; unit: string; empty: string; format?: (label: string) => string }[] = [
+  { key: "pages", title: "Pages", unit: "Views", empty: "No pageviews in this period." },
+  { key: "entry", title: "Entry pages", unit: "Visits", empty: "No visits in this period." },
+  { key: "exit", title: "Exit pages", unit: "Visits", empty: "No visits in this period." },
+  { key: "referrers", title: "Referrers", unit: "Visitors", empty: "No referrers in this period." },
+  { key: "countries", title: "Countries", unit: "Visitors", empty: "No visitors in this period.", format: countryName },
+  { key: "cities", title: "Cities", unit: "Visitors", empty: "No visitors in this period." },
+  { key: "browsers", title: "Browsers", unit: "Visitors", empty: "No visitors in this period.", format: capitalize },
+  { key: "os", title: "Operating systems", unit: "Visitors", empty: "No visitors in this period." },
+  { key: "devices", title: "Devices", unit: "Visitors", empty: "No visitors in this period.", format: capitalize },
+  { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
+];
+
+/** The Analytics tab: the site's Umami data in full. */
+export function AnalyticsTab(props: { site: SiteSummary }) {
+  const { site } = props;
+  const [range, chooseRange] = useAnalyticsRange();
+  const details = useQuery({
+    queryKey: ["site", site.id, "analytics-details", range],
+    queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
+    refetchInterval: 5 * 60_000,
+    placeholderData: (previous) => previous,
+  });
+
+  const header = (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <ActiveNow data={details.data} />
+      <RangeSelect range={range} onChange={chooseRange} />
+    </div>
+  );
+
+  if (details.isPending) {
+    return (
+      <>
+        {header}
+        <div className="mt-3 space-y-3">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-72 w-full rounded-xl" />
+          <div className="grid gap-3 md:grid-cols-2">
+            <Skeleton className="h-56 rounded-xl" />
+            <Skeleton className="h-56 rounded-xl" />
+          </div>
+        </div>
+      </>
+    );
+  }
+  if (details.error) {
+    return (
+      <>
+        {header}
+        <p className="mt-3 rounded-xl border bg-background px-4 py-6 text-center text-sm text-destructive">
+          {details.error.message}
+        </p>
+      </>
+    );
+  }
+
+  const data = details.data;
+  if (!data.website || !data.breakdowns) {
+    return (
+      <Section title="Analytics">
+        <div className="space-y-3 px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {data.chosen
+              ? "The Umami website chosen for this site is no longer in Umami."
+              : `No Umami website has the domain ${hostname(site.url)}.`}{" "}
+            Choose the one to show.
+          </p>
+          <WebsitePicker site={site} current={null} chosen={data.chosen} />
+        </div>
+      </Section>
+    );
+  }
+
+  const breakdowns = data.breakdowns;
+  return (
+    <div className={cn(details.isPlaceholderData && "opacity-60 transition-opacity")}>
+      {header}
+      <div className="@container mt-3 overflow-hidden rounded-xl border bg-background">
+        <StatsRow data={data} />
+        <TrendChart data={data} tall />
+        <AnalyticsFooter site={site} data={data} />
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        {CARDS.filter((card) => breakdowns[card.key] !== null).map((card) => (
+          <div key={card.key} className="overflow-hidden rounded-xl border bg-background">
+            <TopList
+              title={card.title}
+              unit={card.unit}
+              rows={breakdowns[card.key]!}
+              empty={card.empty}
+              format={card.format}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "3 visitors right now", with a soft pulse while anyone is on the site. */
+function ActiveNow(props: { data: SiteAnalyticsDetails | undefined }) {
+  const active = props.data?.active;
+  if (active === null || active === undefined) return <span />;
+  return (
+    <span className="flex items-center gap-2 text-sm text-muted-foreground" title="Visitors in the last five minutes">
+      <span className="relative flex size-2">
+        {active > 0 && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60" />}
+        <span className={cn("relative inline-flex size-2 rounded-full", active > 0 ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+      </span>
+      <span>
+        <span className="font-medium text-foreground tabular-nums">{count(active)}</span>{" "}
+        {active === 1 ? "visitor" : "visitors"} right now
+      </span>
+    </span>
+  );
+}
