@@ -6,15 +6,13 @@ import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version"
 import type { SiteSummary } from "../../shared/types";
 import { createMagicLogin, fetchAdmins, setMagicLoginUser } from "../api";
 
-export const MAGIC_LOGIN_SECTION = "magic-login";
-
-function supported(site: SiteSummary): boolean {
+export function magicLoginSupported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, MAGIC_LOGIN_SINCE) >= 0;
 }
 
 /**
  * Opens wp-admin signed in as the chosen administrator. Without one, it
- * points to the setting instead.
+ * asks for the administrator first.
  */
 export function MagicLoginButton(props: { site: SiteSummary; onChooseUser: () => void }) {
   const { site } = props;
@@ -46,7 +44,13 @@ export function MagicLoginButton(props: { site: SiteSummary; onChooseUser: () =>
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button variant="outline" size="sm" onClick={open} disabled={pending || !supported(site)}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={open}
+        disabled={pending || !magicLoginSupported(site)}
+        title={magicLoginSupported(site) ? undefined : `Needs Presser Connect ${MAGIC_LOGIN_SINCE} or later`}
+      >
         <LogInIcon />
         {pending ? "Opening..." : "Magic Login"}
       </Button>
@@ -55,82 +59,73 @@ export function MagicLoginButton(props: { site: SiteSummary; onChooseUser: () =>
   );
 }
 
-/** Choose the administrator Magic Login signs in as. */
-export function MagicLoginSettings(props: { site: SiteSummary; editing: boolean; onEditingChange: (editing: boolean) => void }) {
-  const { site, editing, onEditingChange } = props;
+/**
+ * Choose the administrator Magic Login signs in as. Starts on the current
+ * choice, or on the site's first administrator.
+ */
+export function MagicLoginUserForm(props: {
+  site: SiteSummary;
+  submitLabel: string;
+  onDone: () => void;
+  /** Shown beside the submit button, such as Cancel or Skip. */
+  secondary?: { label: string; onClick: () => void };
+}) {
+  const { site, onDone } = props;
   const queryClient = useQueryClient();
-  const [choice, setChoice] = useState<string>("");
+  const [choice, setChoice] = useState<string | null>(null);
+  const supported = magicLoginSupported(site);
 
   const admins = useQuery({
     queryKey: ["site", site.id, "admins"],
     queryFn: () => fetchAdmins(site.id),
-    enabled: editing,
+    enabled: supported,
     refetchInterval: false,
     staleTime: 0,
   });
   const save = useMutation({
-    mutationFn: (userId: number | null) => setMagicLoginUser(site.id, userId),
-    onSuccess: () => onEditingChange(false),
+    mutationFn: (userId: number) => setMagicLoginUser(site.id, userId),
+    onSuccess: onDone,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["site", site.id] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
     },
   });
 
-  if (!supported(site)) {
-    return (
-      <p className="px-4 py-4 text-sm text-muted-foreground">
-        Magic Login needs Presser Connect {MAGIC_LOGIN_SINCE} or later. This site runs {site.plugin_version}; it
-        updates automatically, then you can choose an administrator here.
-      </p>
-    );
-  }
+  const list = admins.data?.admins ?? [];
+  const fallback = site.login_user_id ?? [...list].sort((a, b) => a.id - b.id)[0]?.id;
+  const selected = choice ?? (fallback ? String(fallback) : "");
+  const secondary = props.secondary && (
+    <Button type="button" variant="ghost" size="sm" onClick={props.secondary.onClick}>
+      {props.secondary.label}
+    </Button>
+  );
 
-  if (!editing) {
+  if (!supported) {
     return (
-      <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          {site.login_user_id ? (
-            <>
-              Magic Login signs you in to wp-admin as <span className="font-medium text-foreground">{site.login_user_name}</span>.
-            </>
-          ) : (
-            "Choose an administrator, and Magic Login opens wp-admin signed in as them. Each link works once, for one minute."
-          )}
+          Magic Login needs Presser Connect {MAGIC_LOGIN_SINCE} or later. This site runs {site.plugin_version}; it
+          updates automatically, then you can choose an administrator from the site's menu.
         </p>
-        <div className="flex shrink-0 gap-2">
-          {site.login_user_id && (
-            <Button variant="ghost" size="sm" onClick={() => save.mutate(null)} disabled={save.isPending}>
-              Turn off
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setChoice(site.login_user_id ? String(site.login_user_id) : "");
-              onEditingChange(true);
-            }}
-          >
-            {site.login_user_id ? "Change user" : "Choose user"}
+        <div className="flex gap-2">
+          <Button type="button" size="sm" onClick={onDone}>
+            Continue
           </Button>
         </div>
-        {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
       </div>
     );
   }
 
-  const list = admins.data?.admins ?? [];
   return (
     <form
-      className="space-y-3 px-4 py-4"
+      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (choice) save.mutate(Number(choice));
+        if (selected) save.mutate(Number(selected));
       }}
     >
       <label className="block text-sm font-medium" htmlFor="magic-login-user">
-        Sign in as
+        Magic Login administrator
       </label>
       {admins.isPending ? (
         <p className="text-sm text-muted-foreground">Loading the site's administrators...</p>
@@ -139,10 +134,10 @@ export function MagicLoginSettings(props: { site: SiteSummary; editing: boolean;
       ) : (
         <select
           id="magic-login-user"
-          value={choice}
+          value={selected}
           onChange={(event) => setChoice(event.target.value)}
           required
-          className="h-8 w-full max-w-sm rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         >
           <option value="" disabled>
             Choose an administrator
@@ -156,14 +151,15 @@ export function MagicLoginSettings(props: { site: SiteSummary; editing: boolean;
           ))}
         </select>
       )}
+      <p className="text-xs text-muted-foreground">
+        Magic Login opens wp-admin signed in as this user. Each link works once, for one minute.
+      </p>
       {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={!choice || save.isPending || !admins.data}>
-          {save.isPending ? "Saving..." : "Save"}
+        <Button type="submit" size="sm" disabled={!selected || save.isPending || !admins.data}>
+          {save.isPending ? "Saving..." : props.submitLabel}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => onEditingChange(false)}>
-          Cancel
-        </Button>
+        {secondary}
       </div>
     </form>
   );

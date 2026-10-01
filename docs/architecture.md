@@ -100,8 +100,9 @@ that keeps reporting the old version never loops. Sites on a version before
 
 ## Magic Login
 
-Each site's page has a Magic Login setting: the owner picks one of the site's
-administrators (listed by `GET /admins`), and Presser stores that user's id.
+Magic Login is on by default: sync gives a site with no chosen administrator
+its first one (lowest user id, listed by `GET /admins`), Add site asks the
+owner to confirm or change it, and the site page's menu changes it later.
 The Magic Login button asks the site for a one-time link (`POST /login`) and
 opens it in a new tab. The plugin keeps only a SHA-256 hash of the link's
 token, in an option that deleting spends: the first request to delete it
