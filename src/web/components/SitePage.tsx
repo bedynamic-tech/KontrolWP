@@ -373,8 +373,10 @@ export function SitePage() {
             )}
             {isStatic && <CloudflareRow site={site} />}
             {umami.data?.configured && (
-              <SettingRow title="Umami website" detail="Where this site's analytics come from." stacked>
-                <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
+              <SettingRow title="Umami website" detail="Where this site's analytics come from.">
+                <div className="[&_select]:max-w-52">
+                  <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
+                </div>
               </SettingRow>
             )}
             {!isStatic && (
