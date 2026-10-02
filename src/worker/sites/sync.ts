@@ -12,7 +12,7 @@ import {
   type SyncInterval,
   type SyncSettings,
 } from "../../shared/types.ts";
-import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
+import { callSite, DATABASE_DOWN_CODE, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
@@ -70,24 +70,25 @@ async function runSync(
   let status: PluginStatus;
   let updates: PluginUpdates;
   let comments: PluginComments;
-  // What browsers show for the site; best effort, alongside the plugin calls.
-  const pageIcon = discoverIcon(site.url);
-  const read = () =>
-    Promise.all([
-      callSite<PluginStatus>(site, "GET", `${REST_NAMESPACE}/status`),
-      // An excluded site is not asked for updates at all.
-      checkUpdates
-        ? callSite<PluginUpdates>(site, "GET", `${REST_NAMESPACE}/updates`)
-        : Promise.resolve<PluginUpdates>({ core: null, plugins: [], themes: [] }),
-      callSite<PluginComments>(site, "GET", `${REST_NAMESPACE}/comments`),
-    ]);
+  // One request at a time: a small host with few database connections cannot take
+  // three PHP requests at once, and a sync that fails on the first spares it the rest.
+  const read = async (): Promise<[PluginStatus, PluginUpdates, PluginComments]> => {
+    const status = await callSite<PluginStatus>(site, "GET", `${REST_NAMESPACE}/status`);
+    // An excluded site is not asked for updates at all.
+    const updates = checkUpdates
+      ? await callSite<PluginUpdates>(site, "GET", `${REST_NAMESPACE}/updates`)
+      : { core: null, plugins: [], themes: [] };
+    return [status, updates, await callSite<PluginComments>(site, "GET", `${REST_NAMESPACE}/comments`)];
+  };
   try {
     try {
       [status, updates, comments] = await read();
     } catch (error) {
       // A slow moment or a dropped connection is common; one more try before
-      // the dashboard says the site can't be reached.
+      // the dashboard says the site can't be reached. A database that is down
+      // is not helped by asking again at once.
       if (!(error instanceof SiteRequestError) || (error.status !== undefined && error.status < 500)) throw error;
+      if (error.code === DATABASE_DOWN_CODE) throw error;
       await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? RETRY_DELAY_MS));
       [status, updates, comments] = await read();
     }
@@ -119,7 +120,7 @@ async function runSync(
         text(status.plugin_version),
         text(status.theme),
         Math.max(0, Math.trunc(Number(comments.pending_count) || 0)),
-        (await pageIcon) ?? iconUrl(status.icon_url),
+        (await discoverIconDaily(env, siteId, site.url)) ?? iconUrl(status.icon_url),
         ...coreAutoUpdate(status),
         siteId,
       ),
@@ -300,6 +301,24 @@ async function chooseMagicLoginUser(env: Env, site: SiteCredentials, pluginVersi
 
 async function recordError(env: Env, siteId: number, message: string): Promise<void> {
   await env.DB.prepare("UPDATE sites SET status = 'error', last_error = ? WHERE id = ?").bind(message, siteId).run();
+}
+
+/**
+ * The icon the site's home page declares, looked for at most once a day (a
+ * miss keeps the icon already stored). Loading the home page runs the whole
+ * theme, so it is not repeated on every sync.
+ */
+async function discoverIconDaily(env: Env, siteId: number, url: string): Promise<string | null> {
+  const name = `icon_checked:${siteId}`;
+  const now = Math.floor(Date.now() / 1000);
+  const [checked, site] = await Promise.all([
+    env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(name).first<{ value: string }>(),
+    env.DB.prepare("SELECT icon_url FROM sites WHERE id = ?").bind(siteId).first<{ icon_url: string | null }>(),
+  ]);
+  if (checked && now - Number(checked.value) < 86400) return site?.icon_url ?? null;
+  const found = await discoverIcon(url);
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)").bind(name, String(now)).run();
+  return found ?? site?.icon_url ?? null;
 }
 
 /** Keep only an https icon URL; the browser loads it straight from the site. */

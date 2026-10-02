@@ -7,13 +7,15 @@ import { analyzePage, type Finding } from "./accessibility-check.ts";
 import { callSite, type SiteCredentials } from "./client.ts";
 
 /** The home page and a few pages it links to, so a theme-wide problem shows up and a one-off does not dominate. */
-const MAX_PAGES = 5;
+const MAX_PAGES = 3;
 const DAY = 86400;
 /** Manual scans can follow each other, but not on top of each other. */
 const MIN_GAP = 30;
 const HISTORY_LIMIT = 90;
-/** One cron run makes at most 50 requests, and a scan makes up to five. */
-const SCANS_PER_RUN = 3;
+/** One site per cron run, so scans never pile up on small hosts or overlap a sync. */
+const SCANS_PER_RUN = 1;
+/** A pause between a site's pages: each one runs its whole theme and queries its database. */
+const PAGE_PAUSE_MS = 1500;
 const MAX_HTML = 1024 * 1024;
 
 export class AccessibilityError extends Error {}
@@ -23,13 +25,17 @@ interface StoredResult {
   issues: Omit<AccessibilityIssue, "fix">[];
 }
 
-async function fetchPage(url: string): Promise<{ url: string; html: string } | null> {
+type Page = { url: string; html: string };
+
+/** A page, null when it is not HTML, and "overloaded" when the site answers with a server error. */
+async function fetchPage(url: string): Promise<Page | null | "overloaded"> {
   try {
     const response = await fetch(url, {
       headers: { Accept: "text/html", "User-Agent": "KontrolWP Accessibility Check" },
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
     });
+    if (response.status >= 500) return "overloaded";
     if (!response.ok || !(response.headers.get("Content-Type") ?? "").includes("html")) return null;
     return { url: response.url || url, html: (await response.text()).slice(0, MAX_HTML) };
   } catch {
@@ -100,7 +106,13 @@ export function summarize(perPage: { url: string; findings: Finding[] }[]): Stor
  * Throws AccessibilityError when the home page cannot be read, leaving the
  * last result in place.
  */
-export async function scanSite(env: Env, siteId: number, siteUrl: string, now = Math.floor(Date.now() / 1000)) {
+export async function scanSite(
+  env: Env,
+  siteId: number,
+  siteUrl: string,
+  now = Math.floor(Date.now() / 1000),
+  pauseMs = PAGE_PAUSE_MS,
+) {
   await env.DB.prepare(
     `INSERT INTO accessibility_scans (site_id, attempted_at) VALUES (?, ?)
      ON CONFLICT(site_id) DO UPDATE SET attempted_at = excluded.attempted_at`,
@@ -108,13 +120,22 @@ export async function scanSite(env: Env, siteId: number, siteUrl: string, now = 
     .bind(siteId, now)
     .run();
   const home = await fetchPage(siteUrl);
-  if (!home) {
-    const error = "The site's home page could not be read.";
+  if (!home || home === "overloaded") {
+    const error =
+      home === "overloaded"
+        ? "The site answered with a server error, so the scan stopped. It will be tried again tomorrow."
+        : "The site's home page could not be read.";
     await env.DB.prepare("UPDATE accessibility_scans SET error = ? WHERE site_id = ?").bind(error, siteId).run();
     throw new AccessibilityError(error);
   }
-  const others = await Promise.all(linkedPages(home.html, home.url).map(fetchPage));
-  const pages = [home, ...others.filter((page): page is { url: string; html: string } => !!page)];
+  // One page at a time, and no more once the site starts to struggle.
+  const pages: Page[] = [home];
+  for (const url of linkedPages(home.html, home.url)) {
+    await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    const page = await fetchPage(url);
+    if (page === "overloaded") break;
+    if (page) pages.push(page);
+  }
   const result = summarize(pages.map((page) => ({ url: page.url, findings: analyzePage(page.html) })));
   const score = accessibilityScore(result.issues);
   await env.DB.batch([
@@ -134,21 +155,29 @@ export async function scanSite(env: Env, siteId: number, siteUrl: string, now = 
 }
 
 /** Scan on request, unless one just ran. */
-export async function scanNow(env: Env, site: Pick<SiteSummary, "id" | "url">, options: { force?: boolean } = {}) {
+export async function scanNow(
+  env: Env,
+  site: Pick<SiteSummary, "id" | "url">,
+  options: { force?: boolean; pauseMs?: number } = {},
+) {
   const now = Math.floor(Date.now() / 1000);
   const row = await env.DB.prepare("SELECT attempted_at FROM accessibility_scans WHERE site_id = ?")
     .bind(site.id)
     .first<{ attempted_at: number }>();
   if (!options.force && row && now - row.attempted_at < MIN_GAP) return;
-  await scanSite(env, site.id, site.url, now);
+  await scanSite(env, site.id, site.url, now, options.pauseMs);
 }
 
 /** Rescan the sites not scanned in the last day, a few at a time, from the cron. Returns how many were scanned. */
-export async function runScheduledScans(env: Env, now = Math.floor(Date.now() / 1000)): Promise<number> {
+export async function runScheduledScans(
+  env: Env,
+  now = Math.floor(Date.now() / 1000),
+  pauseMs = PAGE_PAUSE_MS,
+): Promise<number> {
   const { results } = await env.DB.prepare(
     `SELECT sites.id, sites.url FROM sites
      LEFT JOIN accessibility_scans a ON a.site_id = sites.id
-     WHERE a.site_id IS NULL OR a.attempted_at < ?
+     WHERE sites.status != 'error' AND (a.site_id IS NULL OR a.attempted_at < ?)
      ORDER BY a.attempted_at IS NOT NULL, a.attempted_at
      LIMIT ?`,
   )
@@ -156,7 +185,7 @@ export async function runScheduledScans(env: Env, now = Math.floor(Date.now() / 
     .all<{ id: number; url: string }>();
   for (const site of results) {
     try {
-      await scanSite(env, site.id, site.url, now);
+      await scanSite(env, site.id, site.url, now, pauseMs);
     } catch (error) {
       if (!(error instanceof AccessibilityError)) console.error("accessibility scan", site.id, error);
     }

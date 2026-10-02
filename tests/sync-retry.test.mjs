@@ -13,7 +13,9 @@ async function setup(failures) {
   const db = fakeD1();
   await applyMigrations(db, migrations);
   const key = randomToken(32);
-  db.sqlite.prepare("INSERT INTO sites (id, name, url, key_id, secret) VALUES (1, 'Example', 'https://example.com', 'k', '')").run();
+  db.sqlite
+    .prepare("INSERT INTO sites (id, name, url, key_id, secret) VALUES (1, 'Example', 'https://example.com', 'k', '')")
+    .run();
   db.sqlite.prepare("UPDATE sites SET secret = ? WHERE id = 1").run(await encryptSecret(key, 1, randomToken(32)));
   let left = failures;
   globalThis.fetch = async (url) => {
@@ -44,4 +46,34 @@ test("a site that fails twice in a row is marked unreachable", async () => {
   assert.equal(result.ok, false);
   assert.equal(site().status, "error");
   assert.equal(site().last_error, "Could not reach the site");
+});
+
+test("a database that is down is not asked again at once, and the message is plain", async () => {
+  const { env, site } = await setup(0);
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    asked.push(new URL(url).searchParams.get("rest_route") ?? "page");
+    return new Response(
+      JSON.stringify({ code: "internal_server_error", message: "<h1>Error establishing a database connection</h1>" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const result = await syncSite(env, 1, { retryDelayMs: 0 });
+  assert.equal(result.ok, false);
+  assert.deepEqual(asked, ["/kontrolwp/v1/status"]);
+  assert.match(site().last_error, /database is not answering/);
+  assert.doesNotMatch(site().last_error, /</);
+});
+
+test("a site's home page is loaded for its icon once a day, not on every sync", async () => {
+  const { env } = await setup(0);
+  let pages = 0;
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (!new URL(url).searchParams.get("rest_route")) pages++;
+    return inner(url);
+  };
+  await syncSite(env, 1);
+  await syncSite(env, 1);
+  assert.equal(pages, 1);
 });
