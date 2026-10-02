@@ -82,6 +82,7 @@ import {
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
+import { cachedRead } from "../content-cache.ts";
 import { cachedDomain } from "../domain-cache.ts";
 import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
 
@@ -299,6 +300,7 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM content_cache WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -796,7 +798,7 @@ api.get("/sites/:id/pages", async (c) => {
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
   if (site.kind !== "static") return c.json({ error: "Only static sites list their pages from a sitemap." }, 400);
-  return c.json<SiteSitemap>(await readSitemap(site.url));
+  return c.json<SiteSitemap>(await cachedRead(c.env.DB, id, "pages", site.url, () => readSitemap(site.url)));
 });
 
 const PAGE_SIZE = 25;
@@ -820,7 +822,9 @@ api.get("/sites/:id/content", async (c) => {
   if (!parsed.success) return c.json({ error: "Invalid filter" }, 400);
   try {
     return c.json<SiteContent>(
-      await callSite<SiteContent>(site, "POST", `${REST_NAMESPACE}/content`, { ...parsed.data, per_page: PAGE_SIZE }),
+      await cachedRead(c.env.DB, id, "content", JSON.stringify(parsed.data), () =>
+        callSite<SiteContent>(site, "POST", `${REST_NAMESPACE}/content`, { ...parsed.data, per_page: PAGE_SIZE }),
+      ),
     );
   } catch (error) {
     if (!(error instanceof SiteRequestError)) throw error;

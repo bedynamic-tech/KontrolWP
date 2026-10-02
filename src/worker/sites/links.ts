@@ -1,4 +1,5 @@
 import { compareVersions, LINK_RECHECK_SINCE, LINK_UNLINK_SINCE } from "../../shared/plugin-version.ts";
+import { clearContentCache } from "../content-cache.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { LinkRef, LinkScan, LinkStatus, LinkUnlinkResult, SiteLink, SiteLinks } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
@@ -481,6 +482,15 @@ export class UnlinkError extends Error {}
  * keeping the link text, then re-read those posts so the list matches.
  */
 export async function unlinkLinks(env: Env, siteId: number, urls: string[]): Promise<LinkUnlinkResult> {
+  try {
+    return await runUnlink(env, siteId, urls);
+  } finally {
+    // Posts were edited, even if a later batch failed.
+    await clearContentCache(env.DB, siteId);
+  }
+}
+
+async function runUnlink(env: Env, siteId: number, urls: string[]): Promise<LinkUnlinkResult> {
   const version = await env.DB.prepare("SELECT plugin_version FROM sites WHERE id = ?")
     .bind(siteId)
     .first<{ plugin_version: string | null }>();
