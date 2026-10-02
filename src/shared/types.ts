@@ -686,3 +686,65 @@ export interface SiteAccessibility {
   /** Whether this site can take automatic fixes (WordPress with KontrolWP Connect 0.14.0 or later). */
   can_fix: boolean;
 }
+
+export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
+export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
+
+/** What a scheduled run updates, and when. */
+export interface UpdateSchedule {
+  core: boolean;
+  plugins: boolean;
+  themes: boolean;
+  frequency: UpdateFrequency;
+  /** 0 (Sunday) to 6, for weekly. */
+  weekday: number;
+  /** 1 to 28, for monthly. */
+  day: number;
+  /** 0 to 23, in the time zone chosen under Link checks. */
+  hour: number;
+}
+
+/** The policy every site follows unless it sets its own. */
+export interface GlobalUpdatePolicy extends UpdateSchedule {
+  enabled: boolean;
+  /** Plugin files such as "akismet/akismet.php", left out of scheduled runs on every site. */
+  excluded_plugins: string[];
+}
+
+/** One site's choice: follow the global policy, use its own schedule, or run none. */
+export interface SiteUpdatePolicy {
+  mode: "inherit" | "custom" | "off";
+  /** Used when `mode` is "custom". */
+  schedule: UpdateSchedule;
+  /** Left out of scheduled runs on this site, besides the globally excluded ones. */
+  excluded_plugins: string[];
+}
+
+export interface UpdateRun {
+  id: number;
+  site_id: number;
+  site_name: string;
+  ran_at: number;
+  queued: number;
+  /** Updates left out because their plugin is excluded. */
+  skipped: number;
+  items: { kind: UpdateKind; name: string; version: string }[];
+}
+
+export interface GlobalUpdatePolicyView {
+  policy: GlobalUpdatePolicy;
+  time_zone: string;
+  /** When the next run is due; null when the policy is off. */
+  next_run_at: number | null;
+  runs: UpdateRun[];
+}
+
+export interface SiteUpdatePolicyView {
+  policy: SiteUpdatePolicy;
+  global: GlobalUpdatePolicy;
+  time_zone: string;
+  /** Which schedule applies to this site now. */
+  effective: "off" | "global" | "custom";
+  next_run_at: number | null;
+  runs: UpdateRun[];
+}

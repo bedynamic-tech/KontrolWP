@@ -6,6 +6,7 @@ import { runScheduledLinkScans } from "./sites/link-schedule.ts";
 import { checkLinks, collectLinks } from "./sites/links.ts";
 import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate } from "./sites/updates.ts";
+import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 
@@ -20,7 +21,12 @@ export default {
       ensureSchema(env.DB).then(async () => {
         // Accessibility scans load the sites' pages too, so they wait for a tick with no sync starting.
         const synced = await runScheduledSync(env);
-        await Promise.all([runScheduledLinkScans(env), runScheduledFeedRefresh(env), synced ? 0 : runScheduledScans(env)]);
+        await Promise.all([
+          runScheduledLinkScans(env),
+          runScheduledFeedRefresh(env),
+          runScheduledUpdates(env),
+          synced ? 0 : runScheduledScans(env),
+        ]);
       }),
     );
   },

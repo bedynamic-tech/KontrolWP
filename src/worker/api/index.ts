@@ -29,6 +29,7 @@ import type {
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
+import { UPDATE_FREQUENCIES } from "../../shared/types.ts";
 import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
@@ -85,6 +86,13 @@ import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
 import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
+import {
+  cleanExcluded,
+  globalPolicyView,
+  saveGlobalPolicy,
+  saveSitePolicy,
+  sitePolicyView,
+} from "../sites/update-policy.ts";
 import { cachedRead, clearContentCache, clearContentCacheKind } from "../content-cache.ts";
 import { cachedDomain } from "../domain-cache.ts";
 import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
@@ -304,6 +312,7 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM content_cache WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM update_runs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM accessibility_scans WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM accessibility_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
@@ -1537,6 +1546,48 @@ api.put("/settings/links", async (c) => {
   }
   await saveLinkScanSettings(c.env, { interval_days: interval, time_zone: zone });
   return c.json(await linkScanSchedule(c.env));
+});
+
+api.get("/settings/updates", async (c) => c.json(await globalPolicyView(c.env)));
+
+const scheduleBody = z.object({
+  core: z.boolean(),
+  plugins: z.boolean(),
+  themes: z.boolean(),
+  frequency: z.enum(UPDATE_FREQUENCIES),
+  weekday: z.number().int().min(0).max(6),
+  day: z.number().int().min(1).max(28),
+  hour: z.number().int().min(0).max(23),
+});
+const excludedBody = z.array(z.string().min(1).max(300)).max(500);
+
+/** Save the global scheduled update policy. */
+api.put("/settings/updates", async (c) => {
+  const parsed = scheduleBody
+    .extend({ enabled: z.boolean(), excluded_plugins: excludedBody })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid schedule" }, 400);
+  await saveGlobalPolicy(c.env, { ...parsed.data, excluded_plugins: cleanExcluded(parsed.data.excluded_plugins) });
+  return c.json(await globalPolicyView(c.env));
+});
+
+api.get("/sites/:id/update-policy", async (c) => {
+  const id = siteId(c);
+  const view = id && (await sitePolicyView(c.env, id));
+  if (!view) return c.json({ error: "Site not found" }, 404);
+  return c.json(view);
+});
+
+/** Save how this site follows the scheduled update policy. */
+api.put("/sites/:id/update-policy", async (c) => {
+  const id = siteId(c);
+  const parsed = z
+    .object({ mode: z.enum(["inherit", "custom", "off"]), schedule: scheduleBody, excluded_plugins: excludedBody })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid schedule" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  await saveSitePolicy(c.env, id, { ...parsed.data, excluded_plugins: cleanExcluded(parsed.data.excluded_plugins) });
+  return c.json(await sitePolicyView(c.env, id));
 });
 
 api.get("/settings/layout", async (c) => c.json(await loadLayout(c.env)));

@@ -71,7 +71,7 @@ const dayNumber = (date: string) => Math.round(Date.parse(`${date}T00:00:00Z`) /
 const dateOf = (day: number) => new Date(day * DAY * 1000).toISOString().slice(0, 10);
 
 /** Unix seconds of midnight starting `date` in the zone. */
-function midnight(date: string, zone: string | null): number {
+export function midnight(date: string, zone: string | null): number {
   const utc = Date.parse(`${date}T00:00:00Z`) / 1000;
   // The zone's offset near that moment, applied twice to settle across a DST change.
   let guess = utc;

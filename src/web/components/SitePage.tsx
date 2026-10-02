@@ -38,6 +38,7 @@ import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
+import { SiteUpdatePolicyRow } from "./UpdatePolicy";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { SiteIcon } from "./SiteIcon";
 import { SiteName } from "./SiteName";
@@ -359,6 +360,7 @@ export function SitePage() {
                 />
               </label>
             )}
+            {!isStatic && !site.updates_excluded && <SiteUpdatePolicyRow site={site} />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">

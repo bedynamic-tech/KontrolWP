@@ -92,6 +92,29 @@ listed and queued updates, and refuses new ones. KontrolWP Connect still
 updates itself there, since the exclusion covers WordPress core, plugin and
 theme updates only.
 
+## Scheduled updates
+
+Settings, Scheduled updates holds the global policy (`settings` row
+`update_policy`): which of WordPress, plugins and themes to update, how often
+(daily, weekly or monthly), the day and the hour, in the time zone chosen under
+Link checks. A site's Site settings can follow it, use its own schedule
+(`sites.update_policy`) or run none, and both levels can leave individual
+plugins out (by plugin file such as `akismet/akismet.php`); a plugin is left out
+if either level excludes it. A site's own schedule runs even while the global
+policy is off.
+
+`runScheduledUpdates` (`src/worker/sites/update-policy.ts`) runs on every 15-minute
+cron tick. A site is due from the scheduled hour on a day its schedule runs, until it has
+run that local day (`sites.scheduled_update_run`, claimed first so overlapping
+ticks never both start it). A due site gets its waiting updates queued through
+`enqueueUpdate`, plugins and themes first and WordPress last, with core pinned to
+the version KontrolWP last saw, and the sites start 120 seconds apart. From there
+they are ordinary update jobs, run one at a time per site. Sites excluded from
+updates or in error are skipped; a site in error runs once it recovers the same
+day. WordPress updates are off by default. Each run that queued or left out
+anything is logged in `update_runs` (kept 90 days) and listed in Settings and in
+the site's settings.
+
 ## KontrolWP Connect updates
 
 The dashboard ships the plugin it was built with (`src/shared/plugin-version.ts`,
