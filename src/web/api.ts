@@ -289,8 +289,6 @@ export const fetchBuildLog = (siteId: number, buildId: string, cursor?: string |
 
 export const fetchSecurity = (siteId: number) => request<SiteSecurity>(`/sites/${siteId}/security`);
 
-export const refreshVulnerabilityFeed = () =>
-  request<{ updated_at: number | null }>("/security/refresh", { method: "POST" });
 
 export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<{ fixes: SecurityFix[] }>(`/sites/${siteId}/security/fixes`, { method: "PUT", json: { ids, enabled } });

@@ -853,19 +853,6 @@ api.put("/sites/:id/security/fixes", async (c) => {
   }
 });
 
-/** Download the vulnerability feed again now instead of waiting for the daily refresh. */
-api.post("/security/refresh", async (c) => {
-  try {
-    const state = await refreshFeed(c.env);
-    if (state.error) return c.json({ error: state.error }, 502);
-    return c.json({ updated_at: state.updated_at });
-  } catch (error) {
-    if (error instanceof FeedKeyError) return c.json({ error: error.message }, 409);
-    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
-    throw error;
-  }
-});
-
 api.get("/settings/wordfence", async (c) => {
   try {
     return c.json({ configured: Boolean(await loadFeedKey(c.env)) });
