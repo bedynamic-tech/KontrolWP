@@ -9,7 +9,11 @@ import type {
   NewUser,
   SiteContent,
   SecurityFix,
+  GlobalUpdatePolicy,
+  GlobalUpdatePolicyView,
   SiteAccessibility,
+  SiteUpdatePolicy,
+  SiteUpdatePolicyView,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
@@ -300,6 +304,14 @@ export const scanAccessibility = (siteId: number) =>
   request<SiteAccessibility>(`/sites/${siteId}/accessibility/scan`, { method: "POST" });
 export const setAccessibilityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<SiteAccessibility>(`/sites/${siteId}/accessibility/fixes`, { method: "PUT", json: { ids, enabled } });
+
+export const fetchGlobalUpdatePolicy = () => request<GlobalUpdatePolicyView>("/settings/updates");
+export const saveGlobalUpdatePolicy = (policy: GlobalUpdatePolicy) =>
+  request<GlobalUpdatePolicyView>("/settings/updates", { method: "PUT", json: policy });
+export const fetchSiteUpdatePolicy = (siteId: number) =>
+  request<SiteUpdatePolicyView>(`/sites/${siteId}/update-policy`);
+export const saveSiteUpdatePolicy = (siteId: number, policy: SiteUpdatePolicy) =>
+  request<SiteUpdatePolicyView>(`/sites/${siteId}/update-policy`, { method: "PUT", json: policy });
 
 export const fetchWordfenceSettings = () => request<{ configured: boolean }>("/settings/wordfence");
 

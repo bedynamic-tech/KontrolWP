@@ -32,7 +32,13 @@ export type UpdateStep =
 const now = () => Math.floor(Date.now() / 1000);
 
 /** Queue an update for a site and wake the consumer. Queuing the same update again is a no-op. */
-export async function enqueueUpdate(env: Env, siteId: number, update: UpdateRequest): Promise<void> {
+export async function enqueueUpdate(
+  env: Env,
+  siteId: number,
+  update: UpdateRequest,
+  /** False when the caller wakes the consumer itself, once for many updates. */
+  wake = true,
+): Promise<void> {
   await env.DB
     .prepare(
       `INSERT INTO update_jobs (site_id, kind, slug, version) VALUES (?, ?, ?, ?)
@@ -43,7 +49,7 @@ export async function enqueueUpdate(env: Env, siteId: number, update: UpdateRequ
     )
     .bind(siteId, update.kind, update.slug, update.version ?? null)
     .run();
-  await env.SYNC_QUEUE.send({ type: "update", siteId });
+  if (wake) await env.SYNC_QUEUE.send({ type: "update", siteId });
 }
 
 /**

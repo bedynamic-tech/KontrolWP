@@ -30,6 +30,7 @@ import {
   saveUmamiSettings,
 } from "../api";
 import { Section } from "./Section";
+import { UpdatePolicySettingsSection } from "./UpdatePolicy";
 import { Spinner } from "./Spinner";
 
 export function SettingsPage() {
@@ -42,6 +43,7 @@ export function SettingsPage() {
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       <SyncSettingsSection />
+      <UpdatePolicySettingsSection />
       <LinkScanSettingsSection />
       <LayoutSettingsSection />
       <UmamiSettingsSection />
