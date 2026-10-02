@@ -307,6 +307,36 @@ left out. The list is read-only: View opens the permalink, and Edit uses
 Magic Login to open the post's editor, as on the Links tab. Nothing is stored
 in D1, and static sites do not have the tab.
 
+## Accessibility
+
+Every site (WordPress and static) has an Accessibility tab. `src/worker/sites/accessibility.ts`
+fetches the home page and up to four same-site pages it links to, and
+`accessibility-check.ts` reads each page's HTML for what markup alone shows:
+missing alt text, form labels, link and button names, frame titles, page title
+and language, heading structure, a main landmark, a skip link, a viewport that
+blocks zooming, positive tabindex, timed refreshes, autoplay and vague link
+text. Colour contrast and anything script- or layout-dependent are not checked,
+and the tab says so. `src/shared/accessibility.ts` holds the rule catalog (impact
+and WCAG 2.1 criterion) and the score: 100 minus a penalty per kind of problem,
+by impact and how often it occurs.
+
+The latest result is in `accessibility_scans` and the score per scan in
+`accessibility_history` (last 90). The 15-minute cron scans up to three sites not
+tried in the last day, so each site is scanned daily; opening a never-scanned
+tab, Scan now (at most one per 30 seconds) and switching a fix scan too.
+
+Fixes (plugin 0.14.0, WordPress only) are `GET /accessibility` and
+`POST /accessibility/fixes` on the plugin. Each is saved in the
+`kontrolwp_connect_accessibility` option and applied by rewriting the finished
+HTML of pages visitors see (an output buffer on `template_redirect`, never in
+the admin, feeds, REST or Ajax; a page is sent unchanged if anything fails).
+Nothing in the database or theme changes, so turning a fix off restores the page.
+The fixes: empty alt on images with no alt attribute, field names from
+placeholders, names for icon-only links (social, email, phone), titles for
+iframes, zooming allowed in the viewport tag, and a skip link to the main
+content. A page cache may keep serving old HTML, so a scan can still show a
+problem after its fix is on; the tab says so.
+
 ## Plugin routes (`kontrolwp/v1`)
 
 | Route | Does |
@@ -327,6 +357,8 @@ in D1, and static sites do not have the tab.
 | `POST /links` | `{page, per_page, post_ids}` (up to 100). One page of published content, each post with the absolute http(s) addresses of its links and images, their link text or alt text, and the post's title, type and permalink. With `post_ids` (up to 100), just those posts, if still published. Added in 0.9.0; `post_ids` in 0.9.2. |
 | `POST /content` | `{page, per_page, type: all or a post type slug, status: all, publish, future, draft, pending or private, search}`. One page of posts, pages and custom post types (newest first, up to 100 per page) with title, type, status, author, dates and permalink, the count of each status for the chosen type, the total matching, and the site's public post types with their names (custom types, 0.11.0). Read-only; trash is left out. Added in 0.10.0. |
 | `GET /security` | No body. Settings worth fixing: whether errors are printed into pages (`WP_DEBUG` with `WP_DEBUG_DISPLAY`), whether the wp-admin code editor is allowed, whether a user named `admin` exists and whether XML-RPC is on. Read-only. Added in 0.12.0. |
+| `GET /accessibility` | No body. Returns `{fixes: {id: {enabled, applied}}}` for the accessibility fixes. Added in 0.14.0. |
+| `POST /accessibility/fixes` | `{ids: [fix ids], enabled}`. Switches accessibility fixes on or off. Ids: `image_alt`, `form_labels`, `link_names`, `frame_titles`, `viewport_zoom`, `skip_link`. Added in 0.14.0. |
 | `POST /security/fixes` | `{ids: [fix ids], enabled}`. Switches hardening fixes on or off and returns each fix's `{enabled, applied}`. Ids: `directory_listing`, `generator`, `rsd`, `wlw`, `db_errors`, `php_errors`, `readme`, `file_edit`, `xmlrpc`. Added in 0.13.0. |
 | `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |

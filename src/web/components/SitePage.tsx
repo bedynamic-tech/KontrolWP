@@ -38,6 +38,7 @@ import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
+import { AccessibilityTab } from "./AccessibilityTab";
 import { SiteIcon } from "./SiteIcon";
 import { SiteName } from "./SiteName";
 import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
@@ -54,10 +55,10 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "security", "domain"];
-const STATIC_TABS = ["overview", "analytics", "pages", "domain"];
+const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "security", "accessibility", "domain"];
+const STATIC_TABS = ["overview", "analytics", "pages", "accessibility", "domain"];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
-const CLOUDFLARE_TABS = ["overview", "analytics", "pages", "deployments", "domain"];
+const CLOUDFLARE_TABS = ["overview", "analytics", "pages", "deployments", "accessibility", "domain"];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
 
 export function SitePage() {
@@ -260,6 +261,9 @@ export function SitePage() {
               </TabsTrigger>
             </>
           )}
+          <TabsTrigger value="accessibility" className="flex-none px-3">
+            Accessibility
+          </TabsTrigger>
           <TabsTrigger value="domain" className="flex-none px-3">
             Domain
           </TabsTrigger>
@@ -315,6 +319,9 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="security" className={TAB_CLASS}>
           <SecurityTab site={site} />
+        </TabsContent>
+        <TabsContent value="accessibility" className={TAB_CLASS}>
+          <AccessibilityTab site={site} />
         </TabsContent>
         <TabsContent value="domain" className={TAB_CLASS}>
           <DomainSection site={site} />

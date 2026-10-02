@@ -9,6 +9,7 @@ import type {
   NewUser,
   SiteContent,
   SecurityFix,
+  SiteAccessibility,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
@@ -293,6 +294,12 @@ export const fetchSecurity = (siteId: number) => request<SiteSecurity>(`/sites/$
 
 export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<{ fixes: SecurityFix[] }>(`/sites/${siteId}/security/fixes`, { method: "PUT", json: { ids, enabled } });
+
+export const fetchAccessibility = (siteId: number) => request<SiteAccessibility>(`/sites/${siteId}/accessibility`);
+export const scanAccessibility = (siteId: number) =>
+  request<SiteAccessibility>(`/sites/${siteId}/accessibility/scan`, { method: "POST" });
+export const setAccessibilityFixes = (siteId: number, ids: string[], enabled: boolean) =>
+  request<SiteAccessibility>(`/sites/${siteId}/accessibility/fixes`, { method: "PUT", json: { ids, enabled } });
 
 export const fetchWordfenceSettings = () => request<{ configured: boolean }>("/settings/wordfence");
 

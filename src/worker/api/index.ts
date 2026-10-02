@@ -22,6 +22,7 @@ import type {
   CloudflareSettings,
   CloudflareWorker,
   SiteContent,
+  SiteAccessibility,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
@@ -82,6 +83,8 @@ import {
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
+import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
+import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import { cachedRead, clearContentCache, clearContentCacheKind } from "../content-cache.ts";
 import { cachedDomain } from "../domain-cache.ts";
 import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
@@ -301,6 +304,8 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_deployments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM content_cache WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM accessibility_scans WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM accessibility_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -847,6 +852,64 @@ api.get("/sites/:id/content", async (c) => {
       502,
     );
   }
+});
+
+/** The site's accessibility score, issues and fixes. Static sites are scanned too, without fixes. */
+api.get("/sites/:id/accessibility", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, credentials));
+});
+
+/** Scan the site now. */
+api.post("/sites/:id/accessibility/scan", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  try {
+    await scanNow(c.env, site);
+  } catch (error) {
+    if (!(error instanceof AccessibilityError)) throw error;
+    return c.json({ error: error.message }, 502);
+  }
+  return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, await getCredentials(c.env, id)));
+});
+
+const accessibilityFixesBody = z.object({
+  ids: z
+    .array(z.enum(ACCESSIBILITY_FIXES.map((fix) => fix.id) as [string, ...string[]]))
+    .min(1)
+    .max(ACCESSIBILITY_FIXES.length),
+  enabled: z.boolean(),
+});
+
+/** Switch accessibility fixes on or off on one WordPress site, then scan again to show the effect. */
+api.put("/sites/:id/accessibility/fixes", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!id || !site || !credentials) return c.json({ error: "Site not found" }, 404);
+  if (site.kind === "static") return c.json({ error: "Fixes need a WordPress site with KontrolWP Connect." }, 400);
+  const parsed = accessibilityFixesBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose the fixes to change" }, 400);
+  try {
+    await setAccessibilityFixes(credentials, parsed.data.ids, parsed.data.enabled);
+  } catch (error) {
+    if (!(error instanceof SiteRequestError)) throw error;
+    return c.json(
+      {
+        error:
+          error.status === 404 && !error.code
+            ? "KontrolWP Connect on this site is too old to apply accessibility fixes. It updates automatically; select Sync now to check."
+            : error.message,
+      },
+      502,
+    );
+  }
+  await clearContentCache(c.env.DB, id);
+  // Page caches may keep serving the old HTML for a while, so the scan can still show the problem.
+  await scanNow(c.env, site, { force: true }).catch(() => undefined);
+  return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, credentials));
 });
 
 /** Known vulnerabilities and insecure settings on one WordPress site. */

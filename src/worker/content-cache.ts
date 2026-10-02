@@ -7,7 +7,7 @@
 
 const MAX_AGE = 3600;
 
-export type CacheKind = "content" | "pages" | "plugins" | "admins" | "users" | "security" | "analytics";
+export type CacheKind = "content" | "pages" | "plugins" | "admins" | "users" | "security" | "analytics" | "accessibility";
 
 export async function cachedRead<T>(
   db: D1Database,

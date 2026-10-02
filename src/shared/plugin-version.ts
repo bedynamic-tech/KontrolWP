@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.13.0";
+export const KONTROLWP_CONNECT_VERSION = "0.14.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -54,3 +54,6 @@ export const SECURITY_SINCE = "0.12.0";
 
 /** The first KontrolWP Connect that can switch on the Security tab's hardening fixes. */
 export const HARDENING_SINCE = "0.13.0";
+
+/** The first KontrolWP Connect that can switch on the Accessibility tab's fixes. */
+export const ACCESSIBILITY_SINCE = "0.14.0";

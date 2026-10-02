@@ -648,3 +648,41 @@ export interface SiteSecurity {
     next_attempt_at: number | null;
   };
 }
+
+/** One kind of accessibility problem found on a site's pages. */
+export interface AccessibilityIssue {
+  rule: string;
+  title: string;
+  impact: import("./accessibility.ts").AccessibilityImpact;
+  /** The WCAG 2.1 success criterion. */
+  wcag: string;
+  help: string;
+  /** How many times it was found across the scanned pages. */
+  count: number;
+  /** The scanned pages it appears on. */
+  pages: string[];
+  /** A few of the elements, as written in the page. */
+  examples: string[];
+  /** The automatic fix that clears it; null when it has to be fixed by hand. */
+  fix: { id: string; title: string; enabled: boolean; applied: boolean } | null;
+}
+
+export interface AccessibilityScan {
+  scanned_at: number;
+  score: number;
+  pages: string[];
+  issues: AccessibilityIssue[];
+}
+
+export interface SiteAccessibility {
+  scan: AccessibilityScan | null;
+  /** The reason the latest attempt failed, when it did. */
+  error: string | null;
+  history: { scanned_at: number; score: number }[];
+  /** Every automatic fix and whether it is on; empty when the site cannot take them. */
+  fixes: { id: string; title: string; detail: string; enabled: boolean; applied: boolean }[];
+  /** Why the automatic fixes are missing, when they are. */
+  fixes_note: string | null;
+  /** Whether this site can take automatic fixes (WordPress with KontrolWP Connect 0.14.0 or later). */
+  can_fix: boolean;
+}
