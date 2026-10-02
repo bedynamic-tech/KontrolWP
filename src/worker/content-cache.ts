@@ -1,5 +1,5 @@
 /**
- * Posts, pages and sitemaps are read live from the site, which is the slow
+ * Posts, pages, sitemaps and a site's plugin list are read live from the site, which is the slow
  * part of opening those tabs. The answer is kept for an hour. A sync, or a
  * change made from the dashboard, clears the site's answers so nothing stale
  * shows; an answer past the hour is only used when the site cannot be reached.
@@ -7,7 +7,7 @@
 
 const MAX_AGE = 3600;
 
-export type CacheKind = "content" | "pages";
+export type CacheKind = "content" | "pages" | "plugins";
 
 export async function cachedRead<T>(
   db: D1Database,

@@ -174,12 +174,13 @@ label at a time from the host until the registry knows the name, so
 (some country-code domains) show DNS only, with a note. The tab warns when the
 domain expires within 30 days.
 
-## Posts, pages and sitemaps
+## Posts, pages, sitemaps and plugins
 
-The Posts and pages list (read live from the site) and a static site's sitemap
-are kept in `content_cache` for an hour, per site and per query. A sync, a
-dashboard change that edits posts (removing links), or deleting the site clears
-that site's rows, so the next read is fresh. An answer older than an hour is
+The Posts and pages list and a site's plugin list (read live from the site) and
+a static site's sitemap are kept in `content_cache` for an hour, per site and
+per query. A sync, a dashboard change that edits posts (removing links) or
+plugins (activate, deactivate, delete, auto-update, install), or deleting the
+site clears that site's rows, so the next read is fresh. An answer older than an hour is
 only shown when the site cannot be reached.
 
 ## Icons
