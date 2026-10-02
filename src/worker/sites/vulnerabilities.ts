@@ -341,13 +341,12 @@ export type FixStates = Record<string, { enabled?: boolean; applied?: boolean }>
 export function fixesFrom(states: FixStates): SecurityFix[] {
   return SECURITY_FIXES.map((fix) => ({
     ...fix,
-    once: "once" in fix,
     enabled: Boolean(states[fix.id]?.enabled),
     applied: Boolean(states[fix.id]?.applied),
   }));
 }
 
-/** Switch fixes on or off on one site; returns the new state of every fix. */
+/** Apply or undo fixes on one site; returns the new state of every fix. */
 export async function setSiteFixes(
   credentials: SiteCredentials,
   ids: string[],
