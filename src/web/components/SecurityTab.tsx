@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { CheckIcon, ExternalLinkIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SecurityItem, SiteSecurity, SiteSummary, SiteVulnerability, VulnSeverity } from "../../shared/types";
-import { fetchSecurity, refreshVulnerabilityFeed, setSecurityFixes } from "../api";
+import { fetchSecurity, setSecurityFixes } from "../api";
 import { timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
@@ -116,11 +116,6 @@ export function SecurityTab(props: { site: SiteSummary }) {
     staleTime: 60_000,
     refetchInterval: false,
   });
-  const refresh = useMutation({
-    mutationFn: refreshVulnerabilityFeed,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "security"] }),
-  });
-
   const fixes = useMutation({
     mutationFn: (change: { ids: string[]; enabled: boolean }) => setSecurityFixes(site.id, change.ids, change.enabled),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "security"] }),
@@ -162,23 +157,8 @@ export function SecurityTab(props: { site: SiteSummary }) {
         <StatCard label="Vulnerability data" value={feedReady ? timeAgo(data.feed.updated_at) : "Not loaded yet"} />
       </dl>
 
-      <Section
-        title={`Vulnerabilities (${data.vulnerabilities.length})`}
-        action={
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => refresh.mutate()}
-            disabled={refresh.isPending}
-            title="Download the vulnerability data again"
-            aria-label="Download the vulnerability data again"
-          >
-            <RefreshCwIcon className={refresh.isPending ? "animate-spin" : ""} />
-          </Button>
-        }
-      >
-        {refresh.error && <p className="border-b px-4 py-3 text-sm text-destructive">{refresh.error.message}</p>}
-        {data.feed.error && !refresh.error && (
+      <Section title={`Vulnerabilities (${data.vulnerabilities.length})`}>
+        {data.feed.error && (
           <p className="border-b px-4 py-3 text-sm text-destructive">
             The vulnerability data could not be updated: {data.feed.error}
           </p>
@@ -202,7 +182,7 @@ export function SecurityTab(props: { site: SiteSummary }) {
                 to check this site's WordPress and plugins for known vulnerabilities.
               </>
             ) : (
-              "The vulnerability data is downloaded in the background, within a few minutes. Select the refresh button to load it now."
+              "The vulnerability data is downloaded once a day. The first download is due within the next 15 minutes."
             )}
           </EmptyRow>
         )}
