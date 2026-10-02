@@ -620,6 +620,8 @@ export interface SecurityFix {
   id: string;
   title: string;
   detail: string;
+  /** A one-time change to the site's files, shown as a button rather than a switch. */
+  once: boolean;
   enabled: boolean;
   applied: boolean;
 }
