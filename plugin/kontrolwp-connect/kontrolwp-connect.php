@@ -3,7 +3,7 @@
  * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://github.com/bedynamic-tech/KontrolWP
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.13.0
+ * Version:           0.14.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.13.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.14.0' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
@@ -40,10 +40,12 @@ require_once __DIR__ . '/includes/class-kontrolwp-connect-users.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-links.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-content.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-security.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-accessibility.php';
 
 register_activation_hook( __FILE__, array( 'KontrolWP_Connect_Auth', 'ensure_credentials' ) );
 add_action( 'rest_api_init', array( 'KontrolWP_Connect_Rest', 'register_routes' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Security', 'boot' ) );
+add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Accessibility', 'boot' ) );
 KontrolWP_Connect_Login::init();
 
 if ( is_admin() ) {

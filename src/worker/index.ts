@@ -6,6 +6,7 @@ import { runScheduledLinkScans } from "./sites/link-schedule.ts";
 import { checkLinks, collectLinks } from "./sites/links.ts";
 import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate } from "./sites/updates.ts";
+import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -16,7 +17,7 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil(
-      ensureSchema(env.DB).then(() => Promise.all([runScheduledSync(env), runScheduledLinkScans(env), runScheduledFeedRefresh(env)])),
+      ensureSchema(env.DB).then(() => Promise.all([runScheduledSync(env), runScheduledLinkScans(env), runScheduledFeedRefresh(env), runScheduledScans(env)])),
     );
   },
   async queue(batch, env) {
