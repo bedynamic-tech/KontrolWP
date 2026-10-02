@@ -3,6 +3,7 @@ import { SECURITY_FIXES } from "../../shared/security-fixes.ts";
 import type {
   SecurityCheck,
   SecurityFix,
+  SecurityItem,
   SiteSecurity,
   SiteVulnerability,
   SiteSummary,
@@ -174,7 +175,9 @@ export function isAffected(
 export class FeedKeyError extends Error {}
 
 export async function loadFeedKey(env: Env): Promise<string | null> {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(SETTING).first<{ value: string }>();
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?")
+    .bind(SETTING)
+    .first<{ value: string }>();
   return row ? decryptSetting(env.SITE_SECRETS_KEY, SETTING, row.value) : null;
 }
 
@@ -491,6 +494,35 @@ export function reportChecks(report: SecurityReport): SecurityCheck[] {
   ];
 }
 
+/** A fix and the finding that reports the same problem, which share one line. */
+const FIX_CHECKS: Record<string, string> = { file_edit: "file-edit", xmlrpc: "xmlrpc", php_errors: "debug-display" };
+
+/**
+ * One list from the findings and the fixes: a fix takes over the finding it
+ * clears, so nothing shows twice. Open items come first.
+ */
+export function securityItems(checks: SecurityCheck[], fixes: SecurityFix[] | null): SecurityItem[] {
+  const paired = new Set<string>();
+  const items: SecurityItem[] = [];
+  for (const fix of fixes ?? []) {
+    const check = checks.find((c) => c.id === FIX_CHECKS[fix.id]);
+    if (check) paired.add(check.id);
+    items.push({
+      id: fix.id,
+      status: fix.applied || check?.status === "ok" ? "ok" : "warning",
+      title: fix.title,
+      detail: fix.detail,
+      fix: { id: fix.id, enabled: fix.enabled },
+    });
+  }
+  for (const check of checks) {
+    if (!paired.has(check.id))
+      items.push({ id: check.id, status: check.status, title: check.title, detail: check.detail, fix: null });
+  }
+  // Array.sort is stable, so each group keeps its order.
+  return items.sort((a, b) => Number(b.status === "warning") - Number(a.status === "warning"));
+}
+
 /** Vulnerabilities and configuration findings for one WordPress site. */
 export async function siteSecurity(env: Env, site: SiteSummary, credentials: SiteCredentials): Promise<SiteSecurity> {
   const [vulnerabilities, derived, state] = await Promise.all([
@@ -516,9 +548,8 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
   }
   return {
     vulnerabilities,
-    checks,
+    items: securityItems(checks, fixes),
     checks_note: note,
-    fixes,
     feed: {
       configured: Boolean(await loadFeedKey(env).catch(() => null)),
       updated_at: state?.updated_at ?? null,

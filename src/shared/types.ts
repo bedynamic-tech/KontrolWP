@@ -624,12 +624,20 @@ export interface SecurityFix {
   applied: boolean;
 }
 
+/** One line of the Security tab's settings list: a finding, with the fix that clears it when there is one. */
+export interface SecurityItem {
+  id: string;
+  status: "ok" | "warning";
+  title: string;
+  detail: string;
+  /** The hardening fix behind it; null when the finding has to be fixed by hand. */
+  fix: { id: string; enabled: boolean } | null;
+}
+
 export interface SiteSecurity {
   vulnerabilities: SiteVulnerability[];
-  checks: SecurityCheck[];
-  /** Why the plugin's own settings are missing from the checks, when they are. */
+  items: SecurityItem[];
+  /** Why the plugin's own settings are missing from the items, when they are. */
   checks_note: string | null;
-  /** The fixes the plugin can apply; null while the site's plugin is too old to offer them. */
-  fixes: SecurityFix[] | null;
   feed: { configured: boolean; updated_at: number | null; error: string | null };
 }
