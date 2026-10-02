@@ -177,7 +177,7 @@ export async function runScheduledScans(
   const { results } = await env.DB.prepare(
     `SELECT sites.id, sites.url FROM sites
      LEFT JOIN accessibility_scans a ON a.site_id = sites.id
-     WHERE sites.status != 'error' AND (a.site_id IS NULL OR a.attempted_at < ?)
+     WHERE sites.status != 'error' AND sites.accessibility_excluded = 0 AND (a.site_id IS NULL OR a.attempted_at < ?)
      ORDER BY a.attempted_at IS NOT NULL, a.attempted_at
      LIMIT ?`,
   )

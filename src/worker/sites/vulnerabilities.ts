@@ -413,7 +413,7 @@ export async function runScheduledFeedRefresh(
     else if (!outdated) notBefore = Math.max(notBefore, state.updated_at! + DAY);
     if (now < notBefore) return false;
   }
-  const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM sites WHERE kind = 'wordpress'").first<{ n: number }>();
+  const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM sites WHERE kind = 'wordpress' AND security_excluded = 0").first<{ n: number }>();
   if (!sites?.n || !(await loadFeedKey(env))) return false;
   await refreshFeed(env, now, fetcher);
   return true;

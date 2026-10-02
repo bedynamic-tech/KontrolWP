@@ -447,3 +447,7 @@ own host (with or without `www.`) are fetched or listed, each file is capped
 at 10 MB, and at most 5,000 pages are kept. Pages are listed newest `lastmod`
 first and searched in the browser. Nothing is stored in D1, and a sitemap
 has no page titles, so rows show the path.
+
+## Per-site feature switches
+
+Site settings can turn off analytics, broken link checks, security checks and accessibility checks for one site. All are on by default. The flags are `analytics_excluded`, `security_excluded` and `accessibility_excluded` on `sites` (migration 0023), set through `PUT /sites/:id/feature-excluded`, and `links_excluded` as before. A turned-off feature answers 409 on its routes, is skipped by the cron (accessibility scans, link scans, and the vulnerability feed refresh when no WordPress site has security on), and its tab is hidden. Stored analytics, security and accessibility results are kept, so turning a feature back on shows them again. Turning broken link checks off still clears that site's links.

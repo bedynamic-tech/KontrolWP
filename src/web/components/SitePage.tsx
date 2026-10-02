@@ -30,6 +30,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
+import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
@@ -128,14 +129,17 @@ export function SitePage() {
 
   const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
-  const twoColumns = layout.data?.site_columns === 2 && !!umami.data?.configured;
+  const analyticsOn = !!umami.data?.configured && !data?.site.analytics_excluded;
+  const twoColumns = layout.data?.site_columns === 2 && analyticsOn;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
   const tabs = kind === "static" ? (data?.site.cf_hosted ? CLOUDFLARE_TABS : STATIC_TABS) : WORDPRESS_TABS;
-  const tab =
-    (requestedTab === "analytics" && umami.data && !umami.data.configured) || (kind && !tabs.includes(requestedTab))
-      ? "overview"
-      : requestedTab;
+  const switchedOff =
+    (requestedTab === "analytics" && umami.data && !analyticsOn) ||
+    (requestedTab === "links" && data?.site.links_excluded) ||
+    (requestedTab === "security" && data?.site.security_excluded) ||
+    (requestedTab === "accessibility" && data?.site.accessibility_excluded);
+  const tab = switchedOff || (kind && !tabs.includes(requestedTab)) ? "overview" : requestedTab;
 
   if (isPending) return <PageSkeleton />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
@@ -227,7 +231,7 @@ export function SitePage() {
           <TabsTrigger value="overview" className="flex-none px-3">
             Overview
           </TabsTrigger>
-          {umami.data?.configured && (
+          {analyticsOn && (
             <TabsTrigger value="analytics" className="flex-none px-3">
               Analytics
             </TabsTrigger>
@@ -254,17 +258,23 @@ export function SitePage() {
               <TabsTrigger value="users" className="flex-none px-3">
                 Users
               </TabsTrigger>
-              <TabsTrigger value="links" className="flex-none px-3">
-                Links
-              </TabsTrigger>
-              <TabsTrigger value="security" className="flex-none px-3">
-                Security
-              </TabsTrigger>
+              {!site.links_excluded && (
+                <TabsTrigger value="links" className="flex-none px-3">
+                  Links
+                </TabsTrigger>
+              )}
+              {!site.security_excluded && (
+                <TabsTrigger value="security" className="flex-none px-3">
+                  Security
+                </TabsTrigger>
+              )}
             </>
           )}
-          <TabsTrigger value="accessibility" className="flex-none px-3">
-            Accessibility
-          </TabsTrigger>
+          {!site.accessibility_excluded && (
+            <TabsTrigger value="accessibility" className="flex-none px-3">
+              Accessibility
+            </TabsTrigger>
+          )}
           <TabsTrigger value="domain" className="flex-none px-3">
             Domain
           </TabsTrigger>
@@ -286,12 +296,12 @@ export function SitePage() {
               <div className="grid items-start gap-x-6 lg:grid-cols-2">
                 <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                 <div className={`min-w-0 ${TAB_CLASS}`}>
-                  <AnalyticsSection site={site} />
+                  {analyticsOn && <AnalyticsSection site={site} />}
                 </div>
               </div>
             ) : (
               <>
-                <AnalyticsSection site={site} />
+                {analyticsOn && <AnalyticsSection site={site} />}
                 {main}
               </>
             );
@@ -382,6 +392,31 @@ export function SitePage() {
                 />
               </label>
             )}
+            {umami.data?.configured && (
+              <FeatureSwitchRow
+                site={site}
+                feature="analytics"
+                title="Show analytics"
+                on="This site's visitor numbers appear on its Overview and Analytics tab."
+                off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
+              />
+            )}
+            {!isStatic && (
+              <FeatureSwitchRow
+                site={site}
+                feature="security"
+                title="Check security"
+                on="KontrolWP checks this site for known vulnerabilities and insecure settings."
+                off="KontrolWP does not run security checks on this site, and its Security tab is off."
+              />
+            )}
+            <FeatureSwitchRow
+              site={site}
+              feature="accessibility"
+              title="Check accessibility"
+              on="KontrolWP scans this site for accessibility problems on a schedule."
+              off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
+            />
             {!isStatic && (
               <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
                 <MagicLoginUserSelect site={site} />

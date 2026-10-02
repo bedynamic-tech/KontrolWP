@@ -35,6 +35,9 @@ export interface SiteSummary {
   updates_excluded: boolean;
   /** The owner excluded the site from broken link detection. */
   links_excluded: boolean;
+  analytics_excluded: boolean;
+  security_excluded: boolean;
+  accessibility_excluded: boolean;
   /** WordPress's own core auto-updates, from the last sync; null before KontrolWP Connect 0.7.0. */
   core_auto_update: CoreAutoUpdate | null;
   /** wp-config.php decides core auto-updates, so KontrolWP cannot change them. */

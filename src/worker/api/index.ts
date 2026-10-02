@@ -225,6 +225,24 @@ api.use("/sites/:id/*", async (c, next) => {
   await next();
 });
 
+// A feature the owner turned off for a site answers nothing, whatever asks.
+const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility", string][] = [
+  [/^\/sites\/\d+\/analytics(\/|$)/, "analytics", "Analytics"],
+  [/^\/sites\/\d+\/security(\/|$)/, "security", "Security checks"],
+  [/^\/sites\/\d+\/accessibility(\/|$)/, "accessibility", "Accessibility checks"],
+];
+api.use("/sites/:id/*", async (c, next) => {
+  const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
+  const match = FEATURE_ROUTES.find(([pattern]) => pattern.test(path));
+  if (match) {
+    const row = await c.env.DB.prepare(`SELECT ${match[1]}_excluded AS off FROM sites WHERE id = ?`)
+      .bind(Number(c.req.param("id")))
+      .first<{ off: number }>();
+    if (row?.off) return c.json({ error: `${match[2]} are turned off for this site` }, 409);
+  }
+  await next();
+});
+
 api.post("/sites", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (body && typeof body === "object" && (body as { kind?: unknown }).kind === "static") {
@@ -517,6 +535,21 @@ api.put("/sites/:id/links-excluded", async (c) => {
   if (!id || !parsed.success) return c.json({ error: "Invalid setting" }, 400);
   if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
   await setLinksExcluded(c.env.DB, id, parsed.data.excluded);
+  return c.json(await getSite(c.env.DB, id));
+});
+
+const featureExcluded = z.object({ feature: z.enum(["analytics", "security", "accessibility"]), excluded: z.boolean() });
+
+/** Turn analytics, security or accessibility checks off for one site, or on again. Results already stored are kept. */
+api.put("/sites/:id/feature-excluded", async (c) => {
+  const id = siteId(c);
+  const parsed = featureExcluded.safeParse(await c.req.json().catch(() => null));
+  if (!id || !parsed.success) return c.json({ error: "Invalid setting" }, 400);
+  if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  // The column name comes from the enum above, never from the request text.
+  await c.env.DB.prepare(`UPDATE sites SET ${parsed.data.feature}_excluded = ? WHERE id = ?`)
+    .bind(parsed.data.excluded ? 1 : 0, id)
+    .run();
   return c.json(await getSite(c.env.DB, id));
 });
 
