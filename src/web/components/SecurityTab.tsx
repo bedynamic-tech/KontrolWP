@@ -82,13 +82,8 @@ function ItemRow(props: { item: SecurityItem; busy: boolean; onFix: () => void }
   const { item } = props;
   const bad = item.status === "warning";
   return (
-    <li className="flex items-start gap-3 px-4 py-3 text-sm">
-      {bad ? (
-        <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-      ) : (
-        <CheckIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      )}
-      <div className="min-w-0 flex-1">
+    <li className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+      <div className="min-w-0">
         <p className="font-medium">{item.title}</p>
         <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
         {bad && item.fix?.enabled && (
@@ -97,10 +92,17 @@ function ItemRow(props: { item: SecurityItem; busy: boolean; onFix: () => void }
           </p>
         )}
       </div>
-      {bad && item.fix && (
+      {!bad ? (
+        <CheckIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="In place" />
+      ) : item.fix ? (
         <Button size="sm" variant="outline" disabled={props.busy} onClick={props.onFix}>
           Fix now
         </Button>
+      ) : (
+        <TriangleAlertIcon
+          className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+          aria-label="Needs attention"
+        />
       )}
     </li>
   );
