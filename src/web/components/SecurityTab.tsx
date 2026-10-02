@@ -18,10 +18,10 @@ const SEVERITY_LABEL: Record<VulnSeverity, string> = {
 };
 
 const SEVERITY_CLASS: Record<VulnSeverity, string> = {
-  critical: "bg-destructive/10 text-destructive",
-  high: "bg-destructive/10 text-destructive",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
-  low: "bg-muted text-muted-foreground",
+  critical: "bg-red-700 text-white dark:bg-red-600",
+  high: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
+  medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300",
+  low: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
   unknown: "bg-muted text-muted-foreground",
 };
 
@@ -58,8 +58,9 @@ function VulnerabilityRow(props: { item: SiteVulnerability }) {
       <div className="flex shrink-0 flex-col items-end gap-1">
         <div className="flex items-center gap-2">
           <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", SEVERITY_CLASS[item.severity])}>
-            {SEVERITY_LABEL[item.severity]}
-            {item.cvss !== null ? ` ${item.cvss.toFixed(1)}` : ""}
+            {item.cvss !== null
+              ? `${item.cvss.toFixed(1)} (${SEVERITY_LABEL[item.severity]})`
+              : SEVERITY_LABEL[item.severity]}
           </span>
           <a
             href={item.url}

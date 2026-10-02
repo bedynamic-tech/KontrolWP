@@ -7,6 +7,8 @@ import {
   fixesFrom,
   saveFeedKey,
   securityItems,
+  severityFromScore,
+  severityOf,
   isAffected,
   pluginSlug,
   refreshFeed,
@@ -214,4 +216,16 @@ test("securityItems folds each fix into the finding it clears and lists open ite
   assert.ok(items.slice(firstOk).every((item) => item.status === "ok"));
   // Without fixes (an older plugin) the findings stand alone.
   assert.deepEqual(securityItems(checks, null).map((item) => item.id), ["xmlrpc", "admin-user", "https"]);
+});
+
+test("severity follows the CVSS score bands, ahead of the feed's own rating", () => {
+  assert.deepEqual(
+    [0.1, 3.9, 4, 6.4, 6.9, 7, 8.9, 9, 10].map(severityFromScore),
+    ["low", "low", "medium", "medium", "medium", "high", "high", "critical", "critical"],
+  );
+  assert.equal(severityFromScore(null), "unknown");
+  assert.deepEqual(severityOf({ score: 6.4, rating: "High" }), { score: 6.4, severity: "medium" });
+  assert.deepEqual(severityOf({ score: "7.5" }), { score: 7.5, severity: "high" });
+  assert.deepEqual(severityOf({ rating: "Low" }), { score: null, severity: "low" });
+  assert.deepEqual(severityOf(undefined), { score: null, severity: "unknown" });
 });
