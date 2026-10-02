@@ -169,6 +169,7 @@ export function SecurityTab(props: { site: SiteSummary }) {
     (item) => item.severity === "critical" || item.severity === "high",
   ).length;
   const feedReady = data.feed.updated_at !== null;
+  const needsKey = !data.feed.configured && !feedReady;
 
   return (
     <div className="mt-8">
@@ -214,8 +215,9 @@ export function SecurityTab(props: { site: SiteSummary }) {
           <EmptyRow>No known vulnerabilities affect this site's WordPress or plugins.</EmptyRow>
         ) : (
           <EmptyRow>
-            The vulnerability data is downloaded in the background, within a few minutes of the first sync. Select the
-            refresh button to load it now.
+            {needsKey
+              ? "Add a free Wordfence Intelligence API key in Settings to check this site's WordPress and plugins for known vulnerabilities."
+              : "The vulnerability data is downloaded in the background, within a few minutes. Select the refresh button to load it now."}
           </EmptyRow>
         )}
         <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">

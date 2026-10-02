@@ -53,7 +53,7 @@ import { encryptSecret, isValidSecretsKey, SecretsKeyError } from "../sites/secr
 import { lookupDomain } from "../domain.ts";
 import { compareVersions, LINK_CHECK_SINCE } from "../../shared/plugin-version.ts";
 import { SECURITY_FIXES } from "../../shared/security-fixes.ts";
-import { refreshFeed, setSiteFixes, siteSecurity } from "../sites/vulnerabilities.ts";
+import { deleteFeedKey, FeedKeyError, loadFeedKey, refreshFeed, saveFeedKey, setSiteFixes, siteSecurity } from "../sites/vulnerabilities.ts";
 import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
@@ -855,9 +855,44 @@ api.put("/sites/:id/security/fixes", async (c) => {
 
 /** Download the vulnerability feed again now instead of waiting for the daily refresh. */
 api.post("/security/refresh", async (c) => {
-  const state = await refreshFeed(c.env);
-  if (state.error) return c.json({ error: state.error }, 502);
-  return c.json({ updated_at: state.updated_at });
+  try {
+    const state = await refreshFeed(c.env);
+    if (state.error) return c.json({ error: state.error }, 502);
+    return c.json({ updated_at: state.updated_at });
+  } catch (error) {
+    if (error instanceof FeedKeyError) return c.json({ error: error.message }, 409);
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+api.get("/settings/wordfence", async (c) => {
+  try {
+    return c.json({ configured: Boolean(await loadFeedKey(c.env)) });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+/** Save the Wordfence Intelligence API key after downloading the vulnerability feed with it. */
+api.put("/settings/wordfence", async (c) => {
+  const parsed = z.object({ key: z.string().trim().min(8).max(500) }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter your Wordfence Intelligence API key" }, 400);
+  try {
+    const state = await refreshFeed(c.env, undefined, undefined, parsed.data.key);
+    if (state.error) return c.json({ error: state.error }, 400);
+    await saveFeedKey(c.env, parsed.data.key);
+    return c.json({ configured: true, updated_at: state.updated_at });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+api.delete("/settings/wordfence", async (c) => {
+  await deleteFeedKey(c.env);
+  return c.json({ configured: false });
 });
 
 api.get("/sites/:id/users", (c) =>

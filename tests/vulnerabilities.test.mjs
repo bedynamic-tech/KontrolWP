@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { randomToken } from "../src/shared/protocol.ts";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import {
+  feedFailure,
   fixesFrom,
+  saveFeedKey,
   isAffected,
   pluginSlug,
   refreshFeed,
@@ -95,7 +98,9 @@ async function setup() {
   plugin.run("akismet/akismet.php", "Akismet", "4.9", 1);
   plugin.run("other/other.php", "Other", "1.0", 0);
   const feed = (body = JSON.stringify(FEED), status = 200) => async () => new Response(body, { status });
-  return { db, env: { DB: db }, feed };
+  const env = { DB: db, SITE_SECRETS_KEY: randomToken(32) };
+  await saveFeedKey(env, "wf-key-123");
+  return { db, env, feed };
 }
 
 test("refresh stores matching rows, matches a site and drops rows the feed no longer has", async () => {
@@ -116,11 +121,43 @@ test("refresh stores matching rows, matches a site and drops rows the feed no lo
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 1);
 });
 
+test("the feed is requested from v3 with the key as a bearer token", async () => {
+  const { env } = await setup();
+  let seen;
+  await refreshFeed(env, 1000, async (url, init) => {
+    seen = { url: String(url), auth: init.headers.Authorization };
+    return new Response(JSON.stringify(FEED));
+  });
+  assert.equal(seen.url, "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner");
+  assert.equal(seen.auth, "Bearer wf-key-123");
+});
+
+test("without a key nothing is downloaded", async () => {
+  const { db, env, feed } = await setup();
+  db.sqlite.prepare("DELETE FROM settings WHERE name = 'wordfence'").run();
+  await assert.rejects(refreshFeed(env, 1000, feed()), /API key/);
+  assert.ok(!(await runScheduledFeedRefresh(env, 1000, feed())));
+});
+
+test("feed failures name the status", () => {
+  assert.match(feedFailure(410), /HTTP 410/);
+  assert.match(feedFailure(403), /did not accept the API key \(HTTP 403\)/);
+  assert.match(feedFailure(429), /30 minutes/);
+});
+
+test("a feed whose entries have no software lists is rejected and keeps what is stored", async () => {
+  const { db, env, feed } = await setup();
+  await refreshFeed(env, 1000, feed());
+  const state = await refreshFeed(env, 2000, feed(JSON.stringify({ x: { id: "x", packages: [] } })));
+  assert.match(state.error, /expected format/);
+  assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
+});
+
 test("a failed or empty feed keeps what is stored and records the error", async () => {
   const { db, env, feed } = await setup();
   await refreshFeed(env, 1000, feed());
   assert.match((await refreshFeed(env, 2000, feed("{}"))).error, /no entries/);
-  assert.match((await refreshFeed(env, 3000, feed("", 503))).error, /503/);
+  assert.match((await refreshFeed(env, 3000, feed("", 503))).error, /HTTP 503/);
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
   const state = await refreshFeed(env, 4000, async () => {
     throw new Error("offline");

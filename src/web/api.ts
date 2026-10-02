@@ -294,3 +294,10 @@ export const refreshVulnerabilityFeed = () =>
 
 export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<{ fixes: SecurityFix[] }>(`/sites/${siteId}/security/fixes`, { method: "PUT", json: { ids, enabled } });
+
+export const fetchWordfenceSettings = () => request<{ configured: boolean }>("/settings/wordfence");
+
+export const saveWordfenceKey = (key: string) =>
+  request<{ configured: boolean; updated_at: number | null }>("/settings/wordfence", { method: "PUT", json: { key } });
+
+export const deleteWordfenceKey = () => request<{ configured: boolean }>("/settings/wordfence", { method: "DELETE" });

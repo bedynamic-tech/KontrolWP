@@ -259,7 +259,7 @@ Including it again leaves the tab ready to scan.
 The Security tab (WordPress sites) shows known vulnerabilities and insecure settings.
 
 Vulnerabilities come from the free Wordfence Intelligence scanner feed
-(`https://www.wordfence.com/api/intelligence/v2/vulnerabilities/scanner`). The feed is one
+(`https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner`). The keyless v2 feed was retired in 2026 (it answers 410); v3 needs a free API key from a Wordfence account, sent as a bearer token and limited to one download every 30 minutes. Settings stores the key encrypted (`settings` row `wordfence`), checks it by downloading the feed, and nothing is downloaded without one. The feed is one
 very large JSON object, so `src/worker/sites/vulnerabilities.ts` reads it as a stream, splits
 out one entry at a time and keeps only WordPress core and the plugins some connected site has
 installed (`site_plugins`). The rows go to the `vulnerabilities` table, one per affected
