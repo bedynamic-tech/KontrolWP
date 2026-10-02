@@ -631,5 +631,5 @@ export interface SiteSecurity {
   checks_note: string | null;
   /** The fixes the plugin can apply; null while the site's plugin is too old to offer them. */
   fixes: SecurityFix[] | null;
-  feed: { updated_at: number | null; error: string | null };
+  feed: { configured: boolean; updated_at: number | null; error: string | null };
 }

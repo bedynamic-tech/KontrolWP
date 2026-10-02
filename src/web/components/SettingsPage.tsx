@@ -14,6 +14,9 @@ import {
 import {
   deleteCloudflareSettings,
   deleteUmamiSettings,
+  deleteWordfenceKey,
+  fetchWordfenceSettings,
+  saveWordfenceKey,
   fetchCloudflareSettings,
   saveCloudflareSettings,
   fetchLayoutSettings,
@@ -36,6 +39,7 @@ export function SettingsPage() {
       <LinkScanSettingsSection />
       <LayoutSettingsSection />
       <UmamiSettingsSection />
+      <WordfenceSettingsSection />
       <CloudflareSettingsSection />
     </div>
   );
@@ -406,6 +410,98 @@ function UmamiSettingsSection() {
                 onClick={() => disconnect.mutate()}
               >
                 Disconnect
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+    </Section>
+  );
+}
+
+function WordfenceSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["settings", "wordfence"],
+    queryFn: fetchWordfenceSettings,
+    refetchInterval: false,
+  });
+  const [key, setKey] = useState("");
+  const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: ["site"] });
+  const save = useMutation({
+    mutationFn: () => saveWordfenceKey(key.trim()),
+    onSuccess: (result) => {
+      setKey("");
+      queryClient.setQueryData(["settings", "wordfence"], { configured: result.configured });
+      refreshSecurity();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: deleteWordfenceKey,
+    onSuccess: (result) => {
+      save.reset();
+      queryClient.setQueryData(["settings", "wordfence"], result);
+      refreshSecurity();
+    },
+  });
+
+  return (
+    <Section title="Wordfence vulnerability data">
+      {settings.isPending ? (
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : settings.error ? (
+        <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
+      ) : (
+        <form
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            save.mutate();
+          }}
+          className="space-y-4 p-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            {settings.data.configured
+              ? "Connected. Each site's Security tab matches its WordPress and plugin versions against Wordfence's vulnerability database, downloaded once a day."
+              : "Each site's Security tab lists known vulnerabilities in its WordPress and plugins from Wordfence Intelligence. Wordfence's free feed needs an API key."}
+          </p>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">API key</span>
+            <Input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={
+                settings.data.configured ? "Saved; enter a new key to replace it" : "Wordfence Intelligence API key"
+              }
+              required={!settings.data.configured}
+              autoComplete="off"
+            />
+            <span className="block text-xs text-muted-foreground">
+              Create a free account at wordfence.com/threat-intel, then copy the key from its API key page. Wordfence
+              allows one download every 30 minutes. The key is stored encrypted and never shown again.
+            </span>
+          </label>
+          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+          {save.isSuccess && (
+            <p className="text-sm text-muted-foreground">Saved. The vulnerability data is downloaded.</p>
+          )}
+          {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
+              {save.isPending ? "Downloading..." : "Save and download"}
+            </Button>
+            {settings.data.configured && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                loading={remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                Remove key
               </Button>
             )}
           </div>

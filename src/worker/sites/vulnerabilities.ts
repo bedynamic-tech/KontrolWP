@@ -8,6 +8,7 @@ import type {
   SiteSummary,
   VulnSeverity,
 } from "../../shared/types.ts";
+import { decryptSetting, encryptSetting } from "./secrets.ts";
 import { callSite, type SiteCredentials, SiteRequestError } from "./client.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 
@@ -20,7 +21,10 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
  * report their installed themes.
  */
 
-export const FEED_URL = "https://www.wordfence.com/api/intelligence/v2/vulnerabilities/scanner";
+// Version 2 of this feed, which needed no key, was retired in 2026 and now answers 410.
+// Version 3 needs a free Wordfence Intelligence API key, sent as a bearer token.
+export const FEED_URL = "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner";
+const SETTING = "wordfence";
 const DAY = 86400;
 /** After a failed refresh, wait this long before trying again. */
 const RETRY_AFTER = 3600;
@@ -167,6 +171,23 @@ export function isAffected(
   return true;
 }
 
+export class FeedKeyError extends Error {}
+
+export async function loadFeedKey(env: Env): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(SETTING).first<{ value: string }>();
+  return row ? decryptSetting(env.SITE_SECRETS_KEY, SETTING, row.value) : null;
+}
+
+export async function saveFeedKey(env: Env, key: string): Promise<void> {
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)")
+    .bind(SETTING, await encryptSetting(env.SITE_SECRETS_KEY, SETTING, key))
+    .run();
+}
+
+export async function deleteFeedKey(env: Env): Promise<void> {
+  await env.DB.prepare("DELETE FROM settings WHERE name = ?").bind(SETTING).run();
+}
+
 interface FeedState {
   updated_at: number | null;
   attempted_at: number;
@@ -189,14 +210,17 @@ async function saveFeedState(env: Env, state: FeedState): Promise<void> {
 }
 
 /** Download the feed and replace the stored vulnerabilities. Throws when the feed cannot be read. */
-async function loadFeed(env: Env, now: number, fetcher: typeof fetch): Promise<void> {
+async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: string): Promise<void> {
   const { results } = await env.DB.prepare("SELECT DISTINCT file FROM site_plugins").all<{ file: string }>();
   const wanted = new Set(results.map((row) => pluginSlug(row.file)));
-  const response = await fetcher(FEED_URL, { headers: { Accept: "application/json", "User-Agent": "KontrolWP" } });
-  if (!response.ok || !response.body) throw new Error(`The vulnerability feed answered ${response.status}`);
+  const response = await fetcher(FEED_URL, {
+    headers: { Accept: "application/json", "User-Agent": "KontrolWP", Authorization: `Bearer ${key}` },
+  });
+  if (!response.ok || !response.body) throw new Error(feedFailure(response.status));
 
   const rows: VulnRow[] = [];
   let entries = 0;
+  let recognised = 0;
   for await (const entry of topLevelEntries(response.body)) {
     entries++;
     let parsed: unknown;
@@ -205,10 +229,12 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch): Promise<v
     } catch {
       continue;
     }
+    if (Array.isArray((parsed as { software?: unknown } | null)?.software)) recognised++;
     rows.push(...rowsFromEntry(parsed, wanted));
   }
   // An empty or unrecognised feed must not wipe what is stored.
   if (!entries) throw new Error("The vulnerability feed had no entries");
+  if (!recognised) throw new Error("The vulnerability feed was not in the expected format");
 
   const insert = `INSERT OR REPLACE INTO vulnerabilities
     (vuln_id, kind, slug, title, cve, cvss, severity, from_version, from_inclusive, to_version, to_inclusive, patched_in, refreshed_at)
@@ -239,16 +265,31 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch): Promise<v
   await env.DB.prepare("DELETE FROM vulnerabilities WHERE refreshed_at <> ?").bind(now).run();
 }
 
-/** Refresh the stored feed now. The returned state says when it last worked and why it did not. */
+/** What an HTTP failure from the feed means for the person reading the Security tab. */
+export function feedFailure(status: number): string {
+  if (status === 401 || status === 403) {
+    return `Wordfence did not accept the API key (HTTP ${status}). Check it in Settings.`;
+  }
+  if (status === 429) return "Wordfence allows one download every 30 minutes (HTTP 429). Try again later.";
+  return `The vulnerability feed answered HTTP ${status}`;
+}
+
+/**
+ * Refresh the stored feed now with `key`, or the saved one. The returned state says when it last worked and why
+ * it did not. Throws FeedKeyError when there is no key.
+ */
 export async function refreshFeed(
   env: Env,
   now = Math.floor(Date.now() / 1000),
   fetcher: typeof fetch = fetch,
+  key?: string,
 ): Promise<FeedState> {
+  const feedKey = key ?? (await loadFeedKey(env));
+  if (!feedKey) throw new FeedKeyError("Add a Wordfence API key in Settings first.");
   const previous = await feedState(env);
   let state: FeedState;
   try {
-    await loadFeed(env, now, fetcher);
+    await loadFeed(env, now, fetcher, feedKey);
     state = { updated_at: now, attempted_at: now, error: null };
   } catch (error) {
     state = {
@@ -271,7 +312,7 @@ export async function runScheduledFeedRefresh(
   const wait = state?.error || !state?.updated_at ? RETRY_AFTER : DAY;
   if (state && now - (state.error || !state.updated_at ? state.attempted_at : state.updated_at) < wait) return false;
   const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM sites WHERE kind = 'wordpress'").first<{ n: number }>();
-  if (!sites?.n) return false;
+  if (!sites?.n || !(await loadFeedKey(env))) return false;
   await refreshFeed(env, now, fetcher);
   return true;
 }
@@ -478,6 +519,10 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
     checks,
     checks_note: note,
     fixes,
-    feed: { updated_at: state?.updated_at ?? null, error: state?.error ?? null },
+    feed: {
+      configured: Boolean(await loadFeedKey(env).catch(() => null)),
+      updated_at: state?.updated_at ?? null,
+      error: state?.error ?? null,
+    },
   };
 }
