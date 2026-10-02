@@ -304,7 +304,7 @@ async function recordError(env: Env, siteId: number, message: string): Promise<v
 }
 
 /**
- * The icon the site's home page declares, looked for at most once a day (a
+ * The icon the site's home page declares, looked for at most once a week (a
  * miss keeps the icon already stored). Loading the home page runs the whole
  * theme, so it is not repeated on every sync.
  */
@@ -315,7 +315,7 @@ async function discoverIconDaily(env: Env, siteId: number, url: string): Promise
     env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(name).first<{ value: string }>(),
     env.DB.prepare("SELECT icon_url FROM sites WHERE id = ?").bind(siteId).first<{ icon_url: string | null }>(),
   ]);
-  if (checked && now - Number(checked.value) < 86400) return site?.icon_url ?? null;
+  if (checked && now - Number(checked.value) < 7 * 86400) return site?.icon_url ?? null;
   const found = await discoverIcon(url);
   await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)").bind(name, String(now)).run();
   return found ?? site?.icon_url ?? null;
