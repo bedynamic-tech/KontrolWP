@@ -36,7 +36,7 @@ const MIN_GAP = 31 * 60;
  * Bumped when the stored rows change shape, so the next scheduled run downloads again: 1 stored the scanner feed's
  * rows, which have no scores.
  */
-const FEED_VERSION = 2;
+const FEED_VERSION = 3;
 /** The oldest PHP version still getting security fixes (8.1 ended in December 2025). */
 export const MIN_SUPPORTED_PHP = "8.2";
 const SEVERITIES: VulnSeverity[] = ["critical", "high", "medium", "low"];
@@ -120,11 +120,16 @@ export function severityOf(cvss: unknown): { score: number | null; severity: Vul
   // The score is an object member in the feed; a bare number or string is accepted too.
   const record = (typeof cvss === "object" && cvss !== null ? cvss : { score: cvss }) as {
     score?: unknown;
+    base_score?: unknown;
+    baseScore?: unknown;
     rating?: unknown;
+    severity?: unknown;
   };
-  const parsed = typeof record.score === "string" ? Number.parseFloat(record.score) : record.score;
+  const raw = record.score ?? record.base_score ?? record.baseScore;
+  const parsed = typeof raw === "string" ? Number.parseFloat(raw) : raw;
   const score = typeof parsed === "number" && Number.isFinite(parsed) ? parsed : null;
-  const rating = typeof record.rating === "string" ? record.rating.toLowerCase() : "";
+  const label = record.rating ?? record.severity;
+  const rating = typeof label === "string" ? label.toLowerCase() : "";
   const severity =
     score !== null
       ? severityFromScore(score)
@@ -141,7 +146,7 @@ export function rowsFromEntry(entry: unknown, wanted: Set<string>): VulnRow[] {
   const record = entry as Record<string, unknown> | null;
   const id = text(record?.id);
   if (!record || !id || !Array.isArray(record.software)) return [];
-  const { score, severity } = severityOf(record.cvss);
+  const { score, severity } = severityOf(record.cvss ?? record.cvss_score ?? record.cvssScore);
   const rows: VulnRow[] = [];
   for (const item of record.software as Array<Record<string, unknown>>) {
     const kind = item?.type === "core" ? "core" : item?.type === "plugin" ? "plugin" : null;
@@ -244,6 +249,7 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
   const rows: VulnRow[] = [];
   let entries = 0;
   let recognised = 0;
+  let sample: Record<string, unknown> | null = null;
   for await (const entry of topLevelEntries(response.body)) {
     entries++;
     // Most of the feed is plugins no site has; skip parsing those entries.
@@ -258,7 +264,9 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
       continue;
     }
     if (Array.isArray((parsed as { software?: unknown } | null)?.software)) recognised++;
-    rows.push(...rowsFromEntry(parsed, wanted));
+    const added = rowsFromEntry(parsed, wanted);
+    if (added.length && !sample) sample = parsed as Record<string, unknown>;
+    rows.push(...added);
   }
   // An empty or unrecognised feed must not wipe what is stored.
   if (!entries) throw new Error("The vulnerability feed had no entries");
@@ -292,7 +300,14 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
     );
   }
   await env.DB.prepare("DELETE FROM vulnerabilities WHERE refreshed_at <> ?").bind(now).run();
-  return rows.length && !scored ? "The feed carried no CVSS scores." : null;
+  return rows.length && !scored ? noScoresNote(sample) : null;
+}
+
+/** A note for the Security tab when a download has no scores: what the records look like, to see why. */
+export function noScoresNote(sample: Record<string, unknown> | null): string {
+  const keys = sample ? Object.keys(sample).join(", ") : "";
+  const cvss = sample && "cvss" in sample ? JSON.stringify(sample.cvss) : "none";
+  return `The feed carried no CVSS scores. A record has these fields: ${keys}. Its cvss field: ${cvss}`.slice(0, 400);
 }
 
 /** Whether a feed entry names core or a plugin some site has, without parsing it. */

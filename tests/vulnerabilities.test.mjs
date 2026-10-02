@@ -278,7 +278,7 @@ test("rows stored in an older format are downloaded again by the scheduled job w
   assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 600, feed())), "not within 31 minutes of the last attempt");
   assert.ok(await runScheduledFeedRefresh(env, 50_000 + 2000, feed()));
   const state = JSON.parse(db.sqlite.prepare("SELECT value FROM settings WHERE name = 'vuln_feed'").get().value);
-  assert.equal(state.version, 2);
+  assert.equal(state.version, 3);
   assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 2000 + 3600, feed())), "current rows wait a day");
 });
 
@@ -288,7 +288,15 @@ test("a feed without scores is noted, and entries for other plugins are not pars
   const state = await refreshFeed(env, 1000, feed(JSON.stringify(noScores)));
   assert.equal(state.error, null);
   assert.match(state.note, /no CVSS scores/);
+  assert.match(state.note, /fields: id, title, cve, software/);
+  assert.match(state.note, /cvss field: none/);
   assert.ok(mentionsWanted(JSON.stringify(FEED.a), new Set(["akismet"])));
   assert.ok(!mentionsWanted(JSON.stringify(FEED.a), new Set(["other"])));
   assert.ok(mentionsWanted(JSON.stringify(FEED.b), new Set(["wordpress"])));
+});
+
+test("scores are found under the other names a feed might use", () => {
+  assert.equal(rowsFromEntry({ ...FEED.a, cvss: undefined, cvss_score: 5.5 }, new Set(["akismet"]))[0].severity, "medium");
+  assert.equal(rowsFromEntry({ ...FEED.a, cvss: { base_score: "9.1" } }, new Set(["akismet"]))[0].cvss, 9.1);
+  assert.equal(rowsFromEntry({ ...FEED.a, cvss: { severity: "High" } }, new Set(["akismet"]))[0].severity, "high");
 });
