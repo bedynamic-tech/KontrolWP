@@ -101,21 +101,24 @@ export async function* topLevelEntries(stream: ReadableStream<Uint8Array>): Asyn
   }
 }
 
-function severityOf(cvss: unknown): { score: number | null; severity: VulnSeverity } {
+/** The standard CVSS bands: 0.1 to 3.9 low, 4.0 to 6.9 medium, 7.0 to 8.9 high, 9.0 to 10 critical. */
+export function severityFromScore(score: number | null): VulnSeverity {
+  if (score === null || !(score > 0)) return "unknown";
+  return score >= 9 ? "critical" : score >= 7 ? "high" : score >= 4 ? "medium" : "low";
+}
+
+/** The CVSS score from the feed, and its rating; the score decides, and the feed's own rating is the fallback. */
+export function severityOf(cvss: unknown): { score: number | null; severity: VulnSeverity } {
   const record = (cvss ?? {}) as { score?: unknown; rating?: unknown };
-  const score = typeof record.score === "number" ? record.score : null;
+  const parsed = typeof record.score === "string" ? Number.parseFloat(record.score) : record.score;
+  const score = typeof parsed === "number" && Number.isFinite(parsed) ? parsed : null;
   const rating = typeof record.rating === "string" ? record.rating.toLowerCase() : "";
-  const severity = (SEVERITIES as string[]).includes(rating)
-    ? (rating as VulnSeverity)
-    : score === null
-      ? "unknown"
-      : score >= 9
-        ? "critical"
-        : score >= 7
-          ? "high"
-          : score >= 4
-            ? "medium"
-            : "low";
+  const severity =
+    score !== null
+      ? severityFromScore(score)
+      : (SEVERITIES as string[]).includes(rating)
+        ? (rating as VulnSeverity)
+        : "unknown";
   return { score, severity };
 }
 
@@ -357,7 +360,8 @@ export async function siteVulnerabilities(env: Env, site: SiteSummary): Promise<
       title: row.title,
       cve: row.cve,
       cvss: row.cvss,
-      severity: row.severity,
+      // From the stored score, so a change to the bands applies without another download.
+      severity: row.cvss !== null ? severityFromScore(row.cvss) : row.severity,
       patched_in: row.patched_in,
       url: `https://www.wordfence.com/threat-intel/vulnerabilities/id/${row.vuln_id}`,
     });
