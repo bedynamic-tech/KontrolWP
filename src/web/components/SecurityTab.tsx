@@ -4,8 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
-  SecurityCheck,
-  SecurityFix,
+  SecurityItem,
   SiteSecurity,
   SiteSummary,
   SiteVulnerability,
@@ -84,9 +83,9 @@ function VulnerabilityRow(props: { item: SiteVulnerability }) {
   );
 }
 
-function CheckRow(props: { check: SecurityCheck }) {
-  const { check } = props;
-  const bad = check.status === "warning";
+function ItemRow(props: { item: SecurityItem; busy: boolean; onFix: () => void }) {
+  const { item } = props;
+  const bad = item.status === "warning";
   return (
     <li className="flex items-start gap-3 px-4 py-3 text-sm">
       {bad ? (
@@ -94,33 +93,16 @@ function CheckRow(props: { check: SecurityCheck }) {
       ) : (
         <CheckIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       )}
-      <div className="min-w-0">
-        <p className="font-medium">{check.title}</p>
-        <p className="mt-0.5 text-muted-foreground">{check.detail}</p>
-      </div>
-    </li>
-  );
-}
-
-function FixRow(props: { fix: SecurityFix; busy: boolean; onFix: () => void }) {
-  const { fix } = props;
-  return (
-    <li className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
-      <div className="min-w-0">
-        <p className="font-medium">{fix.title}</p>
-        <p className="mt-0.5 text-muted-foreground">{fix.detail}</p>
-        {fix.enabled && !fix.applied && (
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{item.title}</p>
+        <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
+        {bad && item.fix?.enabled && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
             Fixed, but not in effect yet. Check that the site can write to its files, then reload.
           </p>
         )}
       </div>
-      {fix.applied ? (
-        <span className="mt-0.5 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-          <CheckIcon className="size-4" />
-          In place
-        </span>
-      ) : (
+      {bad && item.fix && (
         <Button size="sm" variant="outline" disabled={props.busy} onClick={props.onFix}>
           Fix now
         </Button>
@@ -164,7 +146,8 @@ export function SecurityTab(props: { site: SiteSummary }) {
     );
   }
   const data: SiteSecurity = security.data;
-  const warnings = data.checks.filter((check) => check.status === "warning").length;
+  const warnings = data.items.filter((item) => item.status === "warning").length;
+  const fixable = data.items.filter((item) => item.status === "warning" && item.fix);
   const critical = data.vulnerabilities.filter(
     (item) => item.severity === "critical" || item.severity === "high",
   ).length;
@@ -229,49 +212,32 @@ export function SecurityTab(props: { site: SiteSummary }) {
         </p>
       </Section>
 
-      {data.fixes && (
-        <Section
-          title="Hardening"
-          action={
-            data.fixes.some((fix) => !fix.enabled && !fix.applied) && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={fixes.isPending}
-                onClick={() =>
-                  fixes.mutate({
-                    ids: data.fixes!.filter((fix) => !fix.enabled && !fix.applied).map((fix) => fix.id),
-                    enabled: true,
-                  })
-                }
-              >
-                Fix all
-              </Button>
-            )
-          }
-        >
-          {fixes.error && <p className="border-b px-4 py-3 text-sm text-destructive">{fixes.error.message}</p>}
-          <ul className="divide-y">
-            {data.fixes.map((fix) => (
-              <FixRow
-                key={fix.id}
-                fix={fix}
-                busy={fixes.isPending}
-                onFix={() => fixes.mutate({ ids: [fix.id], enabled: true })}
-              />
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      <Section title={`Settings (${warnings ? `${warnings} to fix` : "all good"})`}>
+      <Section
+        title={`Settings (${warnings ? `${warnings} to fix` : "all good"})`}
+        action={
+          fixable.length > 1 && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={fixes.isPending}
+              onClick={() => fixes.mutate({ ids: fixable.map((item) => item.fix!.id), enabled: true })}
+            >
+              Fix all
+            </Button>
+          )
+        }
+      >
         {data.checks_note && <p className="border-b px-4 py-3 text-sm text-muted-foreground">{data.checks_note}</p>}
+        {fixes.error && <p className="border-b px-4 py-3 text-sm text-destructive">{fixes.error.message}</p>}
         <ul className="divide-y">
-          {[...data.checks]
-            .sort((a, b) => Number(b.status === "warning") - Number(a.status === "warning"))
-            .map((check) => (
-              <CheckRow key={check.id} check={check} />
-            ))}
+          {data.items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              busy={fixes.isPending}
+              onFix={() => fixes.mutate({ ids: [item.fix!.id], enabled: true })}
+            />
+          ))}
         </ul>
       </Section>
     </div>

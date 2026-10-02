@@ -6,6 +6,7 @@ import {
   feedFailure,
   fixesFrom,
   saveFeedKey,
+  securityItems,
   isAffected,
   pluginSlug,
   refreshFeed,
@@ -193,4 +194,24 @@ test("fixesFrom lists every catalog fix with the states the plugin reported", ()
     fixes.filter((fix) => fix.enabled || fix.applied).map((fix) => [fix.id, fix.enabled, fix.applied]),
     [["generator", true, true], ["readme", false, true]],
   );
+});
+
+test("securityItems folds each fix into the finding it clears and lists open items first", () => {
+  const checks = [
+    { id: "https", status: "ok", title: "Uses HTTPS", detail: "fine" },
+    { id: "xmlrpc", status: "warning", title: "XML-RPC is off", detail: "on" },
+    { id: "admin-user", status: "warning", title: "No user named admin", detail: "exists" },
+  ];
+  const fixes = fixesFrom({ generator: { enabled: true, applied: true }, xmlrpc: { applied: false } });
+  const items = securityItems(checks, fixes);
+  assert.equal(items.length, 9 + 2, "nine fixes plus https and admin; xmlrpc is not listed twice");
+  assert.equal(items.filter((item) => item.id === "xmlrpc").length, 1);
+  const status = Object.fromEntries(items.map((item) => [item.id, item.status]));
+  assert.deepEqual([status.generator, status.xmlrpc, status["admin-user"], status.https], ["ok", "warning", "warning", "ok"]);
+  assert.deepEqual(items.find((item) => item.id === "admin-user").fix, null);
+  assert.deepEqual(items.find((item) => item.id === "generator").fix, { id: "generator", enabled: true });
+  const firstOk = items.findIndex((item) => item.status === "ok");
+  assert.ok(items.slice(firstOk).every((item) => item.status === "ok"));
+  // Without fixes (an older plugin) the findings stand alone.
+  assert.deepEqual(securityItems(checks, null).map((item) => item.id), ["xmlrpc", "admin-user", "https"]);
 });
