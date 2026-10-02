@@ -158,6 +158,11 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
 export const setLinksExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });
 
+export type SiteFeature = "analytics" | "security" | "accessibility";
+
+export const setFeatureExcluded = (siteId: number, feature: SiteFeature, excluded: boolean) =>
+  request<SiteSummary>(`/sites/${siteId}/feature-excluded`, { method: "PUT", json: { feature, excluded } });
+
 export const fetchSitePages = (siteId: number) => request<SiteSitemap>(`/sites/${siteId}/pages`);
 
 export const fetchPlugins = (siteId: number) => request<SitePlugins>(`/sites/${siteId}/plugins`);

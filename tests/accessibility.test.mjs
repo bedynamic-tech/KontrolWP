@@ -210,6 +210,20 @@ test("the cron scans one site not scanned in a day per run", async () => {
   });
 });
 
+test("the cron skips sites with accessibility checks turned off", async () => {
+  const env = setup();
+  env.DB.sqlite.exec("UPDATE sites SET accessibility_excluded = 1");
+  await withFetch(
+    () => {
+      throw new Error("should not fetch");
+    },
+    async () => assert.equal(await runScheduledScans(env, 10_000_000, 0), 0),
+  );
+  env.DB.sqlite.exec("UPDATE sites SET accessibility_excluded = 0 WHERE id = 1");
+  const ok = () => `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1></main></body></html>`;
+  await withFetch(ok, async () => assert.equal(await runScheduledScans(env, 10_000_000, 0), 1));
+});
+
 test("a site that answers with a server error stops the scan, and sites already in error are skipped", async () => {
   const env = setup();
   env.DB.sqlite.exec("UPDATE sites SET status = 'error' WHERE id = 2");

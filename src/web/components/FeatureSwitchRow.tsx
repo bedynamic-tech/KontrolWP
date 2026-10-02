@@ -1,0 +1,46 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { setFeatureExcluded, type SiteFeature } from "../api";
+import type { SiteSummary } from "../../shared/types";
+import { Spinner } from "./Spinner";
+
+/** A Site settings row that turns one checking feature on or off for a single site. */
+export function FeatureSwitchRow({
+  site,
+  feature,
+  title,
+  on,
+  off,
+}: {
+  site: SiteSummary;
+  feature: SiteFeature;
+  title: string;
+  on: string;
+  off: string;
+}) {
+  const queryClient = useQueryClient();
+  const excluded = site[`${feature}_excluded`];
+  const change = useMutation({
+    mutationFn: (value: boolean) => setFeatureExcluded(site.id, feature, value),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["site", site.id] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+  return (
+    <label className="flex cursor-pointer items-center gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{excluded ? off : on}</p>
+        {change.error && <p className="mt-1 text-xs text-destructive">{change.error.message}</p>}
+      </div>
+      {change.isPending && <Spinner className="size-4 text-muted-foreground" />}
+      <input
+        type="checkbox"
+        className="size-4 shrink-0 accent-primary"
+        checked={change.isPending ? change.variables === false : !excluded}
+        disabled={change.isPending}
+        onChange={(event) => change.mutate(!event.target.checked)}
+      />
+    </label>
+  );
+}
