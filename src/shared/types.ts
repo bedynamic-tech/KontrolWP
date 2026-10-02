@@ -639,5 +639,5 @@ export interface SiteSecurity {
   items: SecurityItem[];
   /** Why the plugin's own settings are missing from the items, when they are. */
   checks_note: string | null;
-  feed: { configured: boolean; updated_at: number | null; error: string | null };
+  feed: { configured: boolean; updated_at: number | null; error: string | null; note: string | null };
 }

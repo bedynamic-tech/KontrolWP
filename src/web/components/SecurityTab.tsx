@@ -163,10 +163,19 @@ export function SecurityTab(props: { site: SiteSummary }) {
       </dl>
 
       <Section title={`Vulnerabilities (${data.vulnerabilities.length})`}>
-        {data.feed.error && (
+        {data.feed.error && !feedReady && (
           <p className="border-b px-4 py-3 text-sm text-destructive">
-            The vulnerability data could not be updated: {data.feed.error}
+            The vulnerability data could not be downloaded: {data.feed.error}
           </p>
+        )}
+        {data.feed.error && feedReady && (
+          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
+            Showing data from {timeAgo(data.feed.updated_at)}. The latest download failed and will be tried again:{" "}
+            {data.feed.error}
+          </p>
+        )}
+        {!data.feed.error && data.feed.note && (
+          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">{data.feed.note}</p>
         )}
         {data.vulnerabilities.length ? (
           <ul className="divide-y">
