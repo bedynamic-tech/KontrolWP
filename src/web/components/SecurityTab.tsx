@@ -1,17 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { CheckIcon, ExternalLinkIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type {
-  SecurityItem,
-  SiteSecurity,
-  SiteSummary,
-  SiteVulnerability,
-  VulnSeverity,
-} from "../../shared/types";
+import type { SecurityItem, SiteSecurity, SiteSummary, SiteVulnerability, VulnSeverity } from "../../shared/types";
 import { fetchSecurity, refreshVulnerabilityFeed, setSecurityFixes } from "../api";
-import { plural, timeAgo } from "../format";
+import { timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
 const SEVERITY_LABEL: Record<VulnSeverity, string> = {
@@ -198,18 +193,19 @@ export function SecurityTab(props: { site: SiteSummary }) {
           <EmptyRow>No known vulnerabilities affect this site's WordPress or plugins.</EmptyRow>
         ) : (
           <EmptyRow>
-            {needsKey
-              ? "Add a free Wordfence Intelligence API key in Settings to check this site's WordPress and plugins for known vulnerabilities."
-              : "The vulnerability data is downloaded in the background, within a few minutes. Select the refresh button to load it now."}
+            {needsKey ? (
+              <>
+                Add a free Wordfence Intelligence API key in{" "}
+                <Link to="/settings#wordfence" className="underline underline-offset-4">
+                  Settings
+                </Link>{" "}
+                to check this site's WordPress and plugins for known vulnerabilities.
+              </>
+            ) : (
+              "The vulnerability data is downloaded in the background, within a few minutes. Select the refresh button to load it now."
+            )}
           </EmptyRow>
         )}
-        <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
-          {`Matched against the Wordfence Intelligence database for ${plural(
-            data.vulnerabilities.length,
-            "vulnerability",
-            "vulnerabilities",
-          )} in WordPress and plugins as of the last sync. Themes are not checked.`}
-        </p>
       </Section>
 
       <Section

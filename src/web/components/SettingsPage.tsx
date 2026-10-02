@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
+import { useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +33,11 @@ import { Section } from "./Section";
 import { Spinner } from "./Spinner";
 
 export function SettingsPage() {
+  // A link such as /settings#wordfence scrolls to that section.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
+  }, [hash]);
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
@@ -446,68 +452,70 @@ function WordfenceSettingsSection() {
   });
 
   return (
-    <Section title="Wordfence vulnerability data">
-      {settings.isPending ? (
-        <div className="space-y-3 p-4">
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ) : settings.error ? (
-        <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
-      ) : (
-        <form
-          onSubmit={(event: FormEvent) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-          className="space-y-4 p-4"
-        >
-          <p className="text-sm text-muted-foreground">
-            {settings.data.configured
-              ? "Connected. Each site's Security tab matches its WordPress and plugin versions against Wordfence's vulnerability database, downloaded once a day."
-              : "Each site's Security tab lists known vulnerabilities in its WordPress and plugins from Wordfence Intelligence. Wordfence's free feed needs an API key."}
-          </p>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">API key</span>
-            <Input
-              type="password"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder={
-                settings.data.configured ? "Saved; enter a new key to replace it" : "Wordfence Intelligence API key"
-              }
-              required={!settings.data.configured}
-              autoComplete="off"
-            />
-            <span className="block text-xs text-muted-foreground">
-              Create a free account at wordfence.com/threat-intel, then copy the key from its API key page. Wordfence
-              allows one download every 30 minutes. The key is stored encrypted and never shown again.
-            </span>
-          </label>
-          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
-          {save.isSuccess && (
-            <p className="text-sm text-muted-foreground">Saved. The vulnerability data is downloaded.</p>
-          )}
-          {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
-              {save.isPending ? "Downloading..." : "Save and download"}
-            </Button>
-            {settings.data.configured && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                Remove key
-              </Button>
-            )}
+    <div id="wordfence" className="scroll-mt-4">
+      <Section title="Wordfence vulnerability data">
+        {settings.isPending ? (
+          <div className="space-y-3 p-4">
+            <Skeleton className="h-8 w-full" />
           </div>
-        </form>
-      )}
-    </Section>
+        ) : settings.error ? (
+          <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
+        ) : (
+          <form
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              save.mutate();
+            }}
+            className="space-y-4 p-4"
+          >
+            <p className="text-sm text-muted-foreground">
+              {settings.data.configured
+                ? "Connected. Each site's Security tab matches its WordPress and plugin versions against Wordfence's vulnerability database, downloaded once a day."
+                : "Each site's Security tab lists known vulnerabilities in its WordPress and plugins from Wordfence Intelligence. Wordfence's free feed needs an API key."}
+            </p>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">API key</span>
+              <Input
+                type="password"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder={
+                  settings.data.configured ? "Saved; enter a new key to replace it" : "Wordfence Intelligence API key"
+                }
+                required={!settings.data.configured}
+                autoComplete="off"
+              />
+              <span className="block text-xs text-muted-foreground">
+                Create a free account at wordfence.com/threat-intel, then copy the key from its API key page. Wordfence
+                allows one download every 30 minutes. The key is stored encrypted and never shown again.
+              </span>
+            </label>
+            {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+            {save.isSuccess && (
+              <p className="text-sm text-muted-foreground">Saved. The vulnerability data is downloaded.</p>
+            )}
+            {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
+                {save.isPending ? "Downloading..." : "Save and download"}
+              </Button>
+              {settings.data.configured && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  loading={remove.isPending}
+                  onClick={() => remove.mutate()}
+                >
+                  Remove key
+                </Button>
+              )}
+            </div>
+          </form>
+        )}
+      </Section>
+    </div>
   );
 }
 
