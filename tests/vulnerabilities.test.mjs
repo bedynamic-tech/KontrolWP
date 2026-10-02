@@ -11,6 +11,7 @@ import {
   severityFromScore,
   severityOf,
   isAffected,
+  retryDelay,
   pluginSlug,
   refreshFeed,
   rowsFromEntry,
@@ -146,7 +147,7 @@ test("without a key nothing is downloaded", async () => {
 test("feed failures name the status", () => {
   assert.match(feedFailure(410), /HTTP 410/);
   assert.match(feedFailure(403), /did not accept the API key \(HTTP 403\)/);
-  assert.match(feedFailure(429), /30 minutes/);
+  assert.match(feedFailure(429), /rate limit \(HTTP 429\)/);
 });
 
 test("a feed whose entries have no software lists is rejected and keeps what is stored", async () => {
@@ -161,15 +162,15 @@ test("a failed or empty feed keeps what is stored and records the error", async 
   const { db, env, feed } = await setup();
   await refreshFeed(env, 1000, feed());
   assert.match((await refreshFeed(env, 5000, feed("{}"))).error, /no entries/);
-  assert.match((await refreshFeed(env, 9000, feed("", 503))).error, /HTTP 503/);
+  assert.match((await refreshFeed(env, 12_000, feed("", 503))).error, /HTTP 503/);
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
-  const state = await refreshFeed(env, 13000, async () => {
+  const state = await refreshFeed(env, 40_000, async () => {
     throw new Error("offline");
   });
   assert.deepEqual([state.updated_at, state.error], [1000, "offline"]);
 });
 
-test("the schedule refreshes daily, retries hourly after a failure and skips without WordPress sites", async () => {
+test("the schedule refreshes daily, waits out a failure and skips without WordPress sites", async () => {
   const { db, env, feed } = await setup();
   let calls = 0;
   const counted = async () => {
@@ -177,14 +178,15 @@ test("the schedule refreshes daily, retries hourly after a failure and skips wit
     return feed()();
   };
   assert.ok(await runScheduledFeedRefresh(env, 1000, counted));
-  assert.ok(!(await runScheduledFeedRefresh(env, 1000 + 3600, counted)));
+  assert.ok(!(await runScheduledFeedRefresh(env, 1000 + 3600 * 2, counted)));
   assert.ok(await runScheduledFeedRefresh(env, 1000 + 86400, counted));
   assert.equal(calls, 2);
 
   const failing = async () => new Response("", { status: 500 });
-  assert.ok(await runScheduledFeedRefresh(env, 200_000, failing));
-  assert.ok(!(await runScheduledFeedRefresh(env, 200_000 + 600, failing)));
-  assert.ok(await runScheduledFeedRefresh(env, 200_000 + 3600, counted));
+  assert.ok(await runScheduledFeedRefresh(env, 400_000, failing));
+  assert.ok(!(await runScheduledFeedRefresh(env, 400_000 + 600, failing)));
+  assert.ok(!(await runScheduledFeedRefresh(env, 400_000 + 3000, counted)), "an hour, at least 65 minutes");
+  assert.ok(await runScheduledFeedRefresh(env, 400_000 + 4000, counted));
 
   db.sqlite.prepare("DELETE FROM sites").run();
   assert.ok(!(await runScheduledFeedRefresh(env, 900_000, counted)));
@@ -231,25 +233,36 @@ test("severity follows the CVSS score bands, ahead of the feed's own rating", ()
   assert.deepEqual(severityOf(undefined), { score: null, severity: "unknown" });
 });
 
-test("nothing is downloaded within 31 minutes of an attempt, a 429 included, and a failure keeps good data", async () => {
-  const { db, env, feed } = await setup();
+test("a 429 backs off, doubling, and for as long as Wordfence asks; nothing downloads sooner", async () => {
+  const { db, env } = await setup();
   let calls = 0;
-  const counted = (body, status) => async () => {
+  const answer = (body, status, headers) => async () => {
     calls++;
-    return new Response(body, { status });
+    return new Response(body, { status, headers });
   };
-  await refreshFeed(env, 10_000, counted(JSON.stringify(FEED), 200));
-  const early = await refreshFeed(env, 10_000 + 600, counted("", 200));
-  assert.match(early.error, /Try again in 21 minutes/);
+  await refreshFeed(env, 10_000, answer(JSON.stringify(FEED), 200));
+  const early = await refreshFeed(env, 10_000 + 600, answer("", 200));
+  assert.match(early.error, /Try again in 55 minutes/);
   assert.equal(calls, 1, "the early call never reached Wordfence");
 
-  const limited = await refreshFeed(env, 10_000 + 3600, counted("", 429));
-  assert.match(limited.error, /30 minutes/);
-  assert.equal(limited.updated_at, 10_000, "the last good download stays the data's age");
-  // The scheduled job does not retry for an hour after the 429.
-  assert.ok(!(await runScheduledFeedRefresh(env, 10_000 + 3600 + 3000, counted(JSON.stringify(FEED), 200))));
+  const first = await refreshFeed(env, 10_000 + 4000, answer("", 429));
+  assert.match(first.error, /rate limit \(HTTP 429\)/);
+  assert.equal(first.updated_at, 10_000, "the last good download stays the data's age");
+  assert.equal(first.next_attempt_at, 10_000 + 4000 + 3600);
+  assert.ok(!(await runScheduledFeedRefresh(env, 10_000 + 4000 + 3000, answer(JSON.stringify(FEED), 200))));
   assert.equal(calls, 2);
+
+  const secondAt = first.next_attempt_at + 300; // also past 65 minutes since the attempt
+  const second = await refreshFeed(env, secondAt, answer("", 429));
+  assert.equal(second.next_attempt_at, secondAt + 7200, "the wait doubles");
+  const thirdAt = second.next_attempt_at;
+  const third = await refreshFeed(env, thirdAt, answer("", 429, { "Retry-After": "40000" }));
+  assert.equal(third.next_attempt_at, thirdAt + 40_000, "Wordfence's own wait wins when longer");
+  assert.equal(retryDelay(9, null), 6 * 3600, "capped");
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
+
+  const good = await refreshFeed(env, third.next_attempt_at, answer(JSON.stringify(FEED), 200));
+  assert.deepEqual([good.error, good.failures], [null, 0]);
 });
 
 test("a second run starting during a download does not download again", async () => {
@@ -275,11 +288,11 @@ test("rows stored in an older format are downloaded again by the scheduled job w
   db.sqlite
     .prepare("INSERT INTO settings (name, value) VALUES ('vuln_feed', ?)")
     .run(JSON.stringify({ updated_at: 50_000, attempted_at: 50_000, error: null }));
-  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 600, feed())), "not within 31 minutes of the last attempt");
-  assert.ok(await runScheduledFeedRefresh(env, 50_000 + 2000, feed()));
+  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 600, feed())), "not within 65 minutes of the last attempt");
+  assert.ok(await runScheduledFeedRefresh(env, 50_000 + 4000, feed()));
   const state = JSON.parse(db.sqlite.prepare("SELECT value FROM settings WHERE name = 'vuln_feed'").get().value);
   assert.equal(state.version, 3);
-  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 2000 + 3600, feed())), "current rows wait a day");
+  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 4000 + 7200, feed())), "current rows wait a day");
 });
 
 test("a feed without scores is noted, and entries for other plugins are not parsed", async () => {

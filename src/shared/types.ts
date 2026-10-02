@@ -639,5 +639,12 @@ export interface SiteSecurity {
   items: SecurityItem[];
   /** Why the plugin's own settings are missing from the items, when they are. */
   checks_note: string | null;
-  feed: { configured: boolean; updated_at: number | null; error: string | null; note: string | null };
+  feed: {
+    configured: boolean;
+    updated_at: number | null;
+    error: string | null;
+    note: string | null;
+    /** When the next download is tried, after a failure. */
+    next_attempt_at: number | null;
+  };
 }

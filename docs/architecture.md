@@ -264,7 +264,7 @@ very large JSON object, so `src/worker/sites/vulnerabilities.ts` reads it as a s
 out one entry at a time and keeps only WordPress core and the plugins some connected site has
 installed (`site_plugins`). The rows go to the `vulnerabilities` table, one per affected
 version range. The cron trigger refreshes them once a day, and an hour after a failed
-attempt, and no download starts within 31 minutes of any earlier attempt (a 429 included); each attempt is recorded before it starts so two runs never overlap, and rows stored in an older format (`FEED_VERSION`) are downloaded again by the scheduled job. When a download fails but earlier data exists, the tab shows that data with a quiet note. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Settings does the first download. A
+attempt, and no download starts within 65 minutes of any earlier attempt (Wordfence documents 30 minutes but refused one at 31). A failure sets a wait that doubles from one hour up to six, or the `Retry-After` Wordfence sends if longer; each attempt is recorded before it starts so two runs never overlap, and rows stored in an older format (`FEED_VERSION`) are downloaded again by the scheduled job. When a download fails but earlier data exists, the tab shows that data with a quiet note. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Settings does the first download. A
 feed that fails or comes back empty leaves the stored rows alone, and the error shows on the
 tab. `GET /api/sites/:id/security` matches the site's WordPress version and plugin versions
 from the last sync against those rows when the tab opens, so nothing per site is stored.
