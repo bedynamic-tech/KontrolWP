@@ -6,6 +6,7 @@ import {
   feedFailure,
   fixesFrom,
   saveFeedKey,
+  mentionsWanted,
   securityItems,
   severityFromScore,
   severityOf,
@@ -120,7 +121,7 @@ test("refresh stores matching rows, matches a site and drops rows the feed no lo
   ]);
   assert.equal((await siteVulnerabilities(env, { id: 1, wp_version: "6.4.1" })).length, 1);
 
-  await refreshFeed(env, 2000, feed(JSON.stringify({ a: FEED.a })));
+  await refreshFeed(env, 5000, feed(JSON.stringify({ a: FEED.a })));
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 1);
 });
 
@@ -131,7 +132,7 @@ test("the feed is requested from v3 with the key as a bearer token", async () =>
     seen = { url: String(url), auth: init.headers.Authorization };
     return new Response(JSON.stringify(FEED));
   });
-  assert.equal(seen.url, "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner");
+  assert.equal(seen.url, "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production");
   assert.equal(seen.auth, "Bearer wf-key-123");
 });
 
@@ -151,7 +152,7 @@ test("feed failures name the status", () => {
 test("a feed whose entries have no software lists is rejected and keeps what is stored", async () => {
   const { db, env, feed } = await setup();
   await refreshFeed(env, 1000, feed());
-  const state = await refreshFeed(env, 2000, feed(JSON.stringify({ x: { id: "x", packages: [] } })));
+  const state = await refreshFeed(env, 5000, feed(JSON.stringify({ x: { id: "x", packages: [] } })));
   assert.match(state.error, /expected format/);
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
 });
@@ -159,10 +160,10 @@ test("a feed whose entries have no software lists is rejected and keeps what is 
 test("a failed or empty feed keeps what is stored and records the error", async () => {
   const { db, env, feed } = await setup();
   await refreshFeed(env, 1000, feed());
-  assert.match((await refreshFeed(env, 2000, feed("{}"))).error, /no entries/);
-  assert.match((await refreshFeed(env, 3000, feed("", 503))).error, /HTTP 503/);
+  assert.match((await refreshFeed(env, 5000, feed("{}"))).error, /no entries/);
+  assert.match((await refreshFeed(env, 9000, feed("", 503))).error, /HTTP 503/);
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
-  const state = await refreshFeed(env, 4000, async () => {
+  const state = await refreshFeed(env, 13000, async () => {
     throw new Error("offline");
   });
   assert.deepEqual([state.updated_at, state.error], [1000, "offline"]);
@@ -228,4 +229,66 @@ test("severity follows the CVSS score bands, ahead of the feed's own rating", ()
   assert.deepEqual(severityOf({ score: "7.5" }), { score: 7.5, severity: "high" });
   assert.deepEqual(severityOf({ rating: "Low" }), { score: null, severity: "low" });
   assert.deepEqual(severityOf(undefined), { score: null, severity: "unknown" });
+});
+
+test("nothing is downloaded within 31 minutes of an attempt, a 429 included, and a failure keeps good data", async () => {
+  const { db, env, feed } = await setup();
+  let calls = 0;
+  const counted = (body, status) => async () => {
+    calls++;
+    return new Response(body, { status });
+  };
+  await refreshFeed(env, 10_000, counted(JSON.stringify(FEED), 200));
+  const early = await refreshFeed(env, 10_000 + 600, counted("", 200));
+  assert.match(early.error, /Try again in 21 minutes/);
+  assert.equal(calls, 1, "the early call never reached Wordfence");
+
+  const limited = await refreshFeed(env, 10_000 + 3600, counted("", 429));
+  assert.match(limited.error, /30 minutes/);
+  assert.equal(limited.updated_at, 10_000, "the last good download stays the data's age");
+  // The scheduled job does not retry for an hour after the 429.
+  assert.ok(!(await runScheduledFeedRefresh(env, 10_000 + 3600 + 3000, counted(JSON.stringify(FEED), 200))));
+  assert.equal(calls, 2);
+  assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
+});
+
+test("a second run starting during a download does not download again", async () => {
+  const { env } = await setup();
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  const slow = async () => {
+    calls++;
+    await gate;
+    return new Response(JSON.stringify(FEED));
+  };
+  const first = runScheduledFeedRefresh(env, 20_000, slow);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.ok(!(await runScheduledFeedRefresh(env, 20_060, slow)));
+  release();
+  await first;
+  assert.equal(calls, 1);
+});
+
+test("rows stored in an older format are downloaded again by the scheduled job without a button", async () => {
+  const { db, env, feed } = await setup();
+  db.sqlite
+    .prepare("INSERT INTO settings (name, value) VALUES ('vuln_feed', ?)")
+    .run(JSON.stringify({ updated_at: 50_000, attempted_at: 50_000, error: null }));
+  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 600, feed())), "not within 31 minutes of the last attempt");
+  assert.ok(await runScheduledFeedRefresh(env, 50_000 + 2000, feed()));
+  const state = JSON.parse(db.sqlite.prepare("SELECT value FROM settings WHERE name = 'vuln_feed'").get().value);
+  assert.equal(state.version, 2);
+  assert.ok(!(await runScheduledFeedRefresh(env, 50_000 + 2000 + 3600, feed())), "current rows wait a day");
+});
+
+test("a feed without scores is noted, and entries for other plugins are not parsed", async () => {
+  const { env, feed } = await setup();
+  const noScores = { a: { ...FEED.a, cvss: undefined } };
+  const state = await refreshFeed(env, 1000, feed(JSON.stringify(noScores)));
+  assert.equal(state.error, null);
+  assert.match(state.note, /no CVSS scores/);
+  assert.ok(mentionsWanted(JSON.stringify(FEED.a), new Set(["akismet"])));
+  assert.ok(!mentionsWanted(JSON.stringify(FEED.a), new Set(["other"])));
+  assert.ok(mentionsWanted(JSON.stringify(FEED.b), new Set(["wordpress"])));
 });

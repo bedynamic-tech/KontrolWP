@@ -24,11 +24,19 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 
 // Version 2 of this feed, which needed no key, was retired in 2026 and now answers 410.
 // Version 3 needs a free Wordfence Intelligence API key, sent as a bearer token.
-export const FEED_URL = "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner";
+// The production feed carries each vulnerability's CVSS score; the smaller scanner feed left it out.
+export const FEED_URL = "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production";
 const SETTING = "wordfence";
 const DAY = 86400;
 /** After a failed refresh, wait this long before trying again. */
 const RETRY_AFTER = 3600;
+/** Wordfence allows one download every 30 minutes; never come back sooner than this after any attempt. */
+const MIN_GAP = 31 * 60;
+/**
+ * Bumped when the stored rows change shape, so the next scheduled run downloads again: 1 stored the scanner feed's
+ * rows, which have no scores.
+ */
+const FEED_VERSION = 2;
 /** The oldest PHP version still getting security fixes (8.1 ended in December 2025). */
 export const MIN_SUPPORTED_PHP = "8.2";
 const SEVERITIES: VulnSeverity[] = ["critical", "high", "medium", "low"];
@@ -109,7 +117,11 @@ export function severityFromScore(score: number | null): VulnSeverity {
 
 /** The CVSS score from the feed, and its rating; the score decides, and the feed's own rating is the fallback. */
 export function severityOf(cvss: unknown): { score: number | null; severity: VulnSeverity } {
-  const record = (cvss ?? {}) as { score?: unknown; rating?: unknown };
+  // The score is an object member in the feed; a bare number or string is accepted too.
+  const record = (typeof cvss === "object" && cvss !== null ? cvss : { score: cvss }) as {
+    score?: unknown;
+    rating?: unknown;
+  };
   const parsed = typeof record.score === "string" ? Number.parseFloat(record.score) : record.score;
   const score = typeof parsed === "number" && Number.isFinite(parsed) ? parsed : null;
   const rating = typeof record.rating === "string" ? record.rating.toLowerCase() : "";
@@ -198,6 +210,10 @@ interface FeedState {
   updated_at: number | null;
   attempted_at: number;
   error: string | null;
+  /** The FEED_VERSION of the rows stored at `updated_at`. */
+  version?: number;
+  /** Something odd about the last good download, such as no scores in it. */
+  note?: string | null;
 }
 
 async function feedState(env: Env): Promise<FeedState | null> {
@@ -216,9 +232,10 @@ async function saveFeedState(env: Env, state: FeedState): Promise<void> {
 }
 
 /** Download the feed and replace the stored vulnerabilities. Throws when the feed cannot be read. */
-async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: string): Promise<void> {
+async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: string): Promise<string | null> {
   const { results } = await env.DB.prepare("SELECT DISTINCT file FROM site_plugins").all<{ file: string }>();
   const wanted = new Set(results.map((row) => pluginSlug(row.file)));
+  wanted.add("wordpress");
   const response = await fetcher(FEED_URL, {
     headers: { Accept: "application/json", "User-Agent": "KontrolWP", Authorization: `Bearer ${key}` },
   });
@@ -229,6 +246,11 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
   let recognised = 0;
   for await (const entry of topLevelEntries(response.body)) {
     entries++;
+    // Most of the feed is plugins no site has; skip parsing those entries.
+    if (!mentionsWanted(entry, wanted)) {
+      recognised += entry.includes('"software"') ? 1 : 0;
+      continue;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(entry);
@@ -242,6 +264,7 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
   if (!entries) throw new Error("The vulnerability feed had no entries");
   if (!recognised) throw new Error("The vulnerability feed was not in the expected format");
 
+  const scored = rows.filter((row) => row.cvss !== null).length;
   const insert = `INSERT OR REPLACE INTO vulnerabilities
     (vuln_id, kind, slug, title, cve, cvss, severity, from_version, from_inclusive, to_version, to_inclusive, patched_in, refreshed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -269,6 +292,13 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
     );
   }
   await env.DB.prepare("DELETE FROM vulnerabilities WHERE refreshed_at <> ?").bind(now).run();
+  return rows.length && !scored ? "The feed carried no CVSS scores." : null;
+}
+
+/** Whether a feed entry names core or a plugin some site has, without parsing it. */
+export function mentionsWanted(entry: string, wanted: Set<string>): boolean {
+  for (const match of entry.matchAll(/"slug"\s*:\s*"([^"]*)"/g)) if (wanted.has(match[1])) return true;
+  return false;
 }
 
 /** What an HTTP failure from the feed means for the person reading the Security tab. */
@@ -281,8 +311,9 @@ export function feedFailure(status: number): string {
 }
 
 /**
- * Refresh the stored feed now with `key`, or the saved one. The returned state says when it last worked and why
- * it did not. Throws FeedKeyError when there is no key.
+ * Refresh the stored feed with `key`, or the saved one. The returned state says when it last worked and why it
+ * did not. Throws FeedKeyError when there is no key. Within 31 minutes of any earlier attempt nothing is
+ * downloaded, because Wordfence would refuse it.
  */
 export async function refreshFeed(
   env: Env,
@@ -293,13 +324,19 @@ export async function refreshFeed(
   const feedKey = key ?? (await loadFeedKey(env));
   if (!feedKey) throw new FeedKeyError("Add a Wordfence API key in Settings first.");
   const previous = await feedState(env);
+  if (previous && now - previous.attempted_at < MIN_GAP) {
+    const minutes = Math.max(1, Math.ceil((MIN_GAP - (now - previous.attempted_at)) / 60));
+    return { ...previous, error: `Wordfence allows one download every 30 minutes. Try again in ${minutes} minutes.` };
+  }
+  // Claim the attempt first, so a second run starting now does not download too.
+  await saveFeedState(env, { ...(previous ?? { updated_at: null, error: null }), attempted_at: now });
   let state: FeedState;
   try {
-    await loadFeed(env, now, fetcher, feedKey);
-    state = { updated_at: now, attempted_at: now, error: null };
+    const note = await loadFeed(env, now, fetcher, feedKey);
+    state = { updated_at: now, attempted_at: now, error: null, version: FEED_VERSION, note };
   } catch (error) {
     state = {
-      updated_at: previous?.updated_at ?? null,
+      ...(previous ?? { updated_at: null }),
       attempted_at: now,
       error: error instanceof Error ? error.message : "The vulnerability feed could not be read",
     };
@@ -308,15 +345,23 @@ export async function refreshFeed(
   return state;
 }
 
-/** Called by the cron trigger: refreshes the feed once a day, and an hour after a failure. */
+/**
+ * Called by the cron trigger: downloads the feed once a day, an hour after a failure, and when the stored rows
+ * are from an older format. Never sooner than 31 minutes after the last attempt.
+ */
 export async function runScheduledFeedRefresh(
   env: Env,
   now = Math.floor(Date.now() / 1000),
   fetcher: typeof fetch = fetch,
 ): Promise<boolean> {
   const state = await feedState(env);
-  const wait = state?.error || !state?.updated_at ? RETRY_AFTER : DAY;
-  if (state && now - (state.error || !state.updated_at ? state.attempted_at : state.updated_at) < wait) return false;
+  if (state) {
+    const failed = Boolean(state.error) || !state.updated_at;
+    const outdated = (state.version ?? 1) < FEED_VERSION;
+    const since = failed || outdated ? now - state.attempted_at : now - state.updated_at!;
+    const wait = failed ? RETRY_AFTER : outdated ? MIN_GAP : DAY;
+    if (since < wait || now - state.attempted_at < MIN_GAP) return false;
+  }
   const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM sites WHERE kind = 'wordpress'").first<{ n: number }>();
   if (!sites?.n || !(await loadFeedKey(env))) return false;
   await refreshFeed(env, now, fetcher);
@@ -558,6 +603,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
       configured: Boolean(await loadFeedKey(env).catch(() => null)),
       updated_at: state?.updated_at ?? null,
       error: state?.error ?? null,
+      note: state?.note ?? null,
     },
   };
 }

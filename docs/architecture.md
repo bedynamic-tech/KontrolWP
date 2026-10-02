@@ -258,13 +258,13 @@ Including it again leaves the tab ready to scan.
 
 The Security tab (WordPress sites) shows known vulnerabilities and insecure settings.
 
-Vulnerabilities come from the free Wordfence Intelligence scanner feed
-(`https://www.wordfence.com/api/intelligence/v3/vulnerabilities/scanner`). The keyless v2 feed was retired in 2026 (it answers 410); v3 needs a free API key from a Wordfence account, sent as a bearer token and limited to one download every 30 minutes. Settings stores the key encrypted (`settings` row `wordfence`), checks it by downloading the feed, and nothing is downloaded without one. The feed is one
+Vulnerabilities come from the free Wordfence Intelligence production feed
+(`https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production`, since the smaller scanner feed left the CVSS scores out). The keyless v2 feed was retired in 2026 (it answers 410); v3 needs a free API key from a Wordfence account, sent as a bearer token and limited to one download every 30 minutes. Settings stores the key encrypted (`settings` row `wordfence`), checks it by downloading the feed, and nothing is downloaded without one. The feed is one
 very large JSON object, so `src/worker/sites/vulnerabilities.ts` reads it as a stream, splits
 out one entry at a time and keeps only WordPress core and the plugins some connected site has
 installed (`site_plugins`). The rows go to the `vulnerabilities` table, one per affected
 version range. The cron trigger refreshes them once a day, and an hour after a failed
-attempt. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Settings does the first download. A
+attempt, and no download starts within 31 minutes of any earlier attempt (a 429 included); each attempt is recorded before it starts so two runs never overlap, and rows stored in an older format (`FEED_VERSION`) are downloaded again by the scheduled job. When a download fails but earlier data exists, the tab shows that data with a quiet note. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Settings does the first download. A
 feed that fails or comes back empty leaves the stored rows alone, and the error shows on the
 tab. `GET /api/sites/:id/security` matches the site's WordPress version and plugin versions
 from the last sync against those rows when the tab opens, so nothing per site is stored.
