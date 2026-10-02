@@ -17,7 +17,8 @@ export function OverviewPage() {
   });
 
   if (isPending) return <PageSkeleton />;
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
+  // A failed refresh keeps showing the last data; only a first load that failed shows the error.
+  if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
 
   const { sites, updates, comments, links } = data;
   const pendingComments = sites.reduce((sum, site) => sum + site.pending_comments, 0);

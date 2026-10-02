@@ -142,7 +142,8 @@ export function SitePage() {
   const tab = switchedOff || (kind && !tabs.includes(requestedTab)) ? "overview" : requestedTab;
 
   if (isPending) return <PageSkeleton />;
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
+  // A failed refresh keeps showing the last data; only a first load that failed shows the error.
+  if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
