@@ -15,7 +15,8 @@ export function SitesPage() {
   const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
   const [autoUpdates, setAutoUpdates] = useState(false);
   if (isPending) return <PageSkeleton />;
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
+  // A failed refresh keeps showing the last data; only a first load that failed shows the error.
+  if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
 
   return (
     <div>
