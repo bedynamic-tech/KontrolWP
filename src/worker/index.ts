@@ -17,7 +17,11 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil(
-      ensureSchema(env.DB).then(() => Promise.all([runScheduledSync(env), runScheduledLinkScans(env), runScheduledFeedRefresh(env), runScheduledScans(env)])),
+      ensureSchema(env.DB).then(async () => {
+        // Accessibility scans load the sites' pages too, so they wait for a tick with no sync starting.
+        const synced = await runScheduledSync(env);
+        await Promise.all([runScheduledLinkScans(env), runScheduledFeedRefresh(env), synced ? 0 : runScheduledScans(env)]);
+      }),
     );
   },
   async queue(batch, env) {

@@ -360,7 +360,8 @@ class KontrolWP_Connect_Accessibility {
 		$enabled = (bool) $request->get_param( 'enabled' );
 		$saved   = self::enabled();
 		$saved   = $enabled ? array_unique( array_merge( $saved, $ids ) ) : array_diff( $saved, $ids );
-		update_option( self::OPTION, array_values( $saved ), false );
+		// Autoloaded, so reading it at startup costs no query of its own.
+		update_option( self::OPTION, array_values( $saved ), true );
 		return array( 'fixes' => self::states() );
 	}
 

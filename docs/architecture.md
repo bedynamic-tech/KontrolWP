@@ -337,6 +337,18 @@ iframes, zooming allowed in the viewport tag, and a skip link to the main
 content. A page cache may keep serving old HTML, so a scan can still show a
 problem after its fix is on; the tab says so.
 
+## Load on the sites
+
+Small hosts have few database connections, so everything that reads a site is
+spread out. A sync asks for status, updates and comments one after another and
+stops at the first failure; a failure that is 5xx is retried once after three
+seconds, except WordPress's "Error establishing a database connection", which is
+not asked again until the next sync and shows as plain text. The home page is
+loaded for the site's icon at most once a day. The sync queue consumer runs at
+most four sites at once (`max_concurrency`). Accessibility scans read three
+pages one at a time with a pause, stop at the first server error, skip sites in
+error, run one site per cron tick, and never in a tick that starts a sync.
+
 ## Plugin routes (`kontrolwp/v1`)
 
 | Route | Does |

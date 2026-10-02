@@ -42,6 +42,9 @@
         // once and the rest wait, with their timeouts already running, so ten
         // sites synced together made healthy sites look unreachable.
         "max_batch_size": 1,
+        // Only a few sites at once, so a deploy or a sync of every site
+        // does not hit all of them (and their small databases) together.
+        "max_concurrency": 4,
         "max_batch_timeout": 5,
         "max_retries": 3
       }

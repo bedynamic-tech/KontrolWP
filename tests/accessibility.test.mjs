@@ -90,8 +90,6 @@ test("the home page's own links are the other pages scanned", () => {
   assert.deepEqual(linkedPages(html, "https://example.com/"), [
     "https://example.com/about",
     "https://example.com/contact/",
-    "https://example.com/a",
-    "https://example.com/b",
   ]);
 });
 
@@ -197,16 +195,43 @@ test("a home page that cannot be read leaves the last result and records the err
   );
   const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
   assert.ok(result.scan);
-  assert.match(result.error, /home page/);
+  assert.match(result.error, /server error/);
 });
 
-test("the cron scans sites not scanned in a day, a few at a time", async () => {
+test("the cron scans one site not scanned in a day per run", async () => {
   const env = setup();
   const now = 10_000_000;
   const ok = () => `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1></main></body></html>`;
   await withFetch(ok, async () => {
-    assert.equal(await runScheduledScans(env, now), 2);
-    assert.equal(await runScheduledScans(env, now + 3600), 0);
-    assert.equal(await runScheduledScans(env, now + 86400 + 1), 2);
+    assert.equal(await runScheduledScans(env, now, 0), 1);
+    assert.equal(await runScheduledScans(env, now + 60, 0), 1);
+    assert.equal(await runScheduledScans(env, now + 120, 0), 0);
+    assert.equal(await runScheduledScans(env, now + 86400 + 1, 0), 1);
   });
+});
+
+test("a site that answers with a server error stops the scan, and sites already in error are skipped", async () => {
+  const env = setup();
+  env.DB.sqlite.exec("UPDATE sites SET status = 'error' WHERE id = 2");
+  let fetched = [];
+  const home = `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1><a href="/a">a</a><a href="/b">b</a></main></body></html>`;
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    if (String(url).endsWith("/a")) return new Response("db down", { status: 500 });
+    const response = new Response(home, { headers: { "Content-Type": "text/html" } });
+    Object.defineProperty(response, "url", { value: String(url) });
+    return response;
+  };
+  try {
+    assert.equal(await runScheduledScans(env, 10_000_000, 0), 1);
+    assert.deepEqual(fetched, ["https://a.test/", "https://a.test/a"]);
+    const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
+    assert.equal(result.scan.pages.length, 1);
+    fetched = [];
+    globalThis.fetch = async () => new Response("down", { status: 503 });
+    await assert.rejects(scanNow(env, site(1, "https://a.test/"), { force: true }), /server error/);
+  } finally {
+    globalThis.fetch = real;
+  }
 });

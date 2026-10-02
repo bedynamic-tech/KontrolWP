@@ -188,7 +188,8 @@ class KontrolWP_Connect_Security {
 		$enabled = (bool) $request->get_param( 'enabled' );
 		$saved   = self::enabled();
 		$saved   = $enabled ? array_unique( array_merge( $saved, $ids ) ) : array_diff( $saved, $ids );
-		update_option( self::OPTION, array_values( $saved ), false );
+		// Autoloaded, so reading it at startup costs no query of its own.
+		update_option( self::OPTION, array_values( $saved ), true );
 		if ( $enabled ) {
 			self::apply_files();
 		} elseif ( in_array( 'directory_listing', $ids, true ) ) {

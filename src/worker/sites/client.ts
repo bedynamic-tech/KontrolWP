@@ -19,6 +19,11 @@ export class SiteRequestError extends Error {
   }
 }
 
+/** The code of the error for a site whose database WordPress could not reach. */
+export const DATABASE_DOWN_CODE = "database_connection";
+const DATABASE_DOWN =
+  "The site's database is not answering, so WordPress could not load. This usually means the host is overloaded or restarting. KontrolWP will try again at the next sync.";
+
 const TIMEOUT_MS = 20_000;
 // Updates download and unpack a package on the site; core also upgrades the
 // database, so give actions longer than reads.
@@ -84,7 +89,20 @@ export async function callSite<T>(
       throw new SiteRequestError("KontrolWP Connect is not installed or not active on this site", 404);
     }
     const message = (json as { message?: string }).message;
-    throw new SiteRequestError(message || `The site returned HTTP ${response.status}`, response.status, code);
+    // WordPress's own page for a database it cannot reach comes back as the message, with its HTML.
+    if (message && /error establishing a database connection/i.test(message)) {
+      throw new SiteRequestError(DATABASE_DOWN, response.status, DATABASE_DOWN_CODE);
+    }
+    throw new SiteRequestError(
+      message
+        ? message
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+        : `The site returned HTTP ${response.status}`,
+      response.status,
+      code,
+    );
   }
   return json as T;
 }
