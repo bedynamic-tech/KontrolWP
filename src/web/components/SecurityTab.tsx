@@ -20,8 +20,8 @@ const SEVERITY_LABEL: Record<VulnSeverity, string> = {
 const SEVERITY_CLASS: Record<VulnSeverity, string> = {
   critical: "bg-red-700 text-white dark:bg-red-600",
   high: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
-  medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300",
-  low: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
+  medium: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300",
+  low: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300",
   unknown: "bg-muted text-muted-foreground",
 };
 
