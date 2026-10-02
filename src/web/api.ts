@@ -74,10 +74,17 @@ export function accessSetupError(error: unknown): ApiError | null {
 
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const res = await fetch(`/api${path}`, {
-    ...rest,
-    ...(json === undefined ? {} : { body: JSON.stringify(json), headers: { "Content-Type": "application/json" } }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...rest,
+      ...(json === undefined ? {} : { body: JSON.stringify(json), headers: { "Content-Type": "application/json" } }),
+    });
+  } catch (error) {
+    // The browser's own text for a dropped connection ("Failed to fetch", "Load failed") says nothing useful.
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError("KontrolWP could not be reached. Check your connection and try again.", 0);
+  }
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     let body: { error?: string; code?: string; hint?: AccessHint; id?: number } = {};
