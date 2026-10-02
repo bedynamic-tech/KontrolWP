@@ -53,26 +53,28 @@ function VulnerabilityRow(props: { item: SiteVulnerability }) {
           {!item.active && <Badge variant="secondary">Inactive</Badge>}
         </div>
         <p className="mt-0.5 text-muted-foreground">{item.title}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {item.patched_in ? `Fixed in ${item.patched_in}.` : "No fixed version is listed yet."}
-          {item.cve ? ` ${item.cve}` : ""}
-        </p>
+        {item.cve && <p className="mt-1 text-xs text-muted-foreground">{item.cve}</p>}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", SEVERITY_CLASS[item.severity])}>
-          {SEVERITY_LABEL[item.severity]}
-          {item.cvss !== null ? ` ${item.cvss.toFixed(1)}` : ""}
-        </span>
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="text-muted-foreground hover:text-foreground"
-          title="Read the report"
-          aria-label={`Read the report on ${item.title}`}
-        >
-          <ExternalLinkIcon className="size-4" />
-        </a>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", SEVERITY_CLASS[item.severity])}>
+            {SEVERITY_LABEL[item.severity]}
+            {item.cvss !== null ? ` ${item.cvss.toFixed(1)}` : ""}
+          </span>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-muted-foreground hover:text-foreground"
+            title="Read the report"
+            aria-label={`Read the report on ${item.title}`}
+          >
+            <ExternalLinkIcon className="size-4" />
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {item.patched_in ? `Fixed in ${item.patched_in}.` : "No fixed version is listed yet."}
+        </p>
       </div>
     </li>
   );
