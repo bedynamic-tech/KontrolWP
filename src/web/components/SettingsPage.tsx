@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,22 +33,59 @@ import { Section } from "./Section";
 import { UpdatePolicySettingsSection } from "./UpdatePolicy";
 import { Spinner } from "./Spinner";
 
+const SETTINGS_TABS = [
+  { value: "general", label: "General" },
+  { value: "updates", label: "Updates" },
+  { value: "links", label: "Link checks" },
+  { value: "integrations", label: "Integrations" },
+];
+
+// Where a /settings#section link lands.
+const SECTION_TABS: Record<string, string> = { wordfence: "integrations" };
+
 export function SettingsPage() {
-  // A link such as /settings#wordfence scrolls to that section.
   const { hash } = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get("tab") ?? (hash ? SECTION_TABS[hash.slice(1)] : undefined) ?? "general";
+  const tab = SETTINGS_TABS.some((item) => item.value === requested) ? requested : "general";
+  // A link such as /settings#wordfence scrolls to that section once its tab is showing.
   useEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
-  }, [hash]);
+  }, [hash, tab]);
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-      <SyncSettingsSection />
-      <UpdatePolicySettingsSection />
-      <LinkScanSettingsSection />
-      <LayoutSettingsSection />
-      <UmamiSettingsSection />
-      <WordfenceSettingsSection />
-      <CloudflareSettingsSection />
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setSearchParams(next === "general" ? {} : { tab: next }, { replace: true })}
+        className="mt-6 gap-0"
+      >
+        <TabsList
+          variant="line"
+          className="w-full justify-start overflow-x-auto overflow-y-hidden border-b pb-1.5 [scrollbar-width:none]"
+        >
+          {SETTINGS_TABS.map((item) => (
+            <TabsTrigger key={item.value} value={item.value} className="flex-none px-3">
+              {item.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="general">
+          <SyncSettingsSection />
+          <LayoutSettingsSection />
+        </TabsContent>
+        <TabsContent value="updates">
+          <UpdatePolicySettingsSection />
+        </TabsContent>
+        <TabsContent value="links">
+          <LinkScanSettingsSection />
+        </TabsContent>
+        <TabsContent value="integrations">
+          <UmamiSettingsSection />
+          <WordfenceSettingsSection />
+          <CloudflareSettingsSection />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
