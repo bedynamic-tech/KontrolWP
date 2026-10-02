@@ -1,7 +1,8 @@
-/** The hardening fixes KontrolWP Connect can switch on (0.13.0), in the order the Security tab lists them. */
+/** The hardening fixes (`once` ones change files, so the tab offers a button instead of a switch) KontrolWP Connect can switch on (0.13.0), in the order the Security tab lists them. */
 export const SECURITY_FIXES = [
   {
     id: "directory_listing",
+    once: true,
     title: "Prevent directory listing",
     detail: "Adds an empty index.php to wp-content, plugins, themes and uploads so a server cannot list their files.",
   },
@@ -32,6 +33,7 @@ export const SECURITY_FIXES = [
   },
   {
     id: "readme",
+    once: true,
     title: "Delete readme.html",
     detail:
       "Removes the readme.html file in the site root, which shows the WordPress version. Updates put it back, so it is removed again.",

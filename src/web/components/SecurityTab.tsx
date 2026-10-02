@@ -104,39 +104,49 @@ function CheckRow(props: { check: SecurityCheck }) {
 
 function FixRow(props: { fix: SecurityFix; busy: boolean; onChange: (enabled: boolean) => void }) {
   const { fix } = props;
+  // In place already (by this tool or something else): a checkmark, nothing to do.
+  const done = fix.applied && (fix.once || !fix.enabled);
   return (
     <li className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium">{fix.title}</p>
-          {fix.applied && !fix.enabled && <Badge variant="secondary">Already in place</Badge>}
-        </div>
+        <p className="font-medium">{fix.title}</p>
         <p className="mt-0.5 text-muted-foreground">{fix.detail}</p>
         {fix.enabled && !fix.applied && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-            Switched on, but not in effect yet. Check that the site can write to its files, then reload.
+            Turned on, but not in effect yet. Check that the site can write to its files, then reload.
           </p>
         )}
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={fix.enabled}
-        aria-label={fix.title}
-        disabled={props.busy}
-        onClick={() => props.onChange(!fix.enabled)}
-        className={cn(
-          "relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
-          fix.enabled ? "border-primary bg-primary" : "bg-muted",
-        )}
-      >
-        <span
+      {done ? (
+        <span className="mt-0.5 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+          <CheckIcon className="size-4" />
+          In place
+        </span>
+      ) : fix.once ? (
+        <Button size="sm" variant="outline" disabled={props.busy} onClick={() => props.onChange(true)}>
+          Fix now
+        </Button>
+      ) : (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={fix.enabled}
+          aria-label={fix.title}
+          disabled={props.busy}
+          onClick={() => props.onChange(!fix.enabled)}
           className={cn(
-            "inline-block size-4 rounded-full bg-background shadow transition-transform",
-            fix.enabled ? "translate-x-4" : "translate-x-0.5",
+            "relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
+            fix.enabled ? "border-primary bg-primary" : "bg-muted",
           )}
-        />
-      </button>
+        >
+          <span
+            className={cn(
+              "inline-block size-4 rounded-full bg-background shadow transition-transform",
+              fix.enabled ? "translate-x-4" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      )}
     </li>
   );
 }
@@ -243,16 +253,19 @@ export function SecurityTab(props: { site: SiteSummary }) {
         <Section
           title="Hardening"
           action={
-            data.fixes.some((fix) => !fix.enabled) && (
+            data.fixes.some((fix) => !fix.enabled && !fix.applied) && (
               <Button
                 size="sm"
                 variant="outline"
                 disabled={fixes.isPending}
                 onClick={() =>
-                  fixes.mutate({ ids: data.fixes!.filter((fix) => !fix.enabled).map((fix) => fix.id), enabled: true })
+                  fixes.mutate({
+                    ids: data.fixes!.filter((fix) => !fix.enabled && !fix.applied).map((fix) => fix.id),
+                    enabled: true,
+                  })
                 }
               >
-                Turn on all
+                Fix all
               </Button>
             )
           }

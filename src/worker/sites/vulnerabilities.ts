@@ -341,6 +341,7 @@ export type FixStates = Record<string, { enabled?: boolean; applied?: boolean }>
 export function fixesFrom(states: FixStates): SecurityFix[] {
   return SECURITY_FIXES.map((fix) => ({
     ...fix,
+    once: "once" in fix,
     enabled: Boolean(states[fix.id]?.enabled),
     applied: Boolean(states[fix.id]?.applied),
   }));
