@@ -82,7 +82,7 @@ import {
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
-import { cachedRead, clearContentCache } from "../content-cache.ts";
+import { cachedRead, clearContentCache, clearContentCacheKind } from "../content-cache.ts";
 import { cachedDomain } from "../domain-cache.ts";
 import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
 
@@ -398,7 +398,9 @@ api.get("/sites/:id/admins", async (c) => {
   const site = id && (await getCredentials(c.env, id));
   if (!site) return c.json({ error: "Site not found" }, 404);
   try {
-    return c.json({ admins: await fetchAdmins(site) });
+    return c.json({
+      admins: await cachedRead(c.env.DB, site.id, "admins", "list", () => fetchAdmins(site)),
+    });
   } catch (error) {
     if (error instanceof SiteRequestError) return c.json({ error: magicLoginError(error) }, 502);
     throw error;
@@ -868,7 +870,9 @@ api.put("/sites/:id/security/fixes", async (c) => {
   const parsed = fixesBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Choose the fixes to change" }, 400);
   try {
-    return c.json({ fixes: await setSiteFixes(site, parsed.data.ids, parsed.data.enabled) });
+    const fixes = await setSiteFixes(site, parsed.data.ids, parsed.data.enabled);
+    await clearContentCache(c.env.DB, site.id);
+    return c.json({ fixes });
   } catch (error) {
     if (!(error instanceof SiteRequestError)) throw error;
     return c.json(
@@ -913,7 +917,9 @@ api.delete("/settings/wordfence", async (c) => {
 });
 
 api.get("/sites/:id/users", (c) =>
-  userRequest(c, (site) => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)),
+  userRequest(c, (site) =>
+    cachedRead(c.env.DB, site.id, "users", "list", () => callSite<SiteUsers>(site, "GET", `${REST_NAMESPACE}/users`)),
+  ),
 );
 
 /** Add a user to one site. */
@@ -922,6 +928,7 @@ api.post("/sites/:id/users", async (c) => {
   if (!parsed.success) return c.json({ error: "Enter a username, a valid email address and a role" }, 400);
   return userRequest(c, async (site) => {
     const result = await callSite(site, "POST", `${REST_NAMESPACE}/users/create`, parsed.data);
+    await clearContentCache(c.env.DB, site.id);
     c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
     return result;
   });
@@ -933,6 +940,7 @@ api.post("/sites/:id/users/manage", async (c) => {
   if (!parsed.success) return c.json({ error: "Invalid user action" }, 400);
   return userRequest(c, async (site) => {
     await manageUser(c.env, site, parsed.data);
+    await clearContentCache(c.env.DB, site.id);
     c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
     return { ok: true };
   });
@@ -1182,6 +1190,7 @@ api.put("/settings/umami", async (c) => {
         : { mode: "self-hosted", url: input.url.replace(/\/+$/, ""), username: input.username, secret };
     const websites = await listUmamiWebsites(await umamiClient(config));
     await saveUmamiConfig(c.env, config);
+    await clearContentCacheKind(c.env.DB, "analytics");
     return c.json({ ...umamiSettings(config), websites: websites.length });
   } catch (error) {
     if (error instanceof UmamiError) return c.json({ error: error.message }, 400);
@@ -1191,6 +1200,7 @@ api.put("/settings/umami", async (c) => {
 
 api.delete("/settings/umami", async (c) => {
   await deleteUmamiConfig(c.env);
+  await clearContentCacheKind(c.env.DB, "analytics");
   return c.json(umamiSettings(null));
 });
 
@@ -1209,6 +1219,7 @@ api.put("/sites/:id/umami", async (c) => {
     .bind(parsed.data.website_id, id)
     .run();
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
+  await clearContentCache(c.env.DB, id);
   return c.json({ ok: true });
 });
 
@@ -1322,6 +1333,9 @@ api.get("/sites/:id/builds/:buildId/logs", (c) =>
   }),
 );
 
+/** Visitor numbers move all day, so they are kept only briefly, and never shown once old. */
+const ANALYTICS_CACHE = { maxAge: 300, staleOnError: false };
+
 const analyticsRange = z.enum(["24h", "7d", "30d", "90d"]);
 
 api.get("/sites/:id/analytics", (c) =>
@@ -1352,7 +1366,15 @@ api.get("/sites/:id/analytics", (c) =>
         referrers: [],
       });
     }
-    return c.json<SiteAnalytics>({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) });
+    const data = await cachedRead(
+      c.env.DB,
+      id,
+      "analytics",
+      `summary|${website.id}|${range}|${tz}`,
+      async () => ({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) }),
+      ANALYTICS_CACHE,
+    );
+    return c.json<SiteAnalytics>(data);
   }),
 );
 
@@ -1387,11 +1409,15 @@ api.get("/sites/:id/analytics/details", (c) =>
         active: null,
       });
     }
-    return c.json<SiteAnalyticsDetails>({
-      website,
-      chosen: !!chosen,
-      ...(await siteAnalyticsDetails(client, website, range, tz)),
-    });
+    const data = await cachedRead(
+      c.env.DB,
+      id,
+      "analytics",
+      `details|${website.id}|${range}|${tz}`,
+      async () => ({ website, chosen: !!chosen, ...(await siteAnalyticsDetails(client, website, range, tz)) }),
+      ANALYTICS_CACHE,
+    );
+    return c.json<SiteAnalyticsDetails>(data);
   }),
 );
 

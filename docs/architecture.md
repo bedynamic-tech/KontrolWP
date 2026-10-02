@@ -174,14 +174,17 @@ label at a time from the host until the registry knows the name, so
 (some country-code domains) show DNS only, with a note. The tab warns when the
 domain expires within 30 days.
 
-## Posts, pages, sitemaps and plugins
+## Cached live reads
 
-The Posts and pages list and a site's plugin list (read live from the site) and
-a static site's sitemap are kept in `content_cache` for an hour, per site and
+The Posts and pages list, a site's plugin, administrator and user lists, its
+security settings report (all read live from the site) and a static site's
+sitemap are kept in `content_cache` for an hour, per site and
 per query. A sync, a dashboard change that edits posts (removing links) or
-plugins (activate, deactivate, delete, auto-update, install), or deleting the
-site clears that site's rows, so the next read is fresh. An answer older than an hour is
-only shown when the site cannot be reached.
+plugins (activate, deactivate, delete, auto-update, install), users (add,
+change, delete) or security fixes, or deleting the site clears that site's rows, so the next read is fresh. An answer older than an hour is
+only shown when the site cannot be reached. Umami visitor numbers are kept five
+minutes, never shown once old, and cleared when the Umami settings or the
+site's chosen Umami website change.
 
 ## Icons
 

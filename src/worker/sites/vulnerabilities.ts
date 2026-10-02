@@ -10,6 +10,7 @@ import type {
   VulnSeverity,
 } from "../../shared/types.ts";
 import { decryptSetting, encryptSetting } from "./secrets.ts";
+import { cachedRead } from "../content-cache.ts";
 import { callSite, type SiteCredentials, SiteRequestError } from "./client.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 
@@ -637,7 +638,9 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
       "KontrolWP Connect on this site is too old to report its settings. It updates automatically; select Sync now to check.";
   } else {
     try {
-      const report = await callSite<SecurityReport>(credentials, "GET", `${REST_NAMESPACE}/security`);
+      const report = await cachedRead(env.DB, site.id, "security", "report", () =>
+        callSite<SecurityReport>(credentials, "GET", `${REST_NAMESPACE}/security`),
+      );
       checks = [...reportChecks(report), ...derived];
       if (report.fixes && compareVersions(site.plugin_version, HARDENING_SINCE) >= 0) fixes = fixesFrom(report.fixes);
     } catch (error) {
