@@ -289,6 +289,8 @@ export function LinksTab(props: { site: SiteSummary }) {
         onClose={() => setUnlinking(null)}
         onDone={(response) => {
           setData(response.links);
+          // Posts were edited, so the Posts and pages list is out of date.
+          queryClient.invalidateQueries({ queryKey: ["site", site.id, "content"] });
           setUnlinked(response.result);
           setUnlinking(null);
         }}

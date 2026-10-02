@@ -1,4 +1,5 @@
 import { CloudflareError, fetchBuilds, fetchDeployments, loadCloudflareToken, workerTag } from "../cloudflare.ts";
+import { clearContentCache } from "../content-cache.ts";
 import type { SiteDeployment } from "../../shared/types.ts";
 import { findIcon } from "./icons.ts";
 import { SecretsKeyError } from "./secrets.ts";
@@ -47,6 +48,15 @@ interface StaticRow {
  * mark the site down, it only sets `cf_error`.
  */
 export async function syncStaticSite(env: Env, siteId: number): Promise<SyncResult> {
+  try {
+    return await runStaticSync(env, siteId);
+  } finally {
+    // A deploy may have changed the sitemap; read it afresh.
+    await clearContentCache(env.DB, siteId);
+  }
+}
+
+async function runStaticSync(env: Env, siteId: number): Promise<SyncResult> {
   const site = await env.DB.prepare(
     "SELECT id, url, cf_hosted, cf_account_id, cf_worker, cf_worker_tag FROM sites WHERE id = ? AND kind = 'static'",
   )

@@ -16,6 +16,7 @@ import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
+import { clearContentCache } from "../content-cache.ts";
 import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
 
@@ -34,6 +35,19 @@ export async function syncSite(
   env: Env,
   siteId: number,
   options: { retrySelfUpdate?: boolean; retryDelayMs?: number } = {},
+): Promise<SyncResult> {
+  try {
+    return await runSync(env, siteId, options);
+  } finally {
+    // The synced site's posts and pages may have changed; read them afresh.
+    await clearContentCache(env.DB, siteId);
+  }
+}
+
+async function runSync(
+  env: Env,
+  siteId: number,
+  options: { retrySelfUpdate?: boolean; retryDelayMs?: number },
 ): Promise<SyncResult> {
   const kind = await env.DB.prepare("SELECT kind FROM sites WHERE id = ?").bind(siteId).first<{ kind: string }>();
   if (kind?.kind === "static") return syncStaticSite(env, siteId);
