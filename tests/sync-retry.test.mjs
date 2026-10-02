@@ -65,7 +65,7 @@ test("a database that is down is not asked again at once, and the message is pla
   assert.doesNotMatch(site().last_error, /</);
 });
 
-test("a site's home page is loaded for its icon once a day, not on every sync", async () => {
+test("a site's home page is loaded for its icon once a week, not on every sync", async () => {
   const { env } = await setup(0);
   let pages = 0;
   const inner = globalThis.fetch;
