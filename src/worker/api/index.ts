@@ -82,7 +82,7 @@ import {
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
-import { cachedRead } from "../content-cache.ts";
+import { cachedRead, clearContentCache } from "../content-cache.ts";
 import { cachedDomain } from "../domain-cache.ts";
 import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
 
@@ -532,7 +532,11 @@ async function pluginRequest(c: AppContext, request: (site: SiteCredentials) => 
 }
 
 api.get("/sites/:id/plugins", (c) =>
-  pluginRequest(c, (site) => callSite<SitePlugins>(site, "GET", `${REST_NAMESPACE}/plugins`)),
+  pluginRequest(c, (site) =>
+    cachedRead(c.env.DB, site.id, "plugins", "list", () =>
+      callSite<SitePlugins>(site, "GET", `${REST_NAMESPACE}/plugins`),
+    ),
+  ),
 );
 
 const pluginAction = z.object({
@@ -545,6 +549,8 @@ api.post("/sites/:id/plugins", async (c) => {
   if (!parsed.success) return c.json({ error: "Invalid plugin action" }, 400);
   return pluginRequest(c, async (site) => {
     await callSite(site, "POST", `${REST_NAMESPACE}/plugins/manage`, parsed.data);
+    // The list refetches as soon as this answers, before the sync finishes.
+    await clearContentCache(c.env.DB, site.id);
     c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
     return { ok: true };
   });
@@ -618,6 +624,7 @@ api.post("/sites/:id/plugins/install", async (c) => {
   if ("error" in request) return c.json({ error: request.error }, request.status);
   return pluginRequest(c, async (site) => {
     const result = await callSite(site, "POST", `${REST_NAMESPACE}/plugins/install`, request.payload);
+    await clearContentCache(c.env.DB, site.id);
     c.executionCtx.waitUntil(syncSite(c.env, site.id).catch(() => undefined));
     return result;
   });
