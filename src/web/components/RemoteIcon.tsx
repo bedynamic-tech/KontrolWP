@@ -9,11 +9,15 @@ export function RemoteIcon(props: { sources: Array<string | null | undefined>; n
   const sources = props.sources.filter((src): src is string => !!src);
   const [failed, setFailed] = useState(0);
   const src = sources[failed];
+  const loadFrom = src?.startsWith("https://") ? `/api/icon?url=${encodeURIComponent(src)}` : src;
   const box = cn("shrink-0 overflow-hidden rounded-md border bg-muted", props.className);
 
   if (!src) {
     return (
-      <span aria-hidden className={cn(box, "flex items-center justify-center font-medium uppercase text-muted-foreground")}>
+      <span
+        aria-hidden
+        className={cn(box, "flex items-center justify-center font-medium uppercase text-muted-foreground")}
+      >
         {props.name.trim().charAt(0) || "?"}
       </span>
     );
@@ -21,7 +25,7 @@ export function RemoteIcon(props: { sources: Array<string | null | undefined>; n
   return (
     <img
       key={src}
-      src={src}
+      src={loadFrom}
       alt=""
       loading="lazy"
       referrerPolicy="no-referrer"

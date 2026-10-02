@@ -82,6 +82,8 @@ import {
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
+import { cachedDomain } from "../domain-cache.ts";
+import { fetchIcon, isProxyableIconUrl } from "../icon-proxy.ts";
 
 type AppContext = Context<{ Bindings: Env }>;
 
@@ -108,6 +110,23 @@ api.use("*", async (c, next) => {
     return c.json({ error: "SITE_SECRETS_KEY is missing or invalid", code: "secrets_key_missing" }, 503);
   }
   await next();
+});
+
+/**
+ * An icon from a site or WordPress.org, kept for a week so a slow site does
+ * not slow every page that shows its icon. A missing icon is a 404, which the
+ * page answers with the site's first letter.
+ */
+api.get("/icon", async (c) => {
+  const url = isProxyableIconUrl(c.req.query("url"));
+  if (!url) return c.body(null, 400);
+  const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  const key = new Request(`https://icons.kontrolwp.invalid/${encodeURIComponent(url.href)}`);
+  const hit = await cache?.match(key).catch(() => undefined);
+  if (hit) return hit;
+  const response = await fetchIcon(url);
+  if (response.status === 200) c.executionCtx.waitUntil((cache?.put(key, response.clone()) ?? Promise.resolve()).catch(() => {}));
+  return response;
 });
 
 api.get("/overview", async (c) => {
@@ -701,7 +720,7 @@ api.get("/sites/:id/domain", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
-  return c.json<SiteDomain>(await lookupDomain(site.url));
+  return c.json<SiteDomain>(await cachedDomain(c.env.DB, id, site.url, c.req.query("refresh") === "1"));
 });
 
 /** The link checker's latest scan and the links that need a look. */
