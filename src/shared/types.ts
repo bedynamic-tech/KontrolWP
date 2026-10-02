@@ -615,13 +615,11 @@ export interface SecurityCheck {
   detail: string;
 }
 
-/** One hardening fix: `enabled` is switched on from the dashboard; `applied` is whether it is in effect on the site now. */
+/** One hardening fix: `enabled` is set from the dashboard; `applied` is whether it is in effect on the site now. */
 export interface SecurityFix {
   id: string;
   title: string;
   detail: string;
-  /** A one-time change to the site's files, shown as a button rather than a switch. */
-  once: boolean;
   enabled: boolean;
   applied: boolean;
 }

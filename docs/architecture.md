@@ -274,7 +274,7 @@ The settings findings combine what the dashboard already knows (HTTPS, a PHP ver
 longer gets fixes, a waiting core update, inactive plugins) with the plugin's `GET /security`
 report (0.12.0). Sites on an older plugin show only the first group, with a note.
 
-Hardening (plugin 0.13.0) mirrors MainWP's site fixes: directory listing, WordPress version, RSD and Windows Live Writer tags, database and PHP error display, readme.html, plus the code editor and XML-RPC. Switches are stored in the `kontrolwp_connect_hardening` option on the site, hooks are applied each time the plugin loads and files (index.php, readme.html) when a fix is switched on, and switching one off restores it. Only an index.php with the plugin's exact content is ever removed. `applied` is read from the live site, so the tab also shows protection something else provides. The "admin" user stays a manual fix.
+Hardening (plugin 0.13.0) mirrors MainWP's site fixes: directory listing, WordPress version, RSD and Windows Live Writer tags, database and PHP error display, readme.html, plus the code editor and XML-RPC. Each fix is a Fix now button that becomes a checkmark; the dashboard has no off control. Applied fixes are stored in the `kontrolwp_connect_hardening` option on the site, hooks are applied each time the plugin loads and files (index.php, readme.html) when a fix is switched on, and switching one off restores it. Only an index.php with the plugin's exact content is ever removed. `applied` is read from the live site, so the tab also shows protection something else provides. The "admin" user stays a manual fix.
 
 ## Posts and pages
 
