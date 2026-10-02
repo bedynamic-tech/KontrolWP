@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import type { DnsRecord, DomainRegistration, SiteSummary } from "../../shared/types";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ const TYPE_ORDER: DnsRecord["type"][] = ["A", "AAAA", "CNAME", "MX", "NS", "TXT"
 
 /** The site's domain: registration and DNS records, looked up live from public sources. */
 export function DomainSection(props: { site: SiteSummary }) {
+  const queryClient = useQueryClient();
   const domain = useQuery({
     queryKey: ["site", props.site.id, "domain"],
     queryFn: () => fetchDomain(props.site.id),
@@ -23,16 +25,29 @@ export function DomainSection(props: { site: SiteSummary }) {
     staleTime: 60 * 60 * 1000,
   });
 
+  // The Worker keeps the lookup for a day; asking again skips it.
+  const [checking, setChecking] = useState(false);
+  const refetch = async () => {
+    setChecking(true);
+    try {
+      queryClient.setQueryData(["site", props.site.id, "domain"], await fetchDomain(props.site.id, true));
+    } catch {
+      await domain.refetch();
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const refresh = (
     <Button
       size="sm"
       variant="outline"
-      onClick={() => domain.refetch()}
-      disabled={domain.isFetching}
+      onClick={() => refetch()}
+      disabled={domain.isFetching || checking}
       title={domain.data ? `Checked ${timeAgo(domain.data.checked_at).toLowerCase()}` : undefined}
     >
-      <RefreshCwIcon className={domain.isFetching ? "animate-spin" : ""} />
-      {domain.isFetching ? "Checking..." : "Check again"}
+      <RefreshCwIcon className={domain.isFetching || checking ? "animate-spin" : ""} />
+      {domain.isFetching || checking ? "Checking..." : "Check again"}
     </Button>
   );
 
@@ -84,9 +99,7 @@ function Registration(props: { registration: DomainRegistration }) {
         <p
           className={cn(
             "border-b px-4 py-2.5 text-sm font-medium",
-            daysLeft < 0
-              ? "bg-destructive/5 text-destructive"
-              : "bg-amber-500/10 text-amber-800 dark:text-amber-300",
+            daysLeft < 0 ? "bg-destructive/5 text-destructive" : "bg-amber-500/10 text-amber-800 dark:text-amber-300",
           )}
         >
           {daysLeft < 0
@@ -125,7 +138,10 @@ function Row(props: { label: string; value: string | null }) {
 
 function DnsTable(props: { records: DnsRecord[] }) {
   const records = [...props.records].sort(
-    (a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.name.localeCompare(b.name) || a.value.localeCompare(b.value),
+    (a, b) =>
+      TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) ||
+      a.name.localeCompare(b.name) ||
+      a.value.localeCompare(b.value),
   );
   return (
     <>
@@ -157,9 +173,7 @@ function DnsTable(props: { records: DnsRecord[] }) {
               <td className="px-4 py-2 font-medium whitespace-nowrap">{record.type}</td>
               <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">{record.name}</td>
               <td className="w-full max-w-0 px-4 py-2 font-mono text-xs break-all">{record.value}</td>
-              <td className="px-4 py-2 text-right whitespace-nowrap text-muted-foreground">
-                {ttlLabel(record.ttl)}
-              </td>
+              <td className="px-4 py-2 text-right whitespace-nowrap text-muted-foreground">{ttlLabel(record.ttl)}</td>
             </tr>
           ))}
         </tbody>

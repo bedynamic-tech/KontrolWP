@@ -161,7 +161,8 @@ are sent by the site, so they depend on its mail setup.
 ## Domain
 
 A site's Domain tab asks `GET /api/sites/:id/domain`, which looks the domain up
-live from public sources; nothing is stored and no key is needed. DNS records
+from public sources (no key is needed) and keeps the answer in `settings` for a
+day; "Check again" sends `?refresh=1` to skip it. DNS records
 come from Cloudflare's DNS-over-HTTPS resolver (`cloudflare-dns.com`): A, AAAA,
 CNAME, MX, NS, TXT, CAA and SOA at the registered domain, and CNAME, A and
 AAAA at the site's own host when it differs. Registration comes from the
@@ -172,6 +173,13 @@ label at a time from the host until the registry knows the name, so
 `www.example.co.uk` resolves to `example.co.uk`. Registries without RDAP
 (some country-code domains) show DNS only, with a note. The tab warns when the
 domain expires within 30 days.
+
+## Icons
+
+Site favicons and plugin icons load through `GET /api/icon?url=`, which fetches
+public https images (at most 512 KB) and answers with a week-long
+`Cache-Control`, also kept in Cloudflare's cache, so a slow site is waited on
+once. A missing icon is a 404 and the page shows the first letter instead.
 
 ## Auto-updates
 

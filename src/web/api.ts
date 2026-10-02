@@ -239,7 +239,8 @@ export const fetchLayoutSettings = () => request<LayoutSettings>("/settings/layo
 export const saveLayoutSettings = (layout: LayoutSettings) =>
   request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });
 
-export const fetchDomain = (siteId: number) => request<SiteDomain>(`/sites/${siteId}/domain`);
+export const fetchDomain = (siteId: number, refresh = false) =>
+  request<SiteDomain>(`/sites/${siteId}/domain${refresh ? "?refresh=1" : ""}`);
 export const fetchLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteId}/links`);
 export const scanLinks = (siteId: number) => request<SiteLinks>(`/sites/${siteId}/links/scan`, { method: "POST" });
 export const recheckLink = (siteId: number, url: string) =>
