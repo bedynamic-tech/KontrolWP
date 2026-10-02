@@ -28,10 +28,14 @@ import { REST_NAMESPACE } from "../../shared/protocol.ts";
 export const FEED_URL = "https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production";
 const SETTING = "wordfence";
 const DAY = 86400;
-/** After a failed refresh, wait this long before trying again. */
+/** After a failed refresh, wait this long before trying again, doubling with each failure in a row, up to the cap. */
 const RETRY_AFTER = 3600;
-/** Wordfence allows one download every 30 minutes; never come back sooner than this after any attempt. */
-const MIN_GAP = 31 * 60;
+const MAX_RETRY_AFTER = 6 * 3600;
+/**
+ * Wordfence documents one download every 30 minutes, but a download 31 minutes after the last one was refused,
+ * so never come back sooner than this after any attempt.
+ */
+const MIN_GAP = 65 * 60;
 /**
  * Bumped when the stored rows change shape, so the next scheduled run downloads again: 1 stored the scanner feed's
  * rows, which have no scores.
@@ -215,6 +219,10 @@ interface FeedState {
   updated_at: number | null;
   attempted_at: number;
   error: string | null;
+  /** Failed attempts in a row. */
+  failures?: number;
+  /** No download is tried before this time: the doubling wait, or longer when Wordfence asked for it. */
+  next_attempt_at?: number;
   /** The FEED_VERSION of the rows stored at `updated_at`. */
   version?: number;
   /** Something odd about the last good download, such as no scores in it. */
@@ -244,7 +252,10 @@ async function loadFeed(env: Env, now: number, fetcher: typeof fetch, key: strin
   const response = await fetcher(FEED_URL, {
     headers: { Accept: "application/json", "User-Agent": "KontrolWP", Authorization: `Bearer ${key}` },
   });
-  if (!response.ok || !response.body) throw new Error(feedFailure(response.status));
+  if (!response.ok || !response.body) {
+    const asked = Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
+    throw new FeedHttpError(response.status, Number.isFinite(asked) && asked > 0 ? asked : null);
+  }
 
   const rows: VulnRow[] = [];
   let entries = 0;
@@ -316,19 +327,34 @@ export function mentionsWanted(entry: string, wanted: Set<string>): boolean {
   return false;
 }
 
+/** The feed answered with an error status; `retryAfter` is the seconds Wordfence asked for, when it said. */
+export class FeedHttpError extends Error {
+  readonly retryAfter: number | null;
+  constructor(status: number, retryAfter: number | null) {
+    super(feedFailure(status));
+    this.retryAfter = retryAfter;
+  }
+}
+
 /** What an HTTP failure from the feed means for the person reading the Security tab. */
 export function feedFailure(status: number): string {
   if (status === 401 || status === 403) {
     return `Wordfence did not accept the API key (HTTP ${status}). Check it in Settings.`;
   }
-  if (status === 429) return "Wordfence allows one download every 30 minutes (HTTP 429). Try again later.";
+  if (status === 429) return "Wordfence refused the download because of its rate limit (HTTP 429).";
   return `The vulnerability feed answered HTTP ${status}`;
+}
+
+/** Seconds to wait after the `failures`th failure in a row. */
+export function retryDelay(failures: number, asked: number | null): number {
+  const doubling = Math.min(RETRY_AFTER * 2 ** Math.max(0, failures - 1), MAX_RETRY_AFTER);
+  return Math.max(doubling, asked ?? 0);
 }
 
 /**
  * Refresh the stored feed with `key`, or the saved one. The returned state says when it last worked and why it
- * did not. Throws FeedKeyError when there is no key. Within 31 minutes of any earlier attempt nothing is
- * downloaded, because Wordfence would refuse it.
+ * did not. Throws FeedKeyError when there is no key. Nothing is downloaded within 65 minutes of an earlier
+ * attempt, or before the wait a failure set, because Wordfence would refuse it.
  */
 export async function refreshFeed(
   env: Env,
@@ -339,21 +365,28 @@ export async function refreshFeed(
   const feedKey = key ?? (await loadFeedKey(env));
   if (!feedKey) throw new FeedKeyError("Add a Wordfence API key in Settings first.");
   const previous = await feedState(env);
-  if (previous && now - previous.attempted_at < MIN_GAP) {
-    const minutes = Math.max(1, Math.ceil((MIN_GAP - (now - previous.attempted_at)) / 60));
-    return { ...previous, error: `Wordfence allows one download every 30 minutes. Try again in ${minutes} minutes.` };
+  const notBefore = Math.max(previous ? previous.attempted_at + MIN_GAP : 0, previous?.next_attempt_at ?? 0);
+  if (previous && now < notBefore) {
+    const minutes = Math.max(1, Math.ceil((notBefore - now) / 60));
+    return {
+      ...previous,
+      error: `Wordfence limits how often the data can be downloaded. Try again in ${minutes} minutes.`,
+    };
   }
   // Claim the attempt first, so a second run starting now does not download too.
   await saveFeedState(env, { ...(previous ?? { updated_at: null, error: null }), attempted_at: now });
   let state: FeedState;
   try {
     const note = await loadFeed(env, now, fetcher, feedKey);
-    state = { updated_at: now, attempted_at: now, error: null, version: FEED_VERSION, note };
+    state = { updated_at: now, attempted_at: now, error: null, version: FEED_VERSION, note, failures: 0 };
   } catch (error) {
+    const failures = (previous?.failures ?? 0) + 1;
     state = {
       ...(previous ?? { updated_at: null }),
       attempted_at: now,
       error: error instanceof Error ? error.message : "The vulnerability feed could not be read",
+      failures,
+      next_attempt_at: now + retryDelay(failures, error instanceof FeedHttpError ? error.retryAfter : null),
     };
   }
   await saveFeedState(env, state);
@@ -361,8 +394,8 @@ export async function refreshFeed(
 }
 
 /**
- * Called by the cron trigger: downloads the feed once a day, an hour after a failure, and when the stored rows
- * are from an older format. Never sooner than 31 minutes after the last attempt.
+ * Called by the cron trigger: downloads the feed once a day, again when a failure's wait is over, and when the
+ * stored rows are from an older format. Never within 65 minutes of the last attempt.
  */
 export async function runScheduledFeedRefresh(
   env: Env,
@@ -373,9 +406,11 @@ export async function runScheduledFeedRefresh(
   if (state) {
     const failed = Boolean(state.error) || !state.updated_at;
     const outdated = (state.version ?? 1) < FEED_VERSION;
-    const since = failed || outdated ? now - state.attempted_at : now - state.updated_at!;
-    const wait = failed ? RETRY_AFTER : outdated ? MIN_GAP : DAY;
-    if (since < wait || now - state.attempted_at < MIN_GAP) return false;
+    let notBefore = state.attempted_at + MIN_GAP;
+    // A failure sets its own wait; an older record without one waits an hour.
+    if (failed) notBefore = Math.max(notBefore, state.next_attempt_at ?? state.attempted_at + RETRY_AFTER);
+    else if (!outdated) notBefore = Math.max(notBefore, state.updated_at! + DAY);
+    if (now < notBefore) return false;
   }
   const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM sites WHERE kind = 'wordpress'").first<{ n: number }>();
   if (!sites?.n || !(await loadFeedKey(env))) return false;
@@ -619,6 +654,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
       updated_at: state?.updated_at ?? null,
       error: state?.error ?? null,
       note: state?.note ?? null,
+      next_attempt_at: state?.error ? (state.next_attempt_at ?? null) : null,
     },
   };
 }
