@@ -9,15 +9,8 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
   const of = (kind: SiteUpdate["kind"]) => updates.filter((update) => update.kind === kind);
   const themes = of("theme");
 
-  if (site.updates_excluded) {
-    return (
-      <Section title="Updates">
-        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          This site is excluded from update checks.
-        </p>
-      </Section>
-    );
-  }
+  // With update checks switched off in Site settings there is nothing to show; the switch there turns them back on.
+  if (site.updates_excluded) return null;
 
   return (
     <Section title="Updates" action={<UpdateAllButton updates={updates} />}>

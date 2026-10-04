@@ -203,7 +203,9 @@ class KontrolWP_Connect_SEO_Tools {
 	/* ---- Front end ---- */
 
 	public static function boot() {
-		if ( '' !== KontrolWP_Connect_SEO::conflict() ) {
+		// Like the rest of SEO Management, nothing here runs while it is switched off. The saved settings are kept.
+		$seo = KontrolWP_Connect_SEO::settings();
+		if ( empty( $seo['enabled'] ) || '' !== KontrolWP_Connect_SEO::conflict() ) {
 			return;
 		}
 		$settings = self::settings();

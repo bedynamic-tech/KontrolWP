@@ -987,6 +987,8 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
         )}
       </Section>
 
+      {draft.enabled ? (
+        <>
       <Section title="Titles and descriptions">
         <div className="divide-y">
           <Row title="Separator" detail="Goes between the parts of a title.">
@@ -1279,9 +1281,18 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       />
 
       <PagesSection site={site} seo={data} />
+        </>
+      ) : (
+        <p className="px-1 pt-4 text-sm text-muted-foreground">
+          SEO Management is off. Turn it on to set titles, descriptions, social tags, search visibility and per-page overrides. Your saved settings are kept.
+        </p>
+      )}
     </>
   );
 }
+
+/** Views that do nothing while SEO Management is off. */
+const SEO_NEEDS_SEO = ["content", "tools"];
 
 const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
@@ -1295,9 +1306,19 @@ const SEO_VIEWS = [
 /** The SEO tab: site-wide settings and page overrides, and redirects. */
 export function SeoTab(props: { site: SiteSummary }) {
   const [view, setView] = useState("settings");
+  // The same read the Settings view makes, so this costs nothing extra.
+  const seo = useQuery({
+    queryKey: ["site", props.site.id, "seo"],
+    queryFn: () => fetchSeo(props.site.id),
+    enabled: compareVersions(props.site.plugin_version ?? "0", SEO_SINCE) >= 0,
+  });
+  // Content and Tools only work while SEO Management is on, so they are hidden until it is. Redirects, the 404 log and Import
+  // stay: redirect rules keep working on the site either way, and Import is how a site brings another plugin's settings in.
+  const views = seo.data?.settings.enabled ? SEO_VIEWS : SEO_VIEWS.filter((item) => !SEO_NEEDS_SEO.includes(item.value));
+  const shown = views.some((item) => item.value === view) ? view : "settings";
   return (
-    <Tabs value={view} onValueChange={setView} className="mt-6 gap-0">
-      <ResponsiveTabsList tabs={SEO_VIEWS} value={view} onChange={setView} label="SEO section" />
+    <Tabs value={shown} onValueChange={setView} className="mt-6 gap-0">
+      <ResponsiveTabsList tabs={views} value={shown} onChange={setView} label="SEO section" />
       <TabsContent value="settings">
         <SeoSettingsPanel site={props.site} onMigrate={() => setView("migrate")} />
       </TabsContent>
