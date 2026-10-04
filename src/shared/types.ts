@@ -823,9 +823,31 @@ export interface SeoPageChange {
   description?: string;
   noindex?: boolean;
   image?: string;
+  /** The phrase the page is meant to rank for; empty means none. */
+  keyword?: string;
+}
+
+export type SeoScoreStatus = "good" | "needs_work";
+
+export interface SeoScoreCheck {
+  id: string;
+  label: string;
+  status: "good" | "improve" | "skipped";
+  detail: string;
+  /** Does not affect the overall status. */
+  optional: boolean;
+}
+
+/** The checklist for one page: guidance, not a ranking promise. */
+export interface SeoScore {
+  keyword: string;
+  status: SeoScoreStatus;
+  checks: SeoScoreCheck[];
 }
 
 export interface SeoPage extends Required<SeoPageChange> {
+  /** The checklist's overall status; a plugin before 0.23.0 sends none. */
+  score?: SeoScoreStatus;
   id: number;
   title: string;
   type: string;

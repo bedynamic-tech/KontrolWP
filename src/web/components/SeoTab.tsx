@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SearchIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, MinusIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { compareVersions, SEO_ARCHIVES_SINCE, SEO_INDEXING_SINCE, SEO_SINCE } from "../../shared/plugin-version";
+import { compareVersions, SEO_ARCHIVES_SINCE, SEO_INDEXING_SINCE, SEO_SCORE_SINCE, SEO_SINCE } from "../../shared/plugin-version";
 import {
   SEO_BUSINESS_TYPES,
   SEO_DAYS,
@@ -26,7 +26,7 @@ import {
   type SiteSeo,
   type SiteSummary,
 } from "../../shared/types";
-import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
+import { fetchSeo, fetchSeoPages, fetchSeoScore, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
 import { MigrateTab } from "./MigrateTab";
 import { NotFoundTab, RedirectsTab } from "./RedirectsTab";
@@ -127,6 +127,79 @@ function Preview(props: { title: string; url: string; description: string }) {
   );
 }
 
+const SCORE_HELP: Record<string, string> = {
+  keyword_title: "Search engines and readers use the title to judge what a page is about. Works only when a focus keyword is set.",
+  description_length: "The description is the text under the title in search results. Around 70 to 160 characters shows in full and says enough.",
+  headings: "Subheadings break a long page into sections, which readers skim and search engines use to understand it.",
+  internal_links: "Links to your own pages help readers move around and help search engines find and connect your pages.",
+  external_links: "A link to a trusted source can help readers. It is optional and does not change the overall status.",
+  image_alt: "Alt text describes an image for people using screen readers and tells search engines what it shows.",
+  readability: "Short sentences are easier to read. This looks only at sentence length, so it works in any language.",
+};
+
+/** The on-page checklist for one page: guidance, not a ranking promise. */
+function ScoreChecklist(props: { site: SiteSummary; page: SeoPage; title: string; description: string; keyword: string }) {
+  const { site, page } = props;
+  // Check after a pause, so typing is not a request to the site for every key.
+  const [draft, setDraft] = useState({ seo_title: props.title, description: props.description, keyword: props.keyword });
+  useEffect(() => {
+    const timer = setTimeout(() => setDraft({ seo_title: props.title, description: props.description, keyword: props.keyword }), 600);
+    return () => clearTimeout(timer);
+  }, [props.title, props.description, props.keyword]);
+  const score = useQuery({
+    queryKey: ["site", site.id, "seo", "score", page.id, draft],
+    queryFn: () => fetchSeoScore(site.id, page.id, draft),
+    placeholderData: (previous) => previous,
+  });
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          Content checklist
+          <HelpTip>
+            Simple checks on this page, as guidance. They do not promise a ranking. Checks that need a focus keyword are skipped until you set one.
+          </HelpTip>
+        </p>
+        {score.data && <ScoreBadge status={score.data.status} />}
+      </div>
+      {score.isPending ? (
+        <Spinner className="size-4 text-muted-foreground" label="Checking the page" />
+      ) : score.error ? (
+        <p className="text-sm text-destructive">{score.error.message}</p>
+      ) : (
+        <ul className="divide-y rounded-lg border">
+          {score.data.checks.map((check) => (
+            <li key={check.id} className="flex items-start gap-3 px-3 py-2 text-sm">
+              {check.status === "good" ? (
+                <CheckIcon className="mt-0.5 size-4 shrink-0 text-green-600 dark:text-green-400" aria-label="Good" />
+              ) : check.status === "improve" ? (
+                <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-yellow-600 dark:text-yellow-400" aria-label="Needs work" />
+              ) : (
+                <MinusIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="Skipped" />
+              )}
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 font-medium">
+                  {check.label}
+                  {SCORE_HELP[check.id] && <HelpTip>{SCORE_HELP[check.id]}</HelpTip>}
+                </p>
+                <p className="text-xs text-muted-foreground">{check.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ScoreBadge(props: { status: "good" | "needs_work" }) {
+  return props.status === "good" ? (
+    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-500/15 dark:text-green-300">Good</span>
+  ) : (
+    <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-900 dark:bg-yellow-500/15 dark:text-yellow-200">Needs work</span>
+  );
+}
+
 function PageDialog(props: {
   site: SiteSummary;
   seo: SiteSeo;
@@ -139,6 +212,8 @@ function PageDialog(props: {
   const [description, setDescription] = useState(page.description);
   const [noindex, setNoindex] = useState(page.noindex);
   const [image, setImage] = useState(page.image);
+  const [keyword, setKeyword] = useState(page.keyword ?? "");
+  const scoring = compareVersions(site.plugin_version ?? "0", SEO_SCORE_SINCE) >= 0;
   const save = useMutation({
     mutationFn: () =>
       saveSeoPage(site.id, page.id, {
@@ -146,6 +221,7 @@ function PageDialog(props: {
         description,
         noindex,
         image,
+        ...(scoring ? { keyword } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -218,6 +294,21 @@ function PageDialog(props: {
               placeholder="Featured image, then the site-wide image"
             />
           </div>
+          {scoring && (
+            <div className="grid gap-1.5">
+              <label className="flex items-center gap-1.5 text-sm font-medium" htmlFor="seo-page-keyword">
+                Focus keyword
+                <HelpTip>The phrase this page is meant to be found for. It is optional, and only used for the checklist below.</HelpTip>
+              </label>
+              <Input
+                id="seo-page-keyword"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="Optional"
+                maxLength={80}
+              />
+            </div>
+          )}
           <label className="flex cursor-pointer items-center gap-3">
             <input
               type="checkbox"
@@ -230,6 +321,7 @@ function PageDialog(props: {
             </span>
           </label>
         </div>
+        {scoring && <ScoreChecklist site={site} page={page} title={title} description={description} keyword={keyword} />}
         {save.error && (
           <p className="text-sm text-destructive">{save.error.message}</p>
         )}
@@ -708,13 +800,16 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
                     : "Uses the site-wide defaults"}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditing(item)}
-              >
-                Edit
-              </Button>
+              <div className="flex shrink-0 items-center gap-3">
+                {item.score && <ScoreBadge status={item.score} />}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditing(item)}
+                >
+                  Edit
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

@@ -940,6 +940,8 @@ class KontrolWP_Connect_SEO {
 				'description' => (string) get_post_meta( $post->ID, self::META_DESCRIPTION, true ),
 				'noindex'     => (bool) get_post_meta( $post->ID, self::META_NOINDEX, true ),
 				'image'       => (string) get_post_meta( $post->ID, self::META_IMAGE, true ),
+				'keyword'     => (string) get_post_meta( $post->ID, KontrolWP_Connect_SEO_Score::META_KEYWORD, true ),
+				'score'       => KontrolWP_Connect_SEO_Score::for_post( $post )['status'],
 				'excerpt'     => self::trim_description( '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content ),
 			);
 		}
@@ -974,6 +976,9 @@ class KontrolWP_Connect_SEO {
 		}
 		if ( null !== $request->get_param( 'image' ) ) {
 			$set( self::META_IMAGE, self::url( (string) $request->get_param( 'image' ) ) );
+		}
+		if ( null !== $request->get_param( 'keyword' ) ) {
+			$set( KontrolWP_Connect_SEO_Score::META_KEYWORD, KontrolWP_Connect_SEO_Score::clean_keyword( (string) $request->get_param( 'keyword' ) ) );
 		}
 		return array(
 			'id'          => $id,
