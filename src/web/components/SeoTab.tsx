@@ -30,7 +30,7 @@ import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
 import { MigrateTab } from "./MigrateTab";
 import { NotFoundTab, RedirectsTab } from "./RedirectsTab";
-import { ContentTab } from "./ContentTab";
+import { SeoContentTab } from "./SeoContentTab";
 import { ToolsTab } from "./ToolsTab";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
@@ -1132,7 +1132,7 @@ export function SeoTab(props: { site: SiteSummary }) {
         <NotFoundTab site={props.site} />
       </TabsContent>
       <TabsContent value="content">
-        <ContentTab site={props.site} />
+        <SeoContentTab site={props.site} />
       </TabsContent>
       <TabsContent value="tools">
         <ToolsTab site={props.site} />
