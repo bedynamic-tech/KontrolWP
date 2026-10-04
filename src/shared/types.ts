@@ -692,6 +692,58 @@ export interface SiteAccessibility {
 
 export const SEO_SEPARATORS = ["-", "|", "·", "»", "•"] as const;
 
+export const SEO_BUSINESS_TYPES = [
+  ["LocalBusiness", "Local business"],
+  ["Restaurant", "Restaurant"],
+  ["CafeOrCoffeeShop", "Cafe or coffee shop"],
+  ["Store", "Store"],
+  ["ProfessionalService", "Professional service"],
+  ["LegalService", "Legal service"],
+  ["AccountingService", "Accounting service"],
+  ["FinancialService", "Financial service"],
+  ["Dentist", "Dentist"],
+  ["Physician", "Physician"],
+  ["HealthAndBeautyBusiness", "Health and beauty"],
+  ["RealEstateAgent", "Real estate agent"],
+  ["HomeAndConstructionBusiness", "Home and construction"],
+  ["AutomotiveBusiness", "Automotive"],
+  ["LodgingBusiness", "Lodging"],
+  ["SportsActivityLocation", "Sports and fitness"],
+  ["EntertainmentBusiness", "Entertainment"],
+] as const;
+
+export const SEO_DAYS = [
+  ["mon", "Monday"],
+  ["tue", "Tuesday"],
+  ["wed", "Wednesday"],
+  ["thu", "Thursday"],
+  ["fri", "Friday"],
+  ["sat", "Saturday"],
+  ["sun", "Sunday"],
+] as const;
+
+/** Business details, marked up as schema.org LocalBusiness on the home page. */
+export interface SeoLocal {
+  enabled: boolean;
+  type: string;
+  name: string;
+  phone: string;
+  email: string;
+  logo: string;
+  image: string;
+  street: string;
+  city: string;
+  region: string;
+  postal: string;
+  country: string;
+  latitude: string;
+  longitude: string;
+  price_range: string;
+  /** Opening hours by day key (mon to sun, 24 hour HH:MM); a missing day is closed. */
+  hours: Record<string, { open: string; close: string }>;
+  same_as: string[];
+}
+
 /** The SEO options KontrolWP Connect applies to a site's pages. */
 export interface SeoSettings {
   enabled: boolean;
@@ -709,6 +761,7 @@ export interface SeoSettings {
   noindex_date: boolean;
   canonical: boolean;
   sitemap: boolean;
+  local: SeoLocal;
 }
 
 export interface SiteSeo {

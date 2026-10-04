@@ -975,7 +975,27 @@ api.get("/sites/:id/seo", async (c) => {
 });
 
 const seoText = (max: number) => z.string().max(max);
+const seoLocalBody = z.object({
+  enabled: z.boolean(),
+  type: seoText(60),
+  name: seoText(200),
+  phone: seoText(200),
+  email: seoText(200),
+  logo: seoText(2000),
+  image: seoText(2000),
+  street: seoText(200),
+  city: seoText(200),
+  region: seoText(200),
+  postal: seoText(200),
+  country: seoText(200),
+  latitude: seoText(30),
+  longitude: seoText(30),
+  price_range: seoText(200),
+  hours: z.record(z.string(), z.object({ open: seoText(5), close: seoText(5) })),
+  same_as: z.array(seoText(2000)).max(20),
+});
 const seoSettingsBody = z.object({
+  local: seoLocalBody,
   enabled: z.boolean(),
   separator: z.enum(SEO_SEPARATORS),
   title_template: seoText(200),

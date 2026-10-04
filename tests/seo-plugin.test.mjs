@@ -88,3 +88,66 @@ test("a noindex page has no canonical, and switches turn tag groups off", { skip
   assert.match(noImage, /twitter:card" content="summary"/);
   assert.ok(!noImage.includes("og:image"));
 });
+
+const business = {
+  enabled: true,
+  type: "Dentist",
+  name: "Smile Co",
+  phone: "+1 555 0100",
+  street: "1 Main St",
+  city: "Austin",
+  postal: "78701",
+  country: "US",
+  latitude: "30.2672",
+  longitude: "-97.7431",
+  hours: {
+    mon: { open: "09:00", close: "17:00" },
+    tue: { open: "9:00", close: "17:00" },
+    sun: { open: "", close: "" },
+  },
+  same_as: ["https://facebook.com/smile", "javascript:alert(1)", "https://facebook.com/smile"],
+};
+
+test("business details are cleaned: bad types, times, coordinates and links are dropped", { skip }, () => {
+  const out = call("clean_local", { ...business, type: "Hacker", latitude: "200", extra: 1 });
+  assert.equal(out.type, "LocalBusiness");
+  assert.equal(out.latitude, "");
+  assert.equal(out.longitude, "-97.7431");
+  assert.deepEqual(out.hours, { mon: { open: "09:00", close: "17:00" } });
+  assert.deepEqual(out.same_as, ["https://facebook.com/smile"]);
+  assert.equal("extra" in out, false);
+  assert.equal(call("clean_local", business).type, "Dentist");
+});
+
+test("business schema needs a name and a phone or street, and describes the business", { skip }, () => {
+  const local = call("clean_local", business);
+  const schema = call("business_schema", local, "Acme", "https://a.test/");
+  assert.equal(schema["@type"], "Dentist");
+  assert.equal(schema.name, "Smile Co");
+  assert.equal(schema.address.streetAddress, "1 Main St");
+  assert.deepEqual(schema.geo, { "@type": "GeoCoordinates", latitude: 30.2672, longitude: -97.7431 });
+  assert.equal(schema.openingHoursSpecification.length, 1);
+  assert.equal(schema.openingHoursSpecification[0].dayOfWeek, "Monday");
+  assert.deepEqual(schema.sameAs, ["https://facebook.com/smile"]);
+  const bare = call("clean_local", { name: "Only a name" });
+  assert.equal(call("business_schema", bare, "Acme", "https://a.test/"), null);
+  const named = call("clean_local", { phone: "555" });
+  assert.equal(call("business_schema", named, "Acme", "https://a.test/").name, "Acme");
+});
+
+test("the home page carries the business schema when switched on, and other pages do not", { skip }, () => {
+  const settings = { ...defaults, local: call("clean_local", business) };
+  const home = call("head_html", settings, {
+    ...page,
+    kind: "home",
+    title: "Home",
+    description: "",
+    url: "https://a.test/",
+  });
+  assert.match(home, /<script type="application\/ld\+json">\{"@context":"https:\/\/schema\.org","@type":"Dentist"/);
+  assert.ok(!call("head_html", settings, page).includes("ld+json"));
+  assert.ok(!call("head_html", defaults, { ...page, kind: "home" }).includes("ld+json"));
+  const evil = call("clean_local", { ...business, name: "</script><script>alert(1)</script>" });
+  const out = call("head_html", { ...defaults, local: evil }, { ...page, kind: "home" });
+  assert.ok(!out.includes("</script><script>"));
+});
