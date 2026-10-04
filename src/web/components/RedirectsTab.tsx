@@ -514,8 +514,9 @@ function AutoSection(props: { site: SiteSummary; auto?: AutoRedirectSettings }) 
             <p className="flex items-center gap-1.5 text-sm font-medium">
               When content is deleted or trashed
               <HelpTip>
-                Moving content back out of the trash removes the rule made when it went in. Publishing new content at an
-                address removes an automatic rule from that address.
+                This also applies to deleted categories, tags and other terms. Moving content back out of the trash
+                removes the rule made when it went in. Publishing new content at an address removes an automatic rule
+                from that address.
               </HelpTip>
             </p>
             <select
