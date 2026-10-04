@@ -35,6 +35,7 @@ class KontrolWP_Connect_SEO_Content {
 		'external_new_tab'  => false,
 		'external_nofollow' => false,
 		'image_alt'         => true,
+		'image_title'       => false,
 		'feed_footer'       => self::DEFAULT_FEED_FOOTER,
 	);
 
@@ -72,7 +73,7 @@ class KontrolWP_Connect_SEO_Content {
 	/** Settings from untrusted input: only known keys of the right shape. */
 	public static function clean( $input ) {
 		$out = self::DEFAULTS;
-		foreach ( array( 'schema', 'article_schema', 'breadcrumbs', 'external_new_tab', 'external_nofollow', 'image_alt' ) as $key ) {
+		foreach ( array( 'schema', 'article_schema', 'breadcrumbs', 'external_new_tab', 'external_nofollow', 'image_alt', 'image_title' ) as $key ) {
 			if ( array_key_exists( $key, $input ) ) {
 				$out[ $key ] = (bool) $input[ $key ];
 			}
@@ -142,6 +143,18 @@ class KontrolWP_Connect_SEO_Content {
 			return '';
 		}
 		return $text;
+	}
+
+	/**
+	 * A title attribute for an image: its media library title, or its file name
+	 * when the title is only a camera name. Empty when neither says anything.
+	 */
+	public static function image_title_text( $post_title, $file_name ) {
+		$text = self::alt_from_title( $post_title );
+		if ( '' !== $text ) {
+			return $text;
+		}
+		return self::alt_from_title( preg_replace( '/\.[A-Za-z0-9]{2,5}$/', '', (string) $file_name ) );
 	}
 
 	/** The feed footer with its tokens filled in. */
@@ -300,8 +313,11 @@ class KontrolWP_Connect_SEO_Content {
 			add_action( 'wp_head', array( __CLASS__, 'print_schema' ), 3 );
 		}
 		add_shortcode( 'kontrolwp_breadcrumbs', array( __CLASS__, 'shortcode' ) );
-		if ( $settings['external_new_tab'] || $settings['external_nofollow'] || $settings['image_alt'] ) {
+		if ( $settings['external_new_tab'] || $settings['external_nofollow'] || $settings['image_alt'] || $settings['image_title'] ) {
 			add_filter( 'the_content', array( __CLASS__, 'filter_content' ), 20 );
+		}
+		if ( $settings['image_title'] ) {
+			add_filter( 'wp_get_attachment_image_attributes', array( __CLASS__, 'filter_image_attributes' ), 20, 2 );
 		}
 		if ( '' !== $settings['feed_footer'] ) {
 			add_filter( 'the_content_feed', array( __CLASS__, 'filter_feed' ) );
@@ -467,10 +483,18 @@ class KontrolWP_Connect_SEO_Content {
 						$tags->set_attribute( 'rel', self::merge_rel( is_string( $existing ) ? $existing : '', $rel ) );
 					}
 				}
-			} elseif ( 'IMG' === $tag && $settings['image_alt'] && null === $tags->get_attribute( 'alt' ) ) {
-				$alt = self::alt_for_image( (string) $tags->get_attribute( 'class' ) );
-				if ( '' !== $alt ) {
-					$tags->set_attribute( 'alt', $alt );
+			} elseif ( 'IMG' === $tag ) {
+				if ( $settings['image_alt'] && null === $tags->get_attribute( 'alt' ) ) {
+					$alt = self::alt_for_image( (string) $tags->get_attribute( 'class' ) );
+					if ( '' !== $alt ) {
+						$tags->set_attribute( 'alt', $alt );
+					}
+				}
+				if ( $settings['image_title'] && null === $tags->get_attribute( 'title' ) ) {
+					$title = self::title_for_image( (string) $tags->get_attribute( 'class' ) );
+					if ( '' !== $title ) {
+						$tags->set_attribute( 'title', $title );
+					}
 				}
 			}
 		}
@@ -487,6 +511,30 @@ class KontrolWP_Connect_SEO_Content {
 			return $alt;
 		}
 		return self::alt_from_title( get_the_title( (int) $m[1] ) );
+	}
+
+	/** A title attribute for an image from the media library, found by the wp-image-ID class. */
+	private static function title_for_image( $class ) {
+		if ( ! preg_match( '/\bwp-image-(\d+)\b/', $class, $m ) ) {
+			return '';
+		}
+		return self::title_for_attachment( (int) $m[1] );
+	}
+
+	private static function title_for_attachment( $id ) {
+		$file = get_attached_file( $id );
+		return self::image_title_text( get_the_title( $id ), $file ? wp_basename( $file ) : '' );
+	}
+
+	/** Images a theme prints with wp_get_attachment_image, such as featured images, get the same title. */
+	public static function filter_image_attributes( $attr, $attachment ) {
+		if ( is_array( $attr ) && empty( $attr['title'] ) && $attachment && isset( $attachment->ID ) ) {
+			$title = self::title_for_attachment( (int) $attachment->ID );
+			if ( '' !== $title ) {
+				$attr['title'] = $title;
+			}
+		}
+		return $attr;
 	}
 
 	/** Add the footer to a feed item. */

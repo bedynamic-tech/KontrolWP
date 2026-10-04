@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { compareVersions, SEO_CONTENT_SINCE } from "../../shared/plugin-version";
+import { compareVersions, SEO_ARCHIVES_SINCE, SEO_CONTENT_SINCE } from "../../shared/plugin-version";
 import {
   MAX_SCHEMA_LINKS,
   SEO_BREADCRUMB_SEPARATORS,
@@ -20,6 +20,7 @@ import { CheckRow, Row, Warning } from "./ToolsTab";
 export function SeoContentTab(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
+  const titles = !!site.plugin_version && compareVersions(site.plugin_version, SEO_ARCHIVES_SINCE) >= 0;
   const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_CONTENT_SINCE) >= 0;
   const content = useQuery({
     queryKey: ["site", site.id, "seo", "content"],
@@ -235,6 +236,14 @@ export function SeoContentTab(props: { site: SiteSummary }) {
             checked={draft.image_alt}
             onChange={(value) => set("image_alt", value)}
           />
+          {titles && (
+            <CheckRow
+              title="Add title attributes to images"
+              hint="Images with no title attribute get the title from the media library, or else a readable version of the file name, so a tooltip shows when someone hovers over the image. This is off by default because it does little for search and tooltips are not read reliably by assistive technology. Alt text is what matters for accessibility and search, so use the setting above first."
+              checked={!!draft.image_title}
+              onChange={(value) => set("image_title", value)}
+            />
+          )}
         </div>
       </Section>
 

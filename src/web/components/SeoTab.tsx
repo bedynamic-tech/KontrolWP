@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { compareVersions, SEO_INDEXING_SINCE, SEO_SINCE } from "../../shared/plugin-version";
+import { compareVersions, SEO_ARCHIVES_SINCE, SEO_INDEXING_SINCE, SEO_SINCE } from "../../shared/plugin-version";
 import {
   SEO_BUSINESS_TYPES,
   SEO_DAYS,
@@ -104,7 +104,7 @@ export function fillTemplate(
 ): string {
   return template
     .replace(
-      /%(title|sitename|tagline|sep)%/g,
+      /%(title|sitename|tagline|sep|excerpt)%/g,
       (_, name: string) => vars[name] ?? "",
     )
     .replace(/\s+/g, " ")
@@ -807,7 +807,14 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
   }
   const data = seo.data!;
   const indexing = compareVersions(site.plugin_version ?? "0", SEO_INDEXING_SINCE) >= 0;
+  const archives = compareVersions(site.plugin_version ?? "0", SEO_ARCHIVES_SINCE) >= 0;
   const dirty = JSON.stringify(draft) !== JSON.stringify(data.settings);
+  const setTypeTemplate = (name: string, field: "title" | "description", value: string) => {
+    const current = draft.type_templates[name] ?? { title: "", description: "" };
+    const next = { ...draft.type_templates, [name]: { ...current, [field]: value } };
+    if (!next[name].title && !next[name].description) delete next[name];
+    setDraft({ ...draft, type_templates: next });
+  };
   const set = <K extends keyof SeoSettings>(key: K, value: SeoSettings[K]) =>
     setDraft({ ...draft, [key]: value });
   const vars = {
@@ -951,6 +958,38 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
         </div>
       </Section>
 
+      {archives && data.post_types.length > 0 && (
+        <Section
+          title="Templates by content type"
+          hint="Give a content type its own title and description pattern, such as a product or a case study. A type left empty uses the page title template above, and the description comes from the excerpt or the start of the page. A page's own title or description always wins. Tokens: %title%, %sitename%, %tagline%, %sep%, and %excerpt% (the page's excerpt or opening text, for descriptions)."
+        >
+          <div className="divide-y">
+            {data.post_types.map((item) => {
+              const own = draft.type_templates[item.name] ?? { title: "", description: "" };
+              const sample = fillTemplate(own.title || draft.title_template, { ...vars, title: "Sample title", excerpt: "The opening of the page." });
+              return (
+                <div key={item.name} className="grid gap-2 px-4 py-3">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <Input
+                    aria-label={`${item.label} title template`}
+                    value={own.title}
+                    onChange={(event) => setTypeTemplate(item.name, "title", event.target.value)}
+                    placeholder={draft.title_template}
+                  />
+                  <Input
+                    aria-label={`${item.label} description template`}
+                    value={own.description}
+                    onChange={(event) => setTypeTemplate(item.name, "description", event.target.value)}
+                    placeholder="Empty uses the excerpt"
+                  />
+                  <p className="text-xs text-muted-foreground">Title looks like: {sample}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
       <Section title="Social sharing">
         <div className="divide-y">
           <CheckRow
@@ -1012,6 +1051,23 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
             checked={draft.noindex_search}
             onChange={(value) => set("noindex_search", value)}
           />
+          {archives && (
+            <Row
+              title="Author archives"
+              detail="Switch author pages off completely. They are also left out of the XML sitemap. Redirecting sends visitors and search engines to the home page with a permanent redirect; not found shows the site's 404 page. Pick this on a one-author site, where the author page repeats the blog."
+            >
+              <select
+                aria-label="Author archives"
+                className={SELECT_CLASS}
+                value={draft.author_archives}
+                onChange={(event) => set("author_archives", event.target.value as SeoSettings["author_archives"])}
+              >
+                <option value="keep">Keep them</option>
+                <option value="redirect">Redirect to the home page</option>
+                <option value="404">Show not found</option>
+              </select>
+            </Row>
+          )}
           <CheckRow
             title="Hide author pages"
             detail="Useful on sites with one author, where the author page repeats the blog."
@@ -1085,6 +1141,31 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
             checked={draft.sitemap}
             onChange={(value) => set("sitemap", value)}
           />
+          {archives && data.category && (
+            <>
+              <CheckRow
+                title="Leave the category base out of category addresses"
+                detail={`Turns ${data.category.old || "/category/news/"} into ${data.category.new || "/news/"}. The old addresses redirect to the new ones with a permanent redirect, so links and rankings carry over. A category whose short address is already used by a page keeps its old address. Turning this off later makes the short addresses stop working, so decide before you start linking to them.`}
+                checked={draft.strip_category_base}
+                onChange={(value) => set("strip_category_base", value)}
+              />
+              {draft.strip_category_base && !data.category.supported && (
+                <p className="px-4 py-3 text-sm text-muted-foreground">
+                  This site has nothing to shorten yet: it needs pretty permalinks and at least one category.
+                </p>
+              )}
+              {data.category.supported && (
+                <p className="break-all px-4 py-3 text-xs text-muted-foreground">
+                  Example: {data.category.old} becomes {data.category.new}
+                </p>
+              )}
+              {draft.strip_category_base && data.category.skipped.length > 0 && (
+                <p className="px-4 py-3 text-xs text-muted-foreground">
+                  These keep their old address because a page already uses the short one: {data.category.skipped.join(", ")}.
+                </p>
+              )}
+            </>
+          )}
         </div>
       </Section>
 

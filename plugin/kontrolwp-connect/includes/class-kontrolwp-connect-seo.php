@@ -111,6 +111,9 @@ class KontrolWP_Connect_SEO {
 		'canonical'          => true,
 		'sitemap'            => true,
 		'local'              => self::LOCAL_DEFAULTS,
+		'strip_category_base' => false,
+		'author_archives'    => 'keep',
+		'type_templates'     => array(),
 	);
 
 	/**
@@ -246,8 +249,47 @@ class KontrolWP_Connect_SEO {
 				$out[ $key ] = array_values( array_unique( $names ) );
 			}
 		}
+		if ( isset( $input['strip_category_base'] ) ) {
+			$out['strip_category_base'] = (bool) $input['strip_category_base'];
+		}
+		if ( isset( $input['author_archives'] ) && in_array( $input['author_archives'], array( 'keep', 'redirect', '404' ), true ) ) {
+			$out['author_archives'] = $input['author_archives'];
+		}
+		if ( isset( $input['type_templates'] ) && is_array( $input['type_templates'] ) ) {
+			$out['type_templates'] = self::clean_type_templates( $input['type_templates'] );
+		}
 		$out['local'] = self::clean_local( isset( $input['local'] ) && is_array( $input['local'] ) ? $input['local'] : array() );
 		return $out;
+	}
+
+	/** Title and description templates by content type: only valid type names, only filled-in templates, at most 50 types. Pure. */
+	public static function clean_type_templates( $input ) {
+		$out = array();
+		foreach ( array_slice( $input, 0, 50, true ) as $name => $item ) {
+			if ( ! is_string( $name ) || ! preg_match( '/^[a-z0-9_-]{1,32}$/', $name ) || ! is_array( $item ) ) {
+				continue;
+			}
+			$title       = isset( $item['title'] ) && is_string( $item['title'] ) ? self::line( $item['title'], 200 ) : '';
+			$description = isset( $item['description'] ) && is_string( $item['description'] ) ? self::line( $item['description'], 320 ) : '';
+			if ( '' !== $title || '' !== $description ) {
+				$out[ $name ] = array(
+					'title'       => $title,
+					'description' => $description,
+				);
+			}
+		}
+		return $out;
+	}
+
+	/** The title template for a content type: its own when it has one, else the site-wide one. Pure. */
+	public static function title_template_for( $settings, $post_type ) {
+		$own = isset( $settings['type_templates'][ $post_type ]['title'] ) ? $settings['type_templates'][ $post_type ]['title'] : '';
+		return '' !== $own ? $own : $settings['title_template'];
+	}
+
+	/** The description template for a content type, or an empty string when the description comes from the excerpt. Pure. */
+	public static function description_template_for( $settings, $post_type ) {
+		return isset( $settings['type_templates'][ $post_type ]['description'] ) ? $settings['type_templates'][ $post_type ]['description'] : '';
 	}
 
 	/** The business settings: on or off, and a list of locations. Pure. Settings saved before locations existed held one business and become one location. */
@@ -481,7 +523,7 @@ class KontrolWP_Connect_SEO {
 	/** Fill a title template. Unknown tokens are dropped. */
 	public static function fill_template( $template, $vars ) {
 		$out = preg_replace_callback(
-			'/%(title|sitename|tagline|sep)%/',
+			'/%(title|sitename|tagline|sep|excerpt)%/',
 			function ( $m ) use ( $vars ) {
 				return isset( $vars[ $m[1] ] ) ? $vars[ $m[1] ] : '';
 			},
@@ -638,7 +680,7 @@ class KontrolWP_Connect_SEO {
 			return $provider;
 		}
 		$settings = self::settings();
-		$hidden   = $settings['noindex_author'] || ( $settings['noindex_author_single'] && self::single_author() );
+		$hidden   = 'keep' !== $settings['author_archives'] || $settings['noindex_author'] || ( $settings['noindex_author_single'] && self::single_author() );
 		return $hidden ? false : $provider;
 	}
 
@@ -781,13 +823,18 @@ class KontrolWP_Connect_SEO {
 		}
 		$custom_title = (string) get_post_meta( $post_id, self::META_TITLE, true );
 		$custom_desc  = (string) get_post_meta( $post_id, self::META_DESCRIPTION, true );
-		$vars['title'] = html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' );
-		$page['title'] = self::fill_template( '' !== $custom_title ? $custom_title : $settings['title_template'], $vars );
+		$source        = '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
+		$excerpt       = self::trim_description( $source );
+		$vars['title']   = html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' );
+		$vars['excerpt'] = $excerpt;
+		$page['title'] = self::fill_template( '' !== $custom_title ? $custom_title : self::title_template_for( $settings, $post->post_type ), $vars );
+		$desc_template = self::description_template_for( $settings, $post->post_type );
 		if ( '' !== $custom_desc ) {
 			$page['description'] = $custom_desc;
+		} elseif ( '' !== $desc_template && '' !== self::fill_template( $desc_template, $vars ) ) {
+			$page['description'] = self::trim_description( self::fill_template( $desc_template, $vars ) );
 		} else {
-			$source              = '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
-			$page['description'] = self::trim_description( $source );
+			$page['description'] = $excerpt;
 		}
 		$page['post_id'] = $post_id;
 		$page['url']     = (string) get_permalink( $post );
@@ -816,6 +863,7 @@ class KontrolWP_Connect_SEO {
 			// WordPress's own "Discourage search engines" switch; when set, every page is noindex whatever is said here.
 			'discouraged' => '0' === (string) get_option( 'blog_public', '1' ),
 			'location_pages' => self::location_pages(),
+			'category'       => KontrolWP_Connect_SEO_Archives::category_report(),
 			'post_types'     => self::public_names( get_post_types( array( 'public' => true ), 'objects' ), array( 'attachment' ) ),
 			'taxonomies'     => self::public_names( get_taxonomies( array( 'public' => true ), 'objects' ), array( 'post_format' ) ),
 		);
@@ -856,7 +904,12 @@ class KontrolWP_Connect_SEO {
 		$body = $request->get_json_params();
 		$body = is_array( $body ) ? $body : array();
 		$new  = self::clean( $body );
+		$old  = self::settings();
 		update_option( self::OPTION, $new, true );
+		// The category rewrite rules are stored, so a change to them is rebuilt now rather than at the next edit.
+		if ( $old['strip_category_base'] !== $new['strip_category_base'] || $old['enabled'] !== $new['enabled'] ) {
+			KontrolWP_Connect_SEO_Archives::flush();
+		}
 		return self::report();
 	}
 

@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.21.1";
+export const KONTROLWP_CONNECT_VERSION = "0.22.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -78,3 +78,6 @@ export const SEO_TOOLS_SINCE = "0.20.0";
 
 /** Site schema, breadcrumbs, link rules, image alt text and the feed footer arrived in this version. */
 export const SEO_CONTENT_SINCE = "0.21.0";
+
+/** Short category addresses, switching author archives off, image title attributes and per-type templates arrived in this version. */
+export const SEO_ARCHIVES_SINCE = "0.22.0";
