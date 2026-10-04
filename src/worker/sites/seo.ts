@@ -1,8 +1,60 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version.ts";
-import type { SeoPageChange, SeoPages, SeoSettings, SiteSeo, SiteSummary } from "../../shared/types.ts";
+import type {
+  SeoLocal,
+  SeoLocation,
+  SeoPageChange,
+  SeoPages,
+  SeoSettings,
+  SiteSeo,
+  SiteSummary,
+} from "../../shared/types.ts";
 import { cachedRead, clearContentCache } from "../content-cache.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
+
+/**
+ * A report in the shape the dashboard draws, whatever stored it: an answer
+ * kept before locations existed, or one from a plugin that still sends a
+ * single business, would otherwise break the SEO tab when it renders.
+ */
+export function normalizeSeo(report: SiteSeo): SiteSeo {
+  const local = (report.settings?.local ?? {}) as Partial<SeoLocal> & Partial<SeoLocation>;
+  let locations: SeoLocation[] = [];
+  if (Array.isArray(local.locations)) locations = local.locations;
+  else if (local.name || local.phone || local.street)
+    locations = [{ ...emptyLocation(), ...local, id: "loc1" } as SeoLocation];
+  return {
+    ...report,
+    settings: {
+      ...report.settings,
+      local: { enabled: !!local.enabled, locations: locations.map((item) => ({ ...emptyLocation(), ...item })) },
+    },
+    location_pages: report.location_pages && !Array.isArray(report.location_pages) ? report.location_pages : {},
+  };
+}
+
+function emptyLocation(): SeoLocation {
+  return {
+    id: "",
+    page_id: 0,
+    type: "LocalBusiness",
+    name: "",
+    phone: "",
+    email: "",
+    logo: "",
+    image: "",
+    street: "",
+    city: "",
+    region: "",
+    postal: "",
+    country: "",
+    latitude: "",
+    longitude: "",
+    price_range: "",
+    hours: {},
+    same_as: [],
+  };
+}
 
 export class SeoError extends Error {
   readonly status: 400 | 502;
@@ -38,7 +90,7 @@ async function call<T>(credentials: SiteCredentials, path: string, body?: unknow
 /** The site's SEO settings, and whether another SEO plugin is in the way. */
 export async function siteSeo(env: Env, site: SiteSummary, credentials: SiteCredentials | null): Promise<SiteSeo> {
   const creds = requireSupported(site, credentials);
-  return cachedRead(env.DB, site.id, "seo", "settings", () => call<SiteSeo>(creds, "/seo"));
+  return normalizeSeo(await cachedRead(env.DB, site.id, "seo", "settings", () => call<SiteSeo>(creds, "/seo")));
 }
 
 export async function saveSeoSettings(
@@ -51,7 +103,7 @@ export async function saveSeoSettings(
   const saved = await call<SiteSeo>(creds, "/seo/settings", settings);
   // Cached copies of pages may show the old tags; forget everything kept for the site.
   await clearContentCache(env.DB, site.id);
-  return saved;
+  return normalizeSeo(saved);
 }
 
 /** Published pages with their SEO overrides, 20 at a time. */
