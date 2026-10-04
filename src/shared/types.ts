@@ -809,6 +809,54 @@ export interface SeoPages {
   total: number;
 }
 
+export const REDIRECT_CODES = [301, 302, 307, 308, 410, 451] as const;
+export type RedirectCode = (typeof REDIRECT_CODES)[number];
+export const REDIRECT_MATCH_TYPES = ["exact", "prefix", "regex"] as const;
+export type RedirectMatchType = (typeof REDIRECT_MATCH_TYPES)[number];
+export const MAX_REDIRECT_IMPORT = 5000;
+
+/** What a redirect rule is made of, as the dashboard sends it. */
+export interface RedirectInput {
+  source: string;
+  match_type: RedirectMatchType;
+  /** Empty for 410 and 451, which answer without sending the visitor anywhere. */
+  target: string;
+  status_code: RedirectCode;
+  enabled: boolean;
+}
+
+export interface Redirect extends RedirectInput {
+  id: number;
+  hits: number;
+  /** Unix seconds, 0 when never used. */
+  last_hit: number;
+}
+
+export interface SiteRedirects {
+  items: Redirect[];
+  total: number;
+  /** Whether the site records addresses that answered "not found". */
+  log_404: boolean;
+}
+
+export interface NotFoundEntry {
+  path: string;
+  hits: number;
+  last_seen: number;
+  referrer: string;
+}
+
+export interface NotFoundLog {
+  items: NotFoundEntry[];
+  total: number;
+}
+
+export interface RedirectImportResult {
+  added: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
 export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
 

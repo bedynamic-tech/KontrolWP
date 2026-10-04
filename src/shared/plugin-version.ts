@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.15.1";
+export const KONTROLWP_CONNECT_VERSION = "0.16.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -60,3 +60,6 @@ export const ACCESSIBILITY_SINCE = "0.14.0";
 
 /** The first KontrolWP Connect that serves the SEO tab as it is today (0.15.0 had a one-business Local SEO shape). */
 export const SEO_SINCE = "0.15.1";
+
+/** Redirections (rules, hit counts, 404 log) arrived in this version. */
+export const SEO_REDIRECTS_SINCE = "0.16.0";
