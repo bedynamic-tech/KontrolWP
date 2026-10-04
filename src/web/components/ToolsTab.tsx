@@ -47,14 +47,29 @@ export function Warning(props: { children: ReactNode }) {
   );
 }
 
+/** Whether the saved file is really being served, as seen from outside. */
+function LiveCheck(props: { check?: { ok: boolean; detail: string }; dirty: boolean }) {
+  if (!props.check || props.dirty) return null;
+  return (
+    <p
+      className={`border-t px-4 py-3 text-sm ${props.check.ok ? "text-muted-foreground" : "text-yellow-900 dark:text-yellow-200"}`}
+    >
+      {props.check.ok ? "Checked from outside the site: " : "Not working yet: "}
+      {props.check.detail}
+    </p>
+  );
+}
+
 function Preview(props: { label: string; text: string; href: string }) {
   return (
     <div className="border-t px-4 py-3">
       <p className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
         {props.label}
-        <a href={props.href} target="_blank" rel="noreferrer" className="underline">
-          Open
-        </a>
+        {props.href && (
+          <a href={props.href} target="_blank" rel="noreferrer" className="underline">
+            Open
+          </a>
+        )}
       </p>
       <pre className="max-h-48 overflow-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
         {props.text || "(empty)"}
@@ -220,6 +235,7 @@ export function ToolsTab(props: { site: SiteSummary }) {
             whatever is written here.
           </Warning>
         )}
+        <LiveCheck check={data.live?.robots} dirty={dirty} />
         <Preview
           label={
             draft.robots_mode === "custom" && dirty ? "WordPress default (custom is used once saved)" : "Current file"
@@ -265,7 +281,14 @@ export function ToolsTab(props: { site: SiteSummary }) {
             </p>
           </div>
         )}
-        {draft.llms_mode === "auto" && <Preview label="What it will say" text={data.llms_auto} href={data.urls.llms} />}
+        {draft.llms_mode === "auto" && (
+          <Preview
+            label="What it will say"
+            text={data.llms_auto}
+            href={data.settings.llms_mode !== "off" && !dirty ? data.urls.llms : ""}
+          />
+        )}
+        <LiveCheck check={data.live?.llms} dirty={dirty} />
       </Section>
 
       <Section

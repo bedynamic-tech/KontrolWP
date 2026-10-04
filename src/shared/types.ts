@@ -956,6 +956,15 @@ export interface SeoTools {
   robots_default: string;
   llms_auto: string;
   urls: { robots: string; llms: string };
+  /** What the dashboard saw when it asked the live site for each saved file; absent when the file is not in use. */
+  live?: { llms?: SeoFileCheck; robots?: SeoFileCheck };
+}
+
+/** The result of fetching one of a site's files from the public internet. */
+export interface SeoFileCheck {
+  ok: boolean;
+  /** What happened, in a sentence the dashboard can show. */
+  detail: string;
 }
 
 export const MAX_ROBOTS_TEXT = 5000;
