@@ -931,6 +931,36 @@ export interface SeoMigrationResult {
   redirects: RedirectImportResult;
 }
 
+export const SEO_VERIFY_SERVICES = ["google", "bing", "yandex", "baidu", "pinterest"] as const;
+export type SeoVerifyService = (typeof SEO_VERIFY_SERVICES)[number];
+
+/** Verification codes, robots.txt, llms.txt and IndexNow. */
+export interface SeoToolsSettings {
+  /** The code from each service, or a whole meta tag (the plugin keeps just the code). */
+  verify: Record<SeoVerifyService, string>;
+  robots_mode: "default" | "custom";
+  robots_text: string;
+  llms_mode: "off" | "auto" | "custom";
+  llms_text: string;
+  indexnow: boolean;
+}
+
+export interface SeoTools {
+  settings: SeoToolsSettings;
+  /** Another SEO plugin is active, so none of this is applied. */
+  conflict: string;
+  /** WordPress is set to discourage search engines, which keeps its own robots.txt. */
+  public: boolean;
+  /** A real robots.txt file sits in the site folder, so WordPress never gets to answer. */
+  robots_file_exists: boolean;
+  robots_default: string;
+  llms_auto: string;
+  urls: { robots: string; llms: string };
+}
+
+export const MAX_ROBOTS_TEXT = 5000;
+export const MAX_LLMS_TEXT = 20000;
+
 export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
 

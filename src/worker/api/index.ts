@@ -24,6 +24,7 @@ import type {
   SiteContent,
   RedirectCode,
   SeoPages,
+  SeoTools,
   SiteAccessibility,
   SiteSeo,
   SiteSummary,
@@ -34,7 +35,9 @@ import type {
   UmamiSettings,
 } from "../../shared/types.ts";
 import {
+  MAX_LLMS_TEXT,
   MAX_REDIRECT_IMPORT,
+  MAX_ROBOTS_TEXT,
   MAX_SEO_LOCATIONS,
   REDIRECT_CODES,
   REDIRECT_DELETE_ACTIONS,
@@ -110,6 +113,7 @@ import {
   saveRedirect,
   setRedirectSettings,
 } from "../sites/redirects.ts";
+import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../sites/seo.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import {
@@ -1079,6 +1083,32 @@ api.put("/sites/:id/seo/pages/:pageId", async (c) => {
     await saveSeoPage(c.env, site, credentials, pageId, parsed.data);
     return c.json({ ok: true });
   });
+});
+
+/** Verification codes, robots.txt, llms.txt and IndexNow for one site. */
+api.get("/sites/:id/seo/tools", async (c) =>
+  redirectsCall(c, (site, credentials) => siteSeoTools(site, credentials) as Promise<SeoTools>),
+);
+
+const seoToolsBody = z.object({
+  verify: z.object({
+    google: z.string().max(400),
+    bing: z.string().max(400),
+    yandex: z.string().max(400),
+    baidu: z.string().max(400),
+    pinterest: z.string().max(400),
+  }),
+  robots_mode: z.enum(["default", "custom"]),
+  robots_text: z.string().max(MAX_ROBOTS_TEXT),
+  llms_mode: z.enum(["off", "auto", "custom"]),
+  llms_text: z.string().max(MAX_LLMS_TEXT),
+  indexnow: z.boolean(),
+});
+
+api.put("/sites/:id/seo/tools", async (c) => {
+  const parsed = seoToolsBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid settings" }, 400);
+  return redirectsCall(c, (site, credentials) => saveSeoTools(site, credentials, parsed.data));
 });
 
 const redirectRule = z.object({
