@@ -1,6 +1,7 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { compareVersions, SEO_TOOLS_SINCE } from "../../shared/plugin-version.ts";
 import type { SeoFileCheck, SeoTools, SeoToolsSettings, SiteSummary } from "../../shared/types.ts";
+import { cachedRead, clearContentCache } from "../content-cache.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { SeoError } from "./seo.ts";
 
@@ -25,9 +26,14 @@ async function call<T>(credentials: SiteCredentials, path: string, body: unknown
   }
 }
 
-/** The site's verification codes, robots.txt and llms.txt settings. Not cached: the previews must match the site. */
-export async function siteSeoTools(site: SiteSummary, credentials: SiteCredentials | null): Promise<SeoTools> {
-  const tools = await call<SeoTools>(requireSupported(site, credentials), "/seo/tools", {});
+/**
+ * The site's verification codes, robots.txt and llms.txt settings. The
+ * settings and previews are kept like the other modules' and cleared by a sync
+ * or a save; the checks that the files are really served always run live.
+ */
+export async function siteSeoTools(env: Env, site: SiteSummary, credentials: SiteCredentials | null): Promise<SeoTools> {
+  const creds = requireSupported(site, credentials);
+  const tools = await cachedRead(env.DB, site.id, "seo", "tools", () => call<SeoTools>(creds, "/seo/tools", {}));
   return withLiveChecks(tools);
 }
 
@@ -70,9 +76,12 @@ async function withLiveChecks(tools: SeoTools): Promise<SeoTools> {
 }
 
 export async function saveSeoTools(
+  env: Env,
   site: SiteSummary,
   credentials: SiteCredentials | null,
   settings: SeoToolsSettings,
 ): Promise<SeoTools> {
-  return withLiveChecks(await call<SeoTools>(requireSupported(site, credentials), "/seo/tools/save", settings));
+  const saved = await call<SeoTools>(requireSupported(site, credentials), "/seo/tools/save", settings);
+  await clearContentCache(env.DB, site.id);
+  return withLiveChecks(saved);
 }

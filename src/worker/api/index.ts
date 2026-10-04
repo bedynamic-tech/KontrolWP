@@ -1112,11 +1112,11 @@ api.post("/sites/:id/seo/pages/:pageId/score", async (c) => {
 
 /** Verification codes, robots.txt, llms.txt and IndexNow for one site. */
 api.get("/sites/:id/seo/tools", async (c) =>
-  redirectsCall(c, (site, credentials) => siteSeoTools(site, credentials) as Promise<SeoTools>),
+  redirectsCall(c, (site, credentials) => siteSeoTools(c.env, site, credentials) as Promise<SeoTools>),
 );
 
 /** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */
-api.get("/sites/:id/seo/content", async (c) => redirectsCall(c, (site, credentials) => siteSeoContent(site, credentials)));
+api.get("/sites/:id/seo/content", async (c) => redirectsCall(c, (site, credentials) => siteSeoContent(c.env, site, credentials)));
 
 const seoContentBody = z.object({
   schema: z.boolean(),
@@ -1138,7 +1138,7 @@ const seoContentBody = z.object({
 api.put("/sites/:id/seo/content", async (c) => {
   const parsed = seoContentBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid settings" }, 400);
-  return redirectsCall(c, (site, credentials) => saveSeoContent(site, credentials, parsed.data));
+  return redirectsCall(c, (site, credentials) => saveSeoContent(c.env, site, credentials, parsed.data));
 });
 
 const seoToolsBody = z.object({
@@ -1159,7 +1159,7 @@ const seoToolsBody = z.object({
 api.put("/sites/:id/seo/tools", async (c) => {
   const parsed = seoToolsBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid settings" }, 400);
-  return redirectsCall(c, (site, credentials) => saveSeoTools(site, credentials, parsed.data));
+  return redirectsCall(c, (site, credentials) => saveSeoTools(c.env, site, credentials, parsed.data));
 });
 
 const redirectRule = z.object({
@@ -1190,21 +1190,21 @@ const redirectListBody = z.object({
 api.post("/sites/:id/seo/redirects", async (c) => {
   const query = redirectListBody.parse((await c.req.json().catch(() => null)) ?? {});
   return redirectsCall(c, (site, credentials) =>
-    listRedirects(site, credentials, { ...query, search: query.search.trim() }),
+    listRedirects(c.env, site, credentials, { ...query, search: query.search.trim() }),
   );
 });
 
 api.post("/sites/:id/seo/redirect", async (c) => {
   const parsed = redirectRule.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid redirect" }, 400);
-  return redirectsCall(c, (site, credentials) => saveRedirect(site, credentials, null, parsed.data));
+  return redirectsCall(c, (site, credentials) => saveRedirect(c.env, site, credentials, null, parsed.data));
 });
 
 api.put("/sites/:id/seo/redirects/:ruleId", async (c) => {
   const ruleId = Number(c.req.param("ruleId"));
   const parsed = redirectRule.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success || !Number.isInteger(ruleId) || ruleId < 1) return c.json({ error: "Invalid redirect" }, 400);
-  return redirectsCall(c, (site, credentials) => saveRedirect(site, credentials, ruleId, parsed.data));
+  return redirectsCall(c, (site, credentials) => saveRedirect(c.env, site, credentials, ruleId, parsed.data));
 });
 
 const redirectBulkBody = z.object({
@@ -1216,7 +1216,7 @@ api.post("/sites/:id/seo/redirects/bulk", async (c) => {
   const parsed = redirectBulkBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
   return redirectsCall(c, (site, credentials) =>
-    bulkRedirects(site, credentials, parsed.data.action, parsed.data.ids),
+    bulkRedirects(c.env, site, credentials, parsed.data.action, parsed.data.ids),
   );
 });
 
@@ -1227,7 +1227,7 @@ const redirectImportBody = z.object({
 api.post("/sites/:id/seo/redirects/import", async (c) => {
   const parsed = redirectImportBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid import" }, 400);
-  return redirectsCall(c, (site, credentials) => importRedirects(site, credentials, parsed.data.rows));
+  return redirectsCall(c, (site, credentials) => importRedirects(c.env, site, credentials, parsed.data.rows));
 });
 
 const redirectSettingsBody = z.object({
@@ -1240,21 +1240,21 @@ const redirectSettingsBody = z.object({
 api.put("/sites/:id/seo/redirects-settings", async (c) => {
   const parsed = redirectSettingsBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
-  return redirectsCall(c, (site, credentials) => setRedirectSettings(site, credentials, parsed.data));
+  return redirectsCall(c, (site, credentials) => setRedirectSettings(c.env, site, credentials, parsed.data));
 });
 
 api.post("/sites/:id/seo/404s", async (c) => {
   const { page } = z
     .object({ page: z.number().int().min(1).max(10000).catch(1) })
     .parse((await c.req.json().catch(() => null)) ?? {});
-  return redirectsCall(c, (site, credentials) => listNotFound(site, credentials, page));
+  return redirectsCall(c, (site, credentials) => listNotFound(c.env, site, credentials, page));
 });
 
-api.post("/sites/:id/seo/404s/clear", async (c) => redirectsCall(c, (site, credentials) => clearNotFound(site, credentials)));
+api.post("/sites/:id/seo/404s/clear", async (c) => redirectsCall(c, (site, credentials) => clearNotFound(c.env, site, credentials)));
 
 /** SEO plugins installed on the site whose settings, page values and redirects can be imported. */
 api.get("/sites/:id/seo/migrate", async (c) =>
-  redirectsCall(c, (site, credentials) => listMigrationSources(site, credentials)),
+  redirectsCall(c, (site, credentials) => listMigrationSources(c.env, site, credentials)),
 );
 
 const migrateSource = z.object({ source: z.string().min(1).max(40) });
@@ -1262,7 +1262,7 @@ const migrateSource = z.object({ source: z.string().min(1).max(40) });
 api.post("/sites/:id/seo/migrate/preview", async (c) => {
   const parsed = migrateSource.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
-  return redirectsCall(c, (site, credentials) => previewMigration(site, credentials, parsed.data.source));
+  return redirectsCall(c, (site, credentials) => previewMigration(c.env, site, credentials, parsed.data.source));
 });
 
 const migrateRunBody = migrateSource.extend({ settings: z.boolean(), pages: z.boolean(), redirects: z.boolean() });
