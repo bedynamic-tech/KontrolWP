@@ -659,17 +659,24 @@ function NotFoundSection(props: { site: SiteSummary; logging: boolean; onRedirec
   );
 }
 
-/** Redirect rules for a site, and the log of addresses that were not found. */
-export function RedirectsTab(props: { site: SiteSummary }) {
-  const { site } = props;
-  const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_REDIRECTS_SINCE) >= 0;
-  const [editing, setEditing] = useState<{ rule: Redirect | null; initial: RedirectInput } | null>(null);
-  // Whether the log is on comes with the rule list, so it shares that query.
-  const state = useQuery({
+/** Whether the log is on and the automatic settings come with the rule list, so both views share one query. */
+function useRedirectState(site: SiteSummary, supported: boolean) {
+  return useQuery({
     queryKey: ["site", site.id, "seo", "redirects", 1, "", "state"],
     queryFn: () => fetchRedirects(site.id, { page: 1, search: "", per_page: 1 }),
     enabled: supported,
   });
+}
+
+const supportsRedirects = (site: SiteSummary) =>
+  !!site.plugin_version && compareVersions(site.plugin_version, SEO_REDIRECTS_SINCE) >= 0;
+
+/** Redirect rules for a site, and the settings for making them automatically. */
+export function RedirectsTab(props: { site: SiteSummary }) {
+  const { site } = props;
+  const supported = supportsRedirects(site);
+  const [editing, setEditing] = useState<{ rule: Redirect | null; initial: RedirectInput } | null>(null);
+  const state = useRedirectState(site, supported);
   if (!supported) {
     return (
       <Section title="Redirects">
@@ -701,13 +708,47 @@ export function RedirectsTab(props: { site: SiteSummary }) {
           })
         }
       />
-      <NotFoundSection
-        site={site}
-        logging={!!state.data?.log_404}
-        onRedirect={(path) => setEditing({ rule: null, initial: { ...blankRule(), source: path } })}
-      />
       {editing && (
         <RuleDialog site={site} rule={editing.rule} initial={editing.initial} onClose={() => setEditing(null)} />
+      )}
+    </>
+  );
+}
+
+/** The log of addresses that were not found, with a button to turn one into a redirect. */
+export function NotFoundTab(props: { site: SiteSummary }) {
+  const { site } = props;
+  const supported = supportsRedirects(site);
+  const [creating, setCreating] = useState<string | null>(null);
+  const state = useRedirectState(site, supported);
+  if (!supported) {
+    return (
+      <Section title="Pages not found">
+        <EmptyRow>
+          The 404 log needs KontrolWP Connect {SEO_REDIRECTS_SINCE} or later on this site. It updates automatically;
+          select Sync now to check.
+        </EmptyRow>
+      </Section>
+    );
+  }
+  if (state.isPending) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner className="size-5 text-muted-foreground" label="Loading" />
+      </div>
+    );
+  }
+  if (state.error) return <p className="mt-6 text-sm text-destructive">{state.error.message}</p>;
+  return (
+    <>
+      <NotFoundSection site={site} logging={state.data.log_404} onRedirect={setCreating} />
+      {creating !== null && (
+        <RuleDialog
+          site={site}
+          rule={null}
+          initial={{ ...blankRule(), source: creating }}
+          onClose={() => setCreating(null)}
+        />
       )}
     </>
   );
