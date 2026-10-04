@@ -215,6 +215,8 @@ class KontrolWP_Connect_SEO_Tools {
 		}
 		if ( 'off' !== $settings['llms_mode'] || ( $settings['indexnow'] && '' !== $settings['indexnow_key'] ) ) {
 			add_action( 'parse_request', array( __CLASS__, 'serve_files' ) );
+			// A second chance before WordPress's own redirects, for requests that reach a template without passing parse_request first.
+			add_action( 'template_redirect', array( __CLASS__, 'serve_files' ), 0 );
 		}
 		if ( $settings['indexnow'] && '' !== $settings['indexnow_key'] ) {
 			add_action( 'transition_post_status', array( __CLASS__, 'indexnow_post' ), 20, 3 );

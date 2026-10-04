@@ -40,3 +40,34 @@ test("reads and saves go to the site each time", async () => {
     globalThis.fetch = real;
   }
 });
+
+import { probeFile } from "../src/worker/sites/seo-tools.ts";
+
+async function probeWith(response) {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => response;
+  try {
+    return await probeFile("https://a.test/llms.txt");
+  } finally {
+    globalThis.fetch = real;
+  }
+}
+
+test("a file served as plain text passes the live check", async () => {
+  const check = await probeWith(new Response("# Acme", { headers: { "Content-Type": "text/plain; charset=utf-8" } }));
+  assert.equal(check.ok, true);
+});
+
+test("a redirect is reported with where it goes", async () => {
+  const check = await probeWith(new Response(null, { status: 301, headers: { Location: "https://a.test/" } }));
+  assert.equal(check.ok, false);
+  assert.match(check.detail, /redirects it to https:\/\/a\.test\//);
+});
+
+test("a page or an error is not the file", async () => {
+  assert.match(
+    (await probeWith(new Response("<html>", { headers: { "Content-Type": "text/html" } }))).detail,
+    /text\/html/,
+  );
+  assert.match((await probeWith(new Response("no", { status: 404 }))).detail, /404/);
+});
