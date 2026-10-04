@@ -47,11 +47,17 @@ function DialogOverlay({
   )
 }
 
+/** A phone or tablet: focusing a text box on open would raise the on-screen keyboard over the dialog. */
+function isTouchScreen() {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse), (max-width: 639px)").matches
+}
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
   fullScreenOnMobile = false,
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -63,6 +69,14 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event)
+          // On a touch screen, focus the dialog itself so screen readers still land in it, but no text box.
+          if (!event.defaultPrevented && isTouchScreen()) {
+            event.preventDefault()
+            event.currentTarget instanceof HTMLElement && event.currentTarget.focus({ preventScroll: true })
+          }
+        }}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-y-auto -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
