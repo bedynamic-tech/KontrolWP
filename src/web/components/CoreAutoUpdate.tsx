@@ -28,7 +28,7 @@ export function autoUpdatesSupported(pluginVersion: string | null): boolean {
 }
 
 const SELECT_CLASS =
-  "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
 
 function ModeSelect(props: { id?: string; value: CoreAutoUpdate | ""; onChange: (mode: CoreAutoUpdate) => void; disabled?: boolean }) {
   return (

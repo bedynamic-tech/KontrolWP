@@ -521,7 +521,7 @@ function AutoSection(props: { site: SiteSummary; auto?: AutoRedirectSettings }) 
             </p>
             <select
               aria-label="When content is deleted or trashed"
-              className={`${SELECT_CLASS} sm:w-80`}
+              className={`${SELECT_CLASS} sm:w-80!`}
               value={action}
               onChange={(event) => setAction(event.target.value as RedirectDeleteAction)}
             >
