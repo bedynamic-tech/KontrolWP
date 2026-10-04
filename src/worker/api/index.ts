@@ -22,16 +22,25 @@ import type {
   CloudflareSettings,
   CloudflareWorker,
   SiteContent,
+  RedirectCode,
   SeoPages,
   SiteAccessibility,
   SiteSeo,
+  SiteSummary,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
-import { MAX_SEO_LOCATIONS, SEO_SEPARATORS, UPDATE_FREQUENCIES } from "../../shared/types.ts";
+import {
+  MAX_REDIRECT_IMPORT,
+  MAX_SEO_LOCATIONS,
+  REDIRECT_CODES,
+  REDIRECT_MATCH_TYPES,
+  SEO_SEPARATORS,
+  UPDATE_FREQUENCIES,
+} from "../../shared/types.ts";
 import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
@@ -87,6 +96,15 @@ import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
 import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
+import {
+  bulkRedirects,
+  clearNotFound,
+  importRedirects,
+  listNotFound,
+  listRedirects,
+  saveRedirect,
+  setRedirectSettings,
+} from "../sites/redirects.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../sites/seo.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import {
@@ -1053,6 +1071,88 @@ api.put("/sites/:id/seo/pages/:pageId", async (c) => {
     return c.json({ ok: true });
   });
 });
+
+const redirectRule = z.object({
+  source: z.string().min(1).max(400),
+  match_type: z.enum(REDIRECT_MATCH_TYPES),
+  target: z.string().max(1000),
+  status_code: z.number().refine((code): code is RedirectCode => (REDIRECT_CODES as readonly number[]).includes(code)),
+  enabled: z.boolean(),
+});
+
+/** Run one redirects call for the site in the path, answering with its result. */
+async function redirectsCall(c: Context, run: (site: SiteSummary, credentials: SiteCredentials | null) => Promise<unknown>) {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  return seoResponse(c, async () => c.json((await run(site, credentials)) ?? { ok: true }));
+}
+
+const redirectListBody = z.object({
+  page: z.number().int().min(1).max(10000).catch(1),
+  search: z.string().max(100).catch(""),
+  per_page: z.number().int().min(1).max(100).catch(25),
+  export: z.boolean().catch(false),
+});
+
+/** A page of redirect rules, or all of them to export. POST so a search stays out of the URL. */
+api.post("/sites/:id/seo/redirects", async (c) => {
+  const query = redirectListBody.parse((await c.req.json().catch(() => null)) ?? {});
+  return redirectsCall(c, (site, credentials) =>
+    listRedirects(site, credentials, { ...query, search: query.search.trim() }),
+  );
+});
+
+api.post("/sites/:id/seo/redirect", async (c) => {
+  const parsed = redirectRule.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid redirect" }, 400);
+  return redirectsCall(c, (site, credentials) => saveRedirect(site, credentials, null, parsed.data));
+});
+
+api.put("/sites/:id/seo/redirects/:ruleId", async (c) => {
+  const ruleId = Number(c.req.param("ruleId"));
+  const parsed = redirectRule.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success || !Number.isInteger(ruleId) || ruleId < 1) return c.json({ error: "Invalid redirect" }, 400);
+  return redirectsCall(c, (site, credentials) => saveRedirect(site, credentials, ruleId, parsed.data));
+});
+
+const redirectBulkBody = z.object({
+  action: z.enum(["enable", "disable", "delete"]),
+  ids: z.array(z.number().int().min(1)).min(1).max(MAX_REDIRECT_IMPORT),
+});
+
+api.post("/sites/:id/seo/redirects/bulk", async (c) => {
+  const parsed = redirectBulkBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+  return redirectsCall(c, (site, credentials) =>
+    bulkRedirects(site, credentials, parsed.data.action, parsed.data.ids),
+  );
+});
+
+const redirectImportBody = z.object({
+  rows: z.array(redirectRule.partial()).min(1).max(MAX_REDIRECT_IMPORT),
+});
+
+api.post("/sites/:id/seo/redirects/import", async (c) => {
+  const parsed = redirectImportBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid import" }, 400);
+  return redirectsCall(c, (site, credentials) => importRedirects(site, credentials, parsed.data.rows));
+});
+
+api.put("/sites/:id/seo/redirects-settings", async (c) => {
+  const parsed = z.object({ log_404: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+  return redirectsCall(c, (site, credentials) => setRedirectSettings(site, credentials, parsed.data.log_404));
+});
+
+api.post("/sites/:id/seo/404s", async (c) => {
+  const { page } = z
+    .object({ page: z.number().int().min(1).max(10000).catch(1) })
+    .parse((await c.req.json().catch(() => null)) ?? {});
+  return redirectsCall(c, (site, credentials) => listNotFound(site, credentials, page));
+});
+
+api.post("/sites/:id/seo/404s/clear", async (c) => redirectsCall(c, (site, credentials) => clearNotFound(site, credentials)));
 
 /** Known vulnerabilities and insecure settings on one WordPress site. */
 api.get("/sites/:id/security", async (c) => {

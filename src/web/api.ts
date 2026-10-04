@@ -11,10 +11,14 @@ import type {
   SecurityFix,
   GlobalUpdatePolicy,
   GlobalUpdatePolicyView,
+  NotFoundLog,
+  RedirectImportResult,
+  RedirectInput,
   SeoPageChange,
   SeoPages,
   SeoSettings,
   SiteAccessibility,
+  SiteRedirects,
   SiteSeo,
   SiteUpdatePolicy,
   SiteUpdatePolicyView,
@@ -341,5 +345,23 @@ export const saveSeo = (siteId: number, settings: SeoSettings) =>
   request<SiteSeo>(`/sites/${siteId}/seo`, { method: "PUT", json: settings });
 export const fetchSeoPages = (siteId: number, page: number, search: string) =>
   request<SeoPages>(`/sites/${siteId}/seo/pages`, { method: "POST", json: { page, search } });
+export const fetchRedirects = (
+  siteId: number,
+  query: { page: number; search: string; per_page?: number; export?: boolean },
+) => request<SiteRedirects>(`/sites/${siteId}/seo/redirects`, { method: "POST", json: query });
+export const createRedirect = (siteId: number, rule: RedirectInput) =>
+  request<{ ok: true }>(`/sites/${siteId}/seo/redirect`, { method: "POST", json: rule });
+export const updateRedirect = (siteId: number, id: number, rule: RedirectInput) =>
+  request<{ ok: true }>(`/sites/${siteId}/seo/redirects/${id}`, { method: "PUT", json: rule });
+export const bulkRedirects = (siteId: number, action: "enable" | "disable" | "delete", ids: number[]) =>
+  request<{ ok: true }>(`/sites/${siteId}/seo/redirects/bulk`, { method: "POST", json: { action, ids } });
+export const importRedirects = (siteId: number, rows: Partial<RedirectInput>[]) =>
+  request<RedirectImportResult>(`/sites/${siteId}/seo/redirects/import`, { method: "POST", json: { rows } });
+export const setRedirectLogging = (siteId: number, log404: boolean) =>
+  request<{ log_404: boolean }>(`/sites/${siteId}/seo/redirects-settings`, { method: "PUT", json: { log_404: log404 } });
+export const fetchNotFound = (siteId: number, page: number) =>
+  request<NotFoundLog>(`/sites/${siteId}/seo/404s`, { method: "POST", json: { page } });
+export const clearNotFound = (siteId: number) =>
+  request<{ ok: true }>(`/sites/${siteId}/seo/404s/clear`, { method: "POST", json: {} });
 export const saveSeoPage = (siteId: number, pageId: number, change: SeoPageChange) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/pages/${pageId}`, { method: "PUT", json: change });

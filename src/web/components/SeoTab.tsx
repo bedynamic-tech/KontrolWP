@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import {
@@ -27,6 +28,8 @@ import {
 } from "../../shared/types";
 import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
+import { RedirectsTab } from "./RedirectsTab";
+import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
 
@@ -746,8 +749,8 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
   );
 }
 
-/** The SEO tab: titles, descriptions, social tags, search visibility and per-page overrides. */
-export function SeoTab(props: { site: SiteSummary }) {
+/** Titles, descriptions, social tags, search visibility and per-page overrides. */
+function SeoSettingsPanel(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const supported =
@@ -812,7 +815,7 @@ export function SeoTab(props: { site: SiteSummary }) {
 
   return (
     <>
-      <div className="mt-6 grid gap-3 empty:hidden">
+      <div className="mt-4 grid gap-3 empty:hidden">
         {data.conflict && (
           <div className="flex items-start gap-3 rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
             <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -1046,5 +1049,26 @@ export function SeoTab(props: { site: SiteSummary }) {
 
       <PagesSection site={site} seo={data} />
     </>
+  );
+}
+
+const SEO_VIEWS = [
+  { value: "settings", label: "Settings" },
+  { value: "redirects", label: "Redirects" },
+];
+
+/** The SEO tab: site-wide settings and page overrides, and redirects. */
+export function SeoTab(props: { site: SiteSummary }) {
+  const [view, setView] = useState("settings");
+  return (
+    <Tabs value={view} onValueChange={setView} className="mt-6 gap-0">
+      <ResponsiveTabsList tabs={SEO_VIEWS} value={view} onChange={setView} label="SEO section" />
+      <TabsContent value="settings">
+        <SeoSettingsPanel site={props.site} />
+      </TabsContent>
+      <TabsContent value="redirects">
+        <RedirectsTab site={props.site} />
+      </TabsContent>
+    </Tabs>
   );
 }
