@@ -61,8 +61,13 @@ class KontrolWP_Connect_SEO {
 		'sun' => 'Sunday',
 	);
 
-	const LOCAL_DEFAULTS = array(
-		'enabled'     => false,
+	/** Most locations one site can list. */
+	const MAX_LOCATIONS = 50;
+
+	const LOCATION_DEFAULTS = array(
+		'id'          => '',
+		// A page that stands for this location; its markup goes there instead of on the home page. 0 for none.
+		'page_id'     => 0,
 		'type'        => 'LocalBusiness',
 		'name'        => '',
 		'phone'       => '',
@@ -79,6 +84,11 @@ class KontrolWP_Connect_SEO {
 		'price_range' => '',
 		'hours'       => array(),
 		'same_as'     => array(),
+	);
+
+	const LOCAL_DEFAULTS = array(
+		'enabled'   => false,
+		'locations' => array(),
 	);
 
 	const DEFAULTS = array(
@@ -202,11 +212,41 @@ class KontrolWP_Connect_SEO {
 		return $out;
 	}
 
-	/** The business details with only known keys, each of the right type. Pure. */
+	/** The business settings: on or off, and a list of locations. Pure. Settings saved before locations existed held one business and become one location. */
 	public static function clean_local( $input ) {
 		$out = self::LOCAL_DEFAULTS;
 		if ( array_key_exists( 'enabled', $input ) ) {
 			$out['enabled'] = (bool) $input['enabled'];
+		}
+		$list = array();
+		if ( isset( $input['locations'] ) && is_array( $input['locations'] ) ) {
+			$list = $input['locations'];
+		} elseif ( isset( $input['name'] ) || isset( $input['phone'] ) || isset( $input['street'] ) ) {
+			$list = array( $input );
+		}
+		$seen = array();
+		foreach ( array_slice( array_values( $list ), 0, self::MAX_LOCATIONS ) as $index => $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$location = self::clean_location( $item );
+			if ( '' === $location['id'] || isset( $seen[ $location['id'] ] ) ) {
+				$location['id'] = 'loc' . ( $index + 1 );
+			}
+			$seen[ $location['id'] ] = true;
+			$out['locations'][]      = $location;
+		}
+		return $out;
+	}
+
+	/** One location with only known keys, each of the right type. Pure. */
+	public static function clean_location( $input ) {
+		$out = self::LOCATION_DEFAULTS;
+		if ( isset( $input['id'] ) && is_string( $input['id'] ) && preg_match( '/^[a-z0-9]{4,16}$/', $input['id'] ) ) {
+			$out['id'] = $input['id'];
+		}
+		if ( isset( $input['page_id'] ) && is_numeric( $input['page_id'] ) && (int) $input['page_id'] > 0 ) {
+			$out['page_id'] = (int) $input['page_id'];
 		}
 		if ( isset( $input['type'] ) && in_array( $input['type'], self::BUSINESS_TYPES, true ) ) {
 			$out['type'] = $input['type'];
@@ -326,6 +366,42 @@ class KontrolWP_Connect_SEO {
 		return $schema;
 	}
 
+	/**
+	 * The markup one page carries: locations with no page of their own go on
+	 * the home page, and a location with a page goes on that page. One block,
+	 * or a @graph when several apply. Null when none do.
+	 */
+	public static function schemas_for( $local, $page ) {
+		$is_home = 'home' === $page['kind'];
+		$post_id = isset( $page['post_id'] ) ? (int) $page['post_id'] : 0;
+		$home    = isset( $page['home_url'] ) ? $page['home_url'] : $page['url'];
+		$found   = array();
+		foreach ( $local['locations'] as $location ) {
+			$own = (int) $location['page_id'];
+			if ( ( 0 === $own && $is_home ) || ( $own > 0 && $own === $post_id ) ) {
+				$url    = $own > 0 ? $page['url'] : $home;
+				$schema = self::business_schema( $location, $page['site_name'], $url );
+				if ( $schema ) {
+					$schema['@id'] = $url . '#' . $location['id'];
+					$found[]       = $schema;
+				}
+			}
+		}
+		if ( ! $found ) {
+			return null;
+		}
+		if ( 1 === count( $found ) ) {
+			return $found[0];
+		}
+		foreach ( $found as $index => $schema ) {
+			unset( $found[ $index ]['@context'] );
+		}
+		return array(
+			'@context' => 'https://schema.org',
+			'@graph'   => $found,
+		);
+	}
+
 	/** Plain text on one line, cut to a length. */
 	private static function line( $text, $max ) {
 		$text = wp_strip_all_tags( $text );
@@ -426,8 +502,8 @@ class KontrolWP_Connect_SEO {
 			$meta( 'name', 'twitter:image', $page['image'] );
 			$meta( 'name', 'twitter:site', $settings['twitter_site'] );
 		}
-		if ( 'home' === $page['kind'] && ! empty( $settings['local']['enabled'] ) ) {
-			$schema = self::business_schema( $settings['local'], $page['site_name'], $page['url'] );
+		if ( ! empty( $settings['local']['enabled'] ) ) {
+			$schema = self::schemas_for( $settings['local'], $page );
 			if ( $schema ) {
 				$tags[] = '<script type="application/ld+json">'
 					. wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP )
@@ -511,6 +587,8 @@ class KontrolWP_Connect_SEO {
 			'site_name'   => $site_name,
 			'tagline'     => $tagline,
 			'locale'      => str_replace( '-', '_', get_locale() ),
+			'post_id'     => 0,
+			'home_url'    => home_url( '/' ),
 		);
 
 		if ( is_front_page() || is_home() ) {
@@ -560,6 +638,7 @@ class KontrolWP_Connect_SEO {
 			$source              = '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
 			$page['description'] = self::trim_description( $source );
 		}
+		$page['post_id'] = $post_id;
 		$page['url']     = (string) get_permalink( $post );
 		$page['type']    = 'post' === $post->post_type ? 'article' : 'website';
 		$page['noindex'] = (bool) get_post_meta( $post_id, self::META_NOINDEX, true );
@@ -585,7 +664,25 @@ class KontrolWP_Connect_SEO {
 			'home_url'  => home_url( '/' ),
 			// WordPress's own "Discourage search engines" switch; when set, every page is noindex whatever is said here.
 			'discouraged' => '0' === (string) get_option( 'blog_public', '1' ),
+			'location_pages' => self::location_pages(),
 		);
+	}
+
+	/** The title and address of each page a location is tied to, by page id; pages that no longer exist are left out. */
+	private static function location_pages() {
+		$settings = self::settings();
+		$pages    = array();
+		foreach ( $settings['local']['locations'] as $location ) {
+			$id   = (int) $location['page_id'];
+			$post = $id > 0 ? get_post( $id ) : null;
+			if ( $post && 'publish' === $post->post_status ) {
+				$pages[ (string) $id ] = array(
+					'title' => html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' ),
+					'url'   => (string) get_permalink( $post ),
+				);
+			}
+		}
+		return (object) $pages;
 	}
 
 	public static function save_settings( $request ) {
