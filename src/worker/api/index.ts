@@ -1046,6 +1046,9 @@ const seoSettingsBody = z.object({
   hidden_types: z.array(z.string().max(32)).max(50),
   canonical: z.boolean(),
   sitemap: z.boolean(),
+  strip_category_base: z.boolean(),
+  author_archives: z.enum(["keep", "redirect", "404"]),
+  type_templates: z.record(z.string().max(32), z.object({ title: seoText(200), description: seoText(320) })),
 });
 
 api.put("/sites/:id/seo", async (c) => {
@@ -1109,6 +1112,7 @@ const seoContentBody = z.object({
   external_new_tab: z.boolean(),
   external_nofollow: z.boolean(),
   image_alt: z.boolean(),
+  image_title: z.boolean().default(false),
   feed_footer: z.string().max(500),
 });
 

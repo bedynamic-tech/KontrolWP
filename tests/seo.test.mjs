@@ -32,6 +32,9 @@ const settings = {
   hidden_types: [],
   canonical: true,
   sitemap: true,
+  strip_category_base: false,
+  author_archives: "keep",
+  type_templates: {},
 };
 
 async function withSite(handler, run) {
@@ -154,4 +157,14 @@ test("an old cached answer is reshaped when the tab reads it", async () => {
     .run(JSON.stringify(old), Math.floor(Date.now() / 1000));
   const out = await siteSeo(env, site(), credentials);
   assert.equal(out.settings.local.locations.length, 1);
+});
+
+test("a report from an older plugin gets the archive settings switched off", async () => {
+  const { normalizeSeo } = await import("../src/worker/sites/seo.ts");
+  const out = normalizeSeo({ settings: { ...settings }, conflict: "", site_name: "A", tagline: "", home_url: "https://a.test/", discouraged: false });
+  assert.equal(out.settings.strip_category_base, false);
+  assert.equal(out.settings.author_archives, "keep");
+  assert.deepEqual(out.settings.type_templates, {});
+  const kept = normalizeSeo({ settings: { ...settings, type_templates: [] }, conflict: "", site_name: "A", tagline: "", home_url: "https://a.test/", discouraged: false });
+  assert.deepEqual(kept.settings.type_templates, {});
 });

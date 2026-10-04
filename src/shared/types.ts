@@ -780,6 +780,23 @@ export interface SeoSettings {
   canonical: boolean;
   sitemap: boolean;
   local: SeoLocal;
+  /** Leave "category" out of category addresses; the old addresses redirect. */
+  strip_category_base: boolean;
+  /** What an author archive does: stays, redirects to the home page, or answers not found. */
+  author_archives: "keep" | "redirect" | "404";
+  /** Title and description templates by content type; a type with none uses the site-wide title template. */
+  type_templates: Record<string, { title: string; description: string }>;
+}
+
+/** A category address before and after the base is left out, for the preview beside the setting. */
+export interface SeoCategoryPreview {
+  /** False when the site's permalinks or categories give nothing to shorten. */
+  supported: boolean;
+  base: string;
+  old: string;
+  new: string;
+  /** Categories that keep their old address, because a page already uses the short one. */
+  skipped: string[];
 }
 
 export interface SiteSeo {
@@ -796,6 +813,8 @@ export interface SiteSeo {
   /** Public content types and taxonomies on the site, for the hide lists. */
   post_types: { name: string; label: string }[];
   taxonomies: { name: string; label: string }[];
+  /** A plugin before 0.22.0 sends none. */
+  category?: SeoCategoryPreview;
 }
 
 /** One page's SEO overrides; an empty value means the site-wide defaults apply. */
@@ -988,6 +1007,8 @@ export interface SeoContentSettings {
   external_new_tab: boolean;
   external_nofollow: boolean;
   image_alt: boolean;
+  /** Add a title attribute to images that have none, from the media library title. */
+  image_title: boolean;
   /** Tokens: %title%, %link%, %sitename%. Empty adds nothing to feeds. */
   feed_footer: string;
 }
