@@ -30,6 +30,7 @@ import {
   saveUmamiSettings,
 } from "../api";
 import { HelpTip } from "./HelpTip";
+import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Section } from "./Section";
 import { UpdatePolicySettingsSection } from "./UpdatePolicy";
 import { Spinner } from "./Spinner";
@@ -61,16 +62,12 @@ export function SettingsPage() {
         onValueChange={(next) => setSearchParams(next === "general" ? {} : { tab: next }, { replace: true })}
         className="mt-6 gap-0"
       >
-        <TabsList
-          variant="line"
-          className="w-full justify-start overflow-x-auto overflow-y-hidden border-b pb-1.5 [scrollbar-width:none]"
-        >
-          {SETTINGS_TABS.map((item) => (
-            <TabsTrigger key={item.value} value={item.value} className="flex-none px-3">
-              {item.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <ResponsiveTabsList
+          tabs={SETTINGS_TABS}
+          value={tab}
+          onChange={(next) => setSearchParams(next === "general" ? {} : { tab: next }, { replace: true })}
+          label="Settings section"
+        />
         <TabsContent value="general">
           <SyncSettingsSection />
           <LayoutSettingsSection />

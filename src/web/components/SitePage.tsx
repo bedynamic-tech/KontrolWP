@@ -10,7 +10,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "./HelpTip";
 import type { SiteSummary } from "../../shared/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -41,6 +41,7 @@ import {
   MagicLoginUserSelect,
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
@@ -215,6 +216,25 @@ export function SitePage() {
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
+  const tabItems: TabItem[] = [
+    { value: "overview", label: "Overview" },
+    ...(analyticsOn ? [{ value: "analytics", label: "Analytics" }] : []),
+    ...(isStatic
+      ? [
+          { value: "pages", label: "Pages" },
+          ...(onCloudflare ? [{ value: "deployments", label: "Deployments" }] : []),
+        ]
+      : [
+          { value: "content", label: "Posts and pages" },
+          { value: "plugins", label: "Plugins" },
+          { value: "users", label: "Users" },
+          ...(site.links_excluded ? [] : [{ value: "links", label: "Links" }]),
+          ...(site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
+          { value: "seo", label: "SEO" },
+        ]),
+    ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
+    { value: "domain", label: "Domain" },
+  ];
 
   return (
     <div>
@@ -319,64 +339,7 @@ export function SitePage() {
       </dl>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
-        <TabsList
-          variant="line"
-          className="w-full justify-start overflow-x-auto overflow-y-hidden border-b pb-1.5 [scrollbar-width:none]"
-        >
-          <TabsTrigger value="overview" className="flex-none px-3">
-            Overview
-          </TabsTrigger>
-          {analyticsOn && (
-            <TabsTrigger value="analytics" className="flex-none px-3">
-              Analytics
-            </TabsTrigger>
-          )}
-          {isStatic ? (
-            <>
-              <TabsTrigger value="pages" className="flex-none px-3">
-                Pages
-              </TabsTrigger>
-              {onCloudflare && (
-                <TabsTrigger value="deployments" className="flex-none px-3">
-                  Deployments
-                </TabsTrigger>
-              )}
-            </>
-          ) : (
-            <>
-              <TabsTrigger value="content" className="flex-none px-3">
-                Posts and pages
-              </TabsTrigger>
-              <TabsTrigger value="plugins" className="flex-none px-3">
-                Plugins
-              </TabsTrigger>
-              <TabsTrigger value="users" className="flex-none px-3">
-                Users
-              </TabsTrigger>
-              {!site.links_excluded && (
-                <TabsTrigger value="links" className="flex-none px-3">
-                  Links
-                </TabsTrigger>
-              )}
-              {!site.security_excluded && (
-                <TabsTrigger value="security" className="flex-none px-3">
-                  Security
-                </TabsTrigger>
-              )}
-              <TabsTrigger value="seo" className="flex-none px-3">
-                SEO
-              </TabsTrigger>
-            </>
-          )}
-          {!site.accessibility_excluded && (
-            <TabsTrigger value="accessibility" className="flex-none px-3">
-              Accessibility
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="domain" className="flex-none px-3">
-            Domain
-          </TabsTrigger>
-        </TabsList>
+        <ResponsiveTabsList tabs={tabItems} value={tab} onChange={setTab} label="Section" />
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
             const main = isStatic ? (
