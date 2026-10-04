@@ -589,7 +589,7 @@ function LocalSection(props: {
     >
       <div className="divide-y">
         <CheckRow
-          title="Enable local business markup"
+          title="Mark up my business locations for local search"
           detail="Adds schema.org business details, which search engines use for local results and knowledge panels. A location without its own page is marked up on the home page."
           checked={local.enabled}
           onChange={(value) => {
@@ -954,7 +954,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       <Section title="Social sharing">
         <div className="divide-y">
           <CheckRow
-            title="Enable Open Graph and Twitter tags"
+            title="Open Graph and Twitter tags"
             detail="Control the title, description and image shown when a page is shared."
             checked={draft.og_enabled}
             onChange={(value) => set("og_enabled", value)}
@@ -1074,13 +1074,13 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       <Section title="Technical">
         <div className="divide-y">
           <CheckRow
-            title="Enable canonical links"
+            title="Canonical links"
             detail="Tells search engines each page's preferred address, so tracking links and duplicates count as one page."
             checked={draft.canonical}
             onChange={(value) => set("canonical", value)}
           />
           <CheckRow
-            title="Enable XML sitemap"
+            title="XML sitemap"
             detail="WordPress's built-in sitemap at /wp-sitemap.xml, which search engines use to find your pages."
             checked={draft.sitemap}
             onChange={(value) => set("sitemap", value)}
