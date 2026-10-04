@@ -36,11 +36,13 @@ import type {
 } from "../../shared/types.ts";
 import {
   MAX_LLMS_TEXT,
+  MAX_SCHEMA_LINKS,
   MAX_REDIRECT_IMPORT,
   MAX_ROBOTS_TEXT,
   MAX_SEO_LOCATIONS,
   REDIRECT_CODES,
   REDIRECT_DELETE_ACTIONS,
+  SEO_BREADCRUMB_SEPARATORS,
   REDIRECT_MATCH_TYPES,
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
@@ -113,6 +115,7 @@ import {
   saveRedirect,
   setRedirectSettings,
 } from "../sites/redirects.ts";
+import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../sites/seo.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -1089,6 +1092,31 @@ api.put("/sites/:id/seo/pages/:pageId", async (c) => {
 api.get("/sites/:id/seo/tools", async (c) =>
   redirectsCall(c, (site, credentials) => siteSeoTools(site, credentials) as Promise<SeoTools>),
 );
+
+/** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */
+api.get("/sites/:id/seo/content", async (c) => redirectsCall(c, (site, credentials) => siteSeoContent(site, credentials)));
+
+const seoContentBody = z.object({
+  schema: z.boolean(),
+  schema_type: z.enum(["organization", "person"]),
+  schema_name: z.string().max(200),
+  schema_logo: z.string().max(2000),
+  schema_same_as: z.array(z.string().max(2000)).max(MAX_SCHEMA_LINKS),
+  article_schema: z.boolean(),
+  breadcrumbs: z.boolean(),
+  breadcrumb_home: z.string().max(60),
+  breadcrumb_sep: z.enum(SEO_BREADCRUMB_SEPARATORS),
+  external_new_tab: z.boolean(),
+  external_nofollow: z.boolean(),
+  image_alt: z.boolean(),
+  feed_footer: z.string().max(500),
+});
+
+api.put("/sites/:id/seo/content", async (c) => {
+  const parsed = seoContentBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid settings" }, 400);
+  return redirectsCall(c, (site, credentials) => saveSeoContent(site, credentials, parsed.data));
+});
 
 const seoToolsBody = z.object({
   verify: z.object({

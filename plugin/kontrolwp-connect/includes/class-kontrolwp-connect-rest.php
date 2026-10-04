@@ -89,6 +89,7 @@ class KontrolWP_Connect_Rest {
 		KontrolWP_Connect_Redirects::register_routes( $auth );
 		KontrolWP_Connect_Migrate::register_routes( $auth );
 		KontrolWP_Connect_SEO_Tools::register_routes( $auth );
+		KontrolWP_Connect_SEO_Content::register_routes( $auth );
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/admins',
