@@ -98,8 +98,8 @@ export function AddSiteDialog() {
   return (
     <Dialog open={open} onOpenChange={(next) => (next || !added ? reset(next) : finish())}>
       <DialogTrigger asChild>
-        <Button size="sm">
-          <PlusIcon /> Add site
+        <Button size="sm" aria-label="Add site">
+          <PlusIcon /> Add
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg [&>*]:min-w-0">

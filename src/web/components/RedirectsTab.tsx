@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DownloadIcon, SearchIcon, UploadIcon } from "lucide-react";
+import { DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { IconButton } from "./IconButton";
 import { compareVersions, SEO_AUTO_REDIRECTS_SINCE, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version";
 import { redirectsFromCsv, redirectsToCsv } from "../../shared/redirect-csv";
 import {
@@ -330,16 +331,14 @@ function RulesSection(props: { site: SiteSummary; hasAuto: boolean; onNew: (rule
               event.target.value = "";
             }}
           />
-          <Button variant="outline" size="sm" onClick={() => file.current?.click()}>
-            <UploadIcon className="size-4" />
-            Import
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => exportAll.mutate()} disabled={exportAll.isPending}>
-            <DownloadIcon className="size-4" />
-            Export
-          </Button>
-          <Button size="sm" onClick={() => props.onNew(null)}>
-            Add redirect
+          <IconButton label="Import redirects from CSV" onClick={() => file.current?.click()}>
+            <UploadIcon />
+          </IconButton>
+          <IconButton label="Export redirects to CSV" onClick={() => exportAll.mutate()} disabled={exportAll.isPending}>
+            <DownloadIcon />
+          </IconButton>
+          <Button size="sm" aria-label="Add redirect" onClick={() => props.onNew(null)}>
+            <PlusIcon /> Add
           </Button>
         </div>
       }
