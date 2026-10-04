@@ -927,14 +927,16 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
     <>
       <div className="mt-4 grid gap-3 empty:hidden">
         {data.conflict && (
-          <div className="flex items-start gap-3 rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-            <p>
-              {data.conflict} is active on this site, so KontrolWP does not add
-              SEO tags. Two sets of tags on a page confuse search engines.
-              Deactivate {data.conflict} to use these settings.
-            </p>
-            <Button variant="outline" size="sm" className="ml-auto shrink-0" onClick={props.onMigrate}>
+          <div className="flex flex-col gap-3 rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 sm:flex-row sm:items-start dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
+            <div className="flex min-w-0 items-start gap-3">
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+              <p>
+                {data.conflict} is active on this site, so KontrolWP does not add
+                SEO tags. Two sets of tags on a page confuse search engines.
+                Deactivate {data.conflict} to use these settings.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="self-start sm:ml-auto sm:shrink-0" onClick={props.onMigrate}>
               Import from {data.conflict}
             </Button>
           </div>
