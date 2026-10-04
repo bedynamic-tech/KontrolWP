@@ -169,6 +169,7 @@ class KontrolWP_Connect_SEO {
 			'AIOSEO_VERSION'     => 'All in One SEO',
 			'SEOPRESS_VERSION'   => 'SEOPress',
 			'THE_SEO_FRAMEWORK_VERSION' => 'The SEO Framework',
+			'SLIM_SEO_VER'      => 'Slim SEO',
 		);
 		foreach ( $known as $constant => $name ) {
 			if ( defined( $constant ) ) {
