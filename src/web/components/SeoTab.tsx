@@ -30,6 +30,7 @@ import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
 import { MigrateTab } from "./MigrateTab";
 import { NotFoundTab, RedirectsTab } from "./RedirectsTab";
+import { ToolsTab } from "./ToolsTab";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
@@ -1109,6 +1110,7 @@ const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
   { value: "redirects", label: "Redirects" },
   { value: "404", label: "404 log" },
+  { value: "tools", label: "Tools" },
   { value: "migrate", label: "Import" },
 ];
 
@@ -1126,6 +1128,9 @@ export function SeoTab(props: { site: SiteSummary }) {
       </TabsContent>
       <TabsContent value="404">
         <NotFoundTab site={props.site} />
+      </TabsContent>
+      <TabsContent value="tools">
+        <ToolsTab site={props.site} />
       </TabsContent>
       <TabsContent value="migrate">
         <MigrateTab site={props.site} />

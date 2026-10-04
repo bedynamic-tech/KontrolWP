@@ -21,6 +21,8 @@ import type {
   SeoMigrationResult,
   SeoMigrationSource,
   SeoPageChange,
+  SeoTools,
+  SeoToolsSettings,
   SeoPages,
   SeoSettings,
   SiteAccessibility,
@@ -383,5 +385,8 @@ export const deactivateMigrationSource = (siteId: number, source: string) =>
     method: "POST",
     json: { source, confirm: true },
   });
+export const fetchSeoTools = (siteId: number) => request<SeoTools>(`/sites/${siteId}/seo/tools`);
+export const saveSeoTools = (siteId: number, settings: SeoToolsSettings) =>
+  request<SeoTools>(`/sites/${siteId}/seo/tools`, { method: "PUT", json: settings });
 export const saveSeoPage = (siteId: number, pageId: number, change: SeoPageChange) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/pages/${pageId}`, { method: "PUT", json: change });
