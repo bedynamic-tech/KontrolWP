@@ -37,6 +37,7 @@ import {
   MAX_REDIRECT_IMPORT,
   MAX_SEO_LOCATIONS,
   REDIRECT_CODES,
+  REDIRECT_DELETE_ACTIONS,
   REDIRECT_MATCH_TYPES,
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
@@ -1097,6 +1098,7 @@ const redirectListBody = z.object({
   search: z.string().max(100).catch(""),
   per_page: z.number().int().min(1).max(100).catch(25),
   export: z.boolean().catch(false),
+  auto: z.boolean().catch(false),
 });
 
 /** A page of redirect rules, or all of them to export. POST so a search stays out of the URL. */
@@ -1143,10 +1145,17 @@ api.post("/sites/:id/seo/redirects/import", async (c) => {
   return redirectsCall(c, (site, credentials) => importRedirects(site, credentials, parsed.data.rows));
 });
 
+const redirectSettingsBody = z.object({
+  log_404: z.boolean().optional(),
+  auto_enabled: z.boolean().optional(),
+  on_delete: z.enum(REDIRECT_DELETE_ACTIONS).optional(),
+  delete_target: z.string().max(1000).optional(),
+});
+
 api.put("/sites/:id/seo/redirects-settings", async (c) => {
-  const parsed = z.object({ log_404: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  const parsed = redirectSettingsBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
-  return redirectsCall(c, (site, credentials) => setRedirectSettings(site, credentials, parsed.data.log_404));
+  return redirectsCall(c, (site, credentials) => setRedirectSettings(site, credentials, parsed.data));
 });
 
 api.post("/sites/:id/seo/404s", async (c) => {
