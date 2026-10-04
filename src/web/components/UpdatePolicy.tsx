@@ -17,6 +17,7 @@ import {
   saveSiteUpdatePolicy,
 } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
+import { HelpTip } from "./HelpTip";
 import { RemoteIcon, pluginIconSources } from "./RemoteIcon";
 import { Section } from "./Section";
 import { Spinner } from "./Spinner";
@@ -289,10 +290,12 @@ export function UpdatePolicySettingsSection() {
             onChange={(event) => current && save.mutate({ ...current, enabled: event.target.checked })}
           />
           <span>
-            <span className="block text-sm font-medium">Update sites on a schedule</span>
-            <span className="block text-xs text-muted-foreground">
-              Every site follows this unless its own settings say otherwise. Updates run one at a time on each site, and
-              sites start a couple of minutes apart. The time zone is the one chosen under Link checks.
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              Update sites on a schedule
+              <HelpTip>
+                Every site follows this unless its own settings say otherwise. Updates run one at a time on each site,
+                and sites start a couple of minutes apart. The time zone is the one chosen under Link checks.
+              </HelpTip>
             </span>
           </span>
         </label>
@@ -309,9 +312,11 @@ export function UpdatePolicySettingsSection() {
               </p>
             )}
             <div>
-              <p className="text-sm font-medium">Plugins to update</p>
-              <p className="mb-2 mt-0.5 text-xs text-muted-foreground">
-                Uncheck a plugin to leave it out of scheduled updates on every site. You can still update it by hand.
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                Plugins to update
+                <HelpTip>
+                  Uncheck a plugin to leave it out of scheduled updates on every site. You can still update it by hand.
+                </HelpTip>
               </p>
               <PluginPicker
                 plugins={choices}
@@ -351,9 +356,9 @@ export function SiteUpdatePolicyRow(props: { site: SiteSummary }) {
     <div className="space-y-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium">Scheduled updates</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {data ? `The global setting: ${globalSummary}.` : "Loading..."}
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            Scheduled updates
+            <HelpTip>{data ? `The global setting: ${globalSummary}.` : "Loading..."}</HelpTip>
           </p>
         </div>
         {save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
@@ -383,8 +388,9 @@ export function SiteUpdatePolicyRow(props: { site: SiteSummary }) {
           )}
           {current.mode !== "off" && (
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">
-                Uncheck a plugin to leave it out of scheduled updates on this site.
+              <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
+                Plugins to update
+                <HelpTip>Uncheck a plugin to leave it out of scheduled updates on this site.</HelpTip>
               </p>
               <PluginPicker
                 plugins={choices}

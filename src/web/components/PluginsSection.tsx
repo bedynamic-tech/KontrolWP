@@ -18,6 +18,7 @@ import { compareVersions, PLUGIN_MANAGEMENT_SINCE } from "../../shared/plugin-ve
 import type { InstalledPlugin, SiteSummary, SiteUpdate } from "../../shared/types";
 import { applyUpdate, fetchPlugins, installPlugin, managePlugin, type PluginInstall } from "../api";
 import { PluginBulkBar, SelectBox, type BulkAction, type BulkProgress } from "./PluginBulkBar";
+import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
@@ -340,24 +341,35 @@ export function InstallDialog(props: {
               <TabsTrigger value="zip">Upload zip</TabsTrigger>
             </TabsList>
             <TabsContent value="wordpress.org" className="pt-3">
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">Plugin slug or WordPress.org link</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="plugin-slug" className="text-sm font-medium">
+                    Plugin slug or WordPress.org link
+                  </label>
+                  <HelpTip>
+                    The slug is the last part of the plugin's address, such as wordpress.org/plugins/akismet.
+                  </HelpTip>
+                </div>
                 <Input
+                  id="plugin-slug"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
                   placeholder="akismet"
                   required={source === "wordpress.org"}
                   autoComplete="off"
                 />
-                <span className="block text-xs text-muted-foreground">
-                  The slug is the last part of the plugin's address, such as wordpress.org/plugins/akismet.
-                </span>
-              </label>
+              </div>
             </TabsContent>
             <TabsContent value="url" className="pt-3">
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">Link to a plugin zip</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="plugin-url" className="text-sm font-medium">
+                    Link to a plugin zip
+                  </label>
+                  <HelpTip>Each site downloads it directly.</HelpTip>
+                </div>
                 <Input
+                  id="plugin-url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com/my-plugin.zip"
@@ -365,8 +377,7 @@ export function InstallDialog(props: {
                   type="url"
                   required={source === "url"}
                 />
-                <span className="block text-xs text-muted-foreground">Each site downloads it directly.</span>
-              </label>
+              </div>
             </TabsContent>
             <TabsContent value="zip" className="pt-3">
               <label className="block space-y-1.5">

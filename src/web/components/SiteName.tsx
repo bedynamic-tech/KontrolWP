@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { HelpTip } from "./HelpTip";
 import { PencilIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,8 @@ import { setSiteName } from "../api";
 import { hostname } from "../format";
 
 /** What Reset restores: a WordPress site's own title, or a static site's domain. */
-const defaultName = (site: SiteSummary) => site.default_name || hostname(site.url).split("/")[0];
+const defaultName = (site: SiteSummary) =>
+  site.default_name || hostname(site.url).split("/")[0];
 
 /**
  * The site's name as the page title, with a pencil that appears on hover (and
@@ -49,7 +51,9 @@ export function SiteName(props: { site: SiteSummary }) {
 
   return (
     <div className="group flex min-w-0 items-center gap-1">
-      <h1 className="truncate text-xl font-semibold tracking-tight">{site.name}</h1>
+      <h1 className="truncate text-xl font-semibold tracking-tight">
+        {site.name}
+      </h1>
       <Button
         variant="ghost"
         size="icon-xs"
@@ -66,11 +70,20 @@ export function SiteName(props: { site: SiteSummary }) {
             <DialogHeader>
               <DialogTitle>Rename site</DialogTitle>
               <DialogDescription>
-                KontrolWP shows this name everywhere. It keeps it when the site's own title changes.
+                KontrolWP shows this name everywhere. It keeps it when the
+                site's own title changes.
               </DialogDescription>
             </DialogHeader>
             <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Name</span>
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                Name
+                <HelpTip>
+                  {site.kind === "static"
+                    ? "Default: the domain"
+                    : "Default: the title set in WordPress"}
+                  , {defaultName(site)}.
+                </HelpTip>
+              </span>
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -79,12 +92,10 @@ export function SiteName(props: { site: SiteSummary }) {
                 autoFocus
                 onFocus={(event) => event.currentTarget.select()}
               />
-              <span className="block text-xs text-muted-foreground">
-                {site.kind === "static" ? "Default: the domain" : "Default: the title set in WordPress"},{" "}
-                {defaultName(site)}.
-              </span>
             </label>
-            {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+            {save.error && (
+              <p className="text-sm text-destructive">{save.error.message}</p>
+            )}
             <DialogFooter>
               {site.name_custom && (
                 <Button
@@ -97,7 +108,11 @@ export function SiteName(props: { site: SiteSummary }) {
                   Reset to default
                 </Button>
               )}
-              <Button type="submit" loading={save.isPending} disabled={!name.trim()}>
+              <Button
+                type="submit"
+                loading={save.isPending}
+                disabled={!name.trim()}
+              >
                 Save
               </Button>
             </DialogFooter>

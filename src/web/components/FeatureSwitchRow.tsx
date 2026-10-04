@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { setFeatureExcluded, type SiteFeature } from "../api";
 import type { SiteSummary } from "../../shared/types";
+import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 
 /** A Site settings row that turns one checking feature on or off for a single site. */
@@ -29,9 +30,15 @@ export function FeatureSwitchRow({
   return (
     <label className="flex cursor-pointer items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{excluded ? off : on}</p>
-        {change.error && <p className="mt-1 text-xs text-destructive">{change.error.message}</p>}
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {title}
+          <HelpTip>{excluded ? off : on}</HelpTip>
+        </p>
+        {change.error && (
+          <p className="mt-1 text-xs text-destructive">
+            {change.error.message}
+          </p>
+        )}
       </div>
       {change.isPending && <Spinner className="size-4 text-muted-foreground" />}
       <input

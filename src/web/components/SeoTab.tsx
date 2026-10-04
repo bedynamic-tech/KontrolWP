@@ -26,6 +26,7 @@ import {
   type SiteSummary,
 } from "../../shared/types";
 import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
+import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
 
@@ -35,24 +36,37 @@ const SELECT_CLASS =
 const TITLE_LENGTH = 60;
 const DESCRIPTION_LENGTH = 160;
 
-function Row(props: { title: string; detail?: ReactNode; children: ReactNode }) {
+function Row(props: {
+  title: string;
+  detail?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="min-w-0 sm:max-w-sm">
-        <p className="text-sm font-medium">{props.title}</p>
-        {props.detail && <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>}
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {props.title}
+          {props.detail && <HelpTip>{props.detail}</HelpTip>}
+        </p>
       </div>
       <div className="min-w-0 sm:w-80">{props.children}</div>
     </div>
   );
 }
 
-function CheckRow(props: { title: string; detail: string; checked: boolean; onChange: (value: boolean) => void }) {
+function CheckRow(props: {
+  title: string;
+  detail: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{props.title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {props.title}
+          <HelpTip>{props.detail}</HelpTip>
+        </p>
       </div>
       <input
         type="checkbox"
@@ -67,16 +81,26 @@ function CheckRow(props: { title: string; detail: string; checked: boolean; onCh
 function Counter(props: { value: string; limit: number }) {
   const over = props.value.length > props.limit;
   return (
-    <span className={over ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+    <span
+      className={
+        over ? "text-xs text-destructive" : "text-xs text-muted-foreground"
+      }
+    >
       {props.value.length} of about {props.limit} characters
     </span>
   );
 }
 
 /** Fill a title template the way the plugin does. */
-export function fillTemplate(template: string, vars: Record<string, string>): string {
+export function fillTemplate(
+  template: string,
+  vars: Record<string, string>,
+): string {
   return template
-    .replace(/%(title|sitename|tagline|sep)%/g, (_, name: string) => vars[name] ?? "")
+    .replace(
+      /%(title|sitename|tagline|sep)%/g,
+      (_, name: string) => vars[name] ?? "",
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -86,15 +110,23 @@ function Preview(props: { title: string; url: string; description: string }) {
   return (
     <div className="rounded-lg border bg-muted/30 px-4 py-3">
       <p className="truncate text-xs text-muted-foreground">{props.url}</p>
-      <p className="mt-0.5 truncate text-base text-blue-700 dark:text-blue-300">{props.title || "Untitled"}</p>
+      <p className="mt-0.5 truncate text-base text-blue-700 dark:text-blue-300">
+        {props.title || "Untitled"}
+      </p>
       <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-        {props.description || "No description. Search engines will pick text from the page."}
+        {props.description ||
+          "No description. Search engines will pick text from the page."}
       </p>
     </div>
   );
 }
 
-function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onClose: () => void }) {
+function PageDialog(props: {
+  site: SiteSummary;
+  seo: SiteSeo;
+  page: SeoPage;
+  onClose: () => void;
+}) {
   const { site, seo, page } = props;
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(page.seo_title);
@@ -102,22 +134,41 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
   const [noindex, setNoindex] = useState(page.noindex);
   const [image, setImage] = useState(page.image);
   const save = useMutation({
-    mutationFn: () => saveSeoPage(site.id, page.id, { seo_title: title, description, noindex, image }),
+    mutationFn: () =>
+      saveSeoPage(site.id, page.id, {
+        seo_title: title,
+        description,
+        noindex,
+        image,
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["site", site.id, "seo", "pages"] });
+      queryClient.invalidateQueries({
+        queryKey: ["site", site.id, "seo", "pages"],
+      });
       props.onClose();
     },
   });
-  const vars = { title: page.title, sitename: seo.site_name, tagline: seo.tagline, sep: seo.settings.separator };
+  const vars = {
+    title: page.title,
+    sitename: seo.site_name,
+    tagline: seo.tagline,
+    sep: seo.settings.separator,
+  };
   const shownTitle = fillTemplate(title || seo.settings.title_template, vars);
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="sm:max-w-xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>{page.title || "Untitled"}</DialogTitle>
-          <DialogDescription>Leave a field empty to use the site-wide defaults.</DialogDescription>
+          <DialogDescription>
+            Leave a field empty to use the site-wide defaults.
+          </DialogDescription>
         </DialogHeader>
-        <Preview title={shownTitle} url={page.permalink} description={description || page.excerpt} />
+        <Preview
+          title={shownTitle}
+          url={page.permalink}
+          description={description || page.excerpt}
+        />
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <label className="text-sm font-medium" htmlFor="seo-page-title">
@@ -132,7 +183,10 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
             <Counter value={shownTitle} limit={TITLE_LENGTH} />
           </div>
           <div className="grid gap-1.5">
-            <label className="text-sm font-medium" htmlFor="seo-page-description">
+            <label
+              className="text-sm font-medium"
+              htmlFor="seo-page-description"
+            >
               Meta description
             </label>
             <Textarea
@@ -142,7 +196,10 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
               placeholder={page.excerpt}
               rows={3}
             />
-            <Counter value={description || page.excerpt} limit={DESCRIPTION_LENGTH} />
+            <Counter
+              value={description || page.excerpt}
+              limit={DESCRIPTION_LENGTH}
+            />
           </div>
           <div className="grid gap-1.5">
             <label className="text-sm font-medium" htmlFor="seo-page-image">
@@ -162,10 +219,14 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
               checked={noindex}
               onChange={(event) => setNoindex(event.target.checked)}
             />
-            <span className="text-sm">Ask search engines not to list this page</span>
+            <span className="text-sm">
+              Ask search engines not to list this page
+            </span>
           </label>
         </div>
-        {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+        {save.error && (
+          <p className="text-sm text-destructive">{save.error.message}</p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={props.onClose}>
             Cancel
@@ -203,9 +264,13 @@ function PagePicker(props: {
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {props.pageId > 0 ? (
-          <span className="min-w-0 truncate">{props.known?.title ?? `Page ${props.pageId}`}</span>
+          <span className="min-w-0 truncate">
+            {props.known?.title ?? `Page ${props.pageId}`}
+          </span>
         ) : (
-          <span className="text-muted-foreground">None. Its markup goes on the home page.</span>
+          <span className="text-muted-foreground">
+            None. Its markup goes on the home page.
+          </span>
         )}
         <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
           {open ? "Close" : props.pageId > 0 ? "Change" : "Choose page"}
@@ -227,12 +292,19 @@ function PagePicker(props: {
           />
           {results.isPending ? (
             <div className="flex justify-center py-4">
-              <Spinner className="size-4 text-muted-foreground" label="Loading pages" />
+              <Spinner
+                className="size-4 text-muted-foreground"
+                label="Loading pages"
+              />
             </div>
           ) : results.error ? (
-            <p className="px-3 py-3 text-xs text-destructive">{results.error.message}</p>
+            <p className="px-3 py-3 text-xs text-destructive">
+              {results.error.message}
+            </p>
           ) : results.data.items.length === 0 ? (
-            <p className="px-3 py-3 text-xs text-muted-foreground">No published pages match.</p>
+            <p className="px-3 py-3 text-xs text-muted-foreground">
+              No published pages match.
+            </p>
           ) : (
             <ul className="max-h-48 divide-y overflow-y-auto">
               {results.data.items.map((item) => (
@@ -241,12 +313,20 @@ function PagePicker(props: {
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/50"
                     onClick={() => {
-                      props.onPick({ id: item.id, title: item.title, url: item.permalink });
+                      props.onPick({
+                        id: item.id,
+                        title: item.title,
+                        url: item.permalink,
+                      });
                       setOpen(false);
                     }}
                   >
-                    <span className="block truncate">{item.title || "Untitled"}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{item.permalink}</span>
+                    <span className="block truncate">
+                      {item.title || "Untitled"}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.permalink}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -292,7 +372,8 @@ function LocationCard(props: {
   onRemove: () => void;
 }) {
   const { location, onChange } = props;
-  const set = <K extends keyof SeoLocation>(key: K, value: SeoLocation[K]) => onChange({ ...location, [key]: value });
+  const set = <K extends keyof SeoLocation>(key: K, value: SeoLocation[K]) =>
+    onChange({ ...location, [key]: value });
   const text = (
     key:
       | "name"
@@ -332,25 +413,35 @@ function LocationCard(props: {
     <details className="group" open={props.startOpen}>
       <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm">
         <span className="min-w-0">
-          <span className="block truncate font-medium">{location.name || props.siteName || "New location"}</span>
+          <span className="block truncate font-medium">
+            {location.name || props.siteName || "New location"}
+          </span>
           <span className="block truncate text-xs text-muted-foreground">
             {summary || "Add a phone number or a street address"}
             {location.page_id > 0 && " · Has its own page"}
           </span>
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Edit</span>
+        <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">
+          Edit
+        </span>
       </summary>
       <div className="divide-y border-t bg-muted/10">
         {incomplete && (
           <p className="px-4 py-3 text-xs text-muted-foreground">
-            Add a phone number or a street address. Nothing is marked up for this location until you do.
+            Add a phone number or a street address. Nothing is marked up for
+            this location until you do.
           </p>
         )}
         <Row
           title="Location page"
           detail="Optional. Mark up this location on its own page, such as a Contact or branch page, instead of the home page."
         >
-          <PagePicker site={props.site} pageId={location.page_id} known={props.known} onPick={props.onPick} />
+          <PagePicker
+            site={props.site}
+            pageId={location.page_id}
+            known={props.known}
+            onPick={props.onPick}
+          />
         </Row>
         <Row title="Business type">
           <select
@@ -374,7 +465,10 @@ function LocationCard(props: {
         {text("region", "State or region")}
         {text("postal", "Postal code")}
         {text("country", "Country", "US")}
-        <Row title="Map location" detail="Optional latitude and longitude, such as 30.2672 and -97.7431.">
+        <Row
+          title="Map location"
+          detail="Optional latitude and longitude, such as 30.2672 and -97.7431."
+        >
           <div className="grid grid-cols-2 gap-2">
             <Input
               aria-label="Latitude"
@@ -394,8 +488,10 @@ function LocationCard(props: {
         {text("logo", "Logo address", "https://")}
         {text("image", "Photo address", "https://")}
         <div className="px-4 py-3">
-          <p className="text-sm font-medium">Opening hours</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Leave both times empty for a day you are closed.</p>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            Opening hours
+            <HelpTip>Leave both times empty for a day you are closed.</HelpTip>
+          </p>
           <ul className="mt-3 grid gap-2">
             {SEO_DAYS.map(([day, label]) => (
               <li key={day} className="flex items-center gap-3 text-sm">
@@ -405,7 +501,9 @@ function LocationCard(props: {
                   aria-label={`${label} opens`}
                   className="w-32"
                   value={location.hours[day]?.open ?? ""}
-                  onChange={(event) => setHours(day, "open", event.target.value)}
+                  onChange={(event) =>
+                    setHours(day, "open", event.target.value)
+                  }
                 />
                 <span className="text-muted-foreground">to</span>
                 <Input
@@ -413,7 +511,9 @@ function LocationCard(props: {
                   aria-label={`${label} closes`}
                   className="w-32"
                   value={location.hours[day]?.close ?? ""}
-                  onChange={(event) => setHours(day, "close", event.target.value)}
+                  onChange={(event) =>
+                    setHours(day, "close", event.target.value)
+                  }
                 />
               </li>
             ))}
@@ -458,7 +558,10 @@ function LocalSection(props: {
   const { local, onChange } = props;
   const [added, setAdded] = useState<string | null>(null);
   const update = (id: string, next: SeoLocation) =>
-    onChange({ ...local, locations: local.locations.map((item) => (item.id === id ? next : item)) });
+    onChange({
+      ...local,
+      locations: local.locations.map((item) => (item.id === id ? next : item)),
+    });
   return (
     <Section
       title="Local SEO"
@@ -484,8 +587,12 @@ function LocalSection(props: {
           detail="Adds schema.org business details, which search engines use for local results and knowledge panels. A location without its own page is marked up on the home page."
           checked={local.enabled}
           onChange={(value) => {
-            const locations = value && local.locations.length === 0 ? [newLocation()] : local.locations;
-            if (value && local.locations.length === 0) setAdded(locations[0].id);
+            const locations =
+              value && local.locations.length === 0
+                ? [newLocation()]
+                : local.locations;
+            if (value && local.locations.length === 0)
+              setAdded(locations[0].id);
             onChange({ ...local, enabled: value, locations });
           }}
         />
@@ -504,7 +611,12 @@ function LocalSection(props: {
                 update(location.id, { ...location, page_id: page?.id ?? 0 });
               }}
               onRemove={() =>
-                onChange({ ...local, locations: local.locations.filter((item) => item.id !== location.id) })
+                onChange({
+                  ...local,
+                  locations: local.locations.filter(
+                    (item) => item.id !== location.id,
+                  ),
+                })
               }
             />
           ))}
@@ -551,18 +663,28 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
     >
       {pages.isPending ? (
         <div className="flex justify-center py-8">
-          <Spinner className="size-5 text-muted-foreground" label="Loading pages" />
+          <Spinner
+            className="size-5 text-muted-foreground"
+            label="Loading pages"
+          />
         </div>
       ) : pages.error ? (
-        <p className="px-4 py-6 text-sm text-destructive">{pages.error.message}</p>
+        <p className="px-4 py-6 text-sm text-destructive">
+          {pages.error.message}
+        </p>
       ) : pages.data.items.length === 0 ? (
         <EmptyRow>No published pages match.</EmptyRow>
       ) : (
         <ul className="divide-y">
           {pages.data.items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+            <li
+              key={item.id}
+              className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
+            >
               <div className="min-w-0">
-                <p className="truncate font-medium">{item.title || "Untitled"}</p>
+                <p className="truncate font-medium">
+                  {item.title || "Untitled"}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {item.seo_title || item.description || item.noindex
                     ? [
@@ -576,7 +698,11 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
                     : "Uses the site-wide defaults"}
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setEditing(item)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(item)}
+              >
                 Edit
               </Button>
             </li>
@@ -589,16 +715,33 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
             Page {page} of {lastPage}
           </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage(page + 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= lastPage}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
         </div>
       )}
-      {editing && <PageDialog site={site} seo={seo} page={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <PageDialog
+          site={site}
+          seo={seo}
+          page={editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </Section>
   );
 }
@@ -607,26 +750,35 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
 export function SeoTab(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
-  const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_SINCE) >= 0;
-  const seo = useQuery({ queryKey: ["site", site.id, "seo"], queryFn: () => fetchSeo(site.id), enabled: supported });
+  const supported =
+    !!site.plugin_version &&
+    compareVersions(site.plugin_version, SEO_SINCE) >= 0;
+  const seo = useQuery({
+    queryKey: ["site", site.id, "seo"],
+    queryFn: () => fetchSeo(site.id),
+    enabled: supported,
+  });
   const [draft, setDraft] = useState<SeoSettings | null>(null);
   // Pages chosen for locations since the last save, whose titles the site has not reported yet.
-  const [picked, setPicked] = useState<Record<string, { title: string; url: string }>>({});
+  const [picked, setPicked] = useState<
+    Record<string, { title: string; url: string }>
+  >({});
   const saved = seo.data?.settings;
   useEffect(() => {
     if (saved) setDraft(saved);
   }, [saved]);
   const save = useMutation({
     mutationFn: (settings: SeoSettings) => saveSeo(site.id, settings),
-    onSuccess: (data) => queryClient.setQueryData(["site", site.id, "seo"], data),
+    onSuccess: (data) =>
+      queryClient.setQueryData(["site", site.id, "seo"], data),
   });
 
   if (!supported) {
     return (
       <Section title="SEO">
         <EmptyRow>
-          SEO needs KontrolWP Connect {SEO_SINCE} or later on this site. It updates automatically; select Sync now to
-          check.
+          SEO needs KontrolWP Connect {SEO_SINCE} or later on this site. It
+          updates automatically; select Sync now to check.
         </EmptyRow>
       </Section>
     );
@@ -636,15 +788,26 @@ export function SeoTab(props: { site: SiteSummary }) {
       <p className="text-sm text-destructive">{seo.error.message}</p>
     ) : (
       <div className="flex justify-center py-12">
-        <Spinner className="size-5 text-muted-foreground" label="Loading SEO settings" />
+        <Spinner
+          className="size-5 text-muted-foreground"
+          label="Loading SEO settings"
+        />
       </div>
     );
   }
   const data = seo.data!;
   const dirty = JSON.stringify(draft) !== JSON.stringify(data.settings);
-  const set = <K extends keyof SeoSettings>(key: K, value: SeoSettings[K]) => setDraft({ ...draft, [key]: value });
-  const vars = { sitename: data.site_name, tagline: data.tagline, sep: draft.separator };
-  const homeTitle = fillTemplate(draft.home_title || `${data.site_name} %sep% ${data.tagline}`, vars);
+  const set = <K extends keyof SeoSettings>(key: K, value: SeoSettings[K]) =>
+    setDraft({ ...draft, [key]: value });
+  const vars = {
+    sitename: data.site_name,
+    tagline: data.tagline,
+    sep: draft.separator,
+  };
+  const homeTitle = fillTemplate(
+    draft.home_title || `${data.site_name} %sep% ${data.tagline}`,
+    vars,
+  );
   const homeDescription = draft.home_description || data.tagline;
 
   return (
@@ -654,8 +817,9 @@ export function SeoTab(props: { site: SiteSummary }) {
           <div className="flex items-start gap-3 rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
             <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
             <p>
-              {data.conflict} is active on this site, so KontrolWP does not add SEO tags. Two sets of tags on a page
-              confuse search engines. Deactivate {data.conflict} to use these settings.
+              {data.conflict} is active on this site, so KontrolWP does not add
+              SEO tags. Two sets of tags on a page confuse search engines.
+              Deactivate {data.conflict} to use these settings.
             </p>
           </div>
         )}
@@ -663,8 +827,9 @@ export function SeoTab(props: { site: SiteSummary }) {
           <div className="flex items-start gap-3 rounded-xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
             <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
             <p>
-              WordPress is set to discourage search engines (Settings, Reading), so search engines are asked to skip
-              every page whatever you set here.
+              WordPress is set to discourage search engines (Settings, Reading),
+              so search engines are asked to skip every page whatever you set
+              here.
             </p>
           </div>
         )}
@@ -677,7 +842,11 @@ export function SeoTab(props: { site: SiteSummary }) {
             <Spinner className="size-4 text-muted-foreground" label="Saving" />
           ) : dirty ? (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setDraft(data.settings)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDraft(data.settings)}
+              >
                 Discard
               </Button>
               <Button size="sm" onClick={() => save.mutate(draft)}>
@@ -695,7 +864,11 @@ export function SeoTab(props: { site: SiteSummary }) {
             onChange={(value) => set("enabled", value)}
           />
         </div>
-        {save.error && <p className="border-t px-4 py-3 text-sm text-destructive">{save.error.message}</p>}
+        {save.error && (
+          <p className="border-t px-4 py-3 text-sm text-destructive">
+            {save.error.message}
+          </p>
+        )}
       </Section>
 
       <Section title="Titles and descriptions">
@@ -705,7 +878,9 @@ export function SeoTab(props: { site: SiteSummary }) {
               aria-label="Title separator"
               className={SELECT_CLASS}
               value={draft.separator}
-              onChange={(event) => set("separator", event.target.value as SeoSettings["separator"])}
+              onChange={(event) =>
+                set("separator", event.target.value as SeoSettings["separator"])
+              }
             >
               {SEO_SEPARATORS.map((separator) => (
                 <option key={separator} value={separator}>
@@ -724,7 +899,10 @@ export function SeoTab(props: { site: SiteSummary }) {
               onChange={(event) => set("title_template", event.target.value)}
             />
           </Row>
-          <Row title="Home page title" detail="Empty uses the site name and tagline.">
+          <Row
+            title="Home page title"
+            detail="Empty uses the site name and tagline."
+          >
             <Input
               aria-label="Home page title"
               value={draft.home_title}
@@ -747,8 +925,14 @@ export function SeoTab(props: { site: SiteSummary }) {
             <Counter value={homeDescription} limit={DESCRIPTION_LENGTH} />
           </Row>
           <div className="px-4 py-3">
-            <p className="mb-2 text-xs text-muted-foreground">Home page in search results</p>
-            <Preview title={homeTitle} url={data.home_url} description={homeDescription} />
+            <p className="mb-2 text-xs text-muted-foreground">
+              Home page in search results
+            </p>
+            <Preview
+              title={homeTitle}
+              url={data.home_url}
+              description={homeDescription}
+            />
           </div>
         </div>
       </Section>
@@ -763,7 +947,10 @@ export function SeoTab(props: { site: SiteSummary }) {
           />
           {draft.og_enabled && (
             <>
-              <Row title="Default image address" detail="Used when a page has no featured image or social image.">
+              <Row
+                title="Default image address"
+                detail="Used when a page has no featured image or social image."
+              >
                 <Input
                   aria-label="Default social image address"
                   value={draft.og_image}
@@ -776,13 +963,21 @@ export function SeoTab(props: { site: SiteSummary }) {
                   aria-label="Twitter card style"
                   className={SELECT_CLASS}
                   value={draft.twitter_card}
-                  onChange={(event) => set("twitter_card", event.target.value as SeoSettings["twitter_card"])}
+                  onChange={(event) =>
+                    set(
+                      "twitter_card",
+                      event.target.value as SeoSettings["twitter_card"],
+                    )
+                  }
                 >
                   <option value="summary_large_image">Large image</option>
                   <option value="summary">Small image</option>
                 </select>
               </Row>
-              <Row title="Twitter or X handle" detail="Optional, such as @yourbrand.">
+              <Row
+                title="Twitter or X handle"
+                detail="Optional, such as @yourbrand."
+              >
                 <Input
                   aria-label="Twitter or X handle"
                   value={draft.twitter_site}
@@ -840,7 +1035,12 @@ export function SeoTab(props: { site: SiteSummary }) {
         local={draft.local}
         siteName={data.site_name}
         knownPages={{ ...data.location_pages, ...picked }}
-        onPicked={(page) => setPicked({ ...picked, [String(page.id)]: { title: page.title, url: page.url } })}
+        onPicked={(page) =>
+          setPicked({
+            ...picked,
+            [String(page.id)]: { title: page.title, url: page.url },
+          })
+        }
         onChange={(local) => set("local", local)}
       />
 

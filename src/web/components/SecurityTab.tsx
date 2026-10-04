@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { SecurityItem, SiteSecurity, SiteSummary, SiteVulnerability, VulnSeverity } from "../../shared/types";
 import { fetchSecurity, setSecurityFixes } from "../api";
 import { timeAgo } from "../format";
+import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 
 const SEVERITY_LABEL: Record<VulnSeverity, string> = {
@@ -87,8 +88,10 @@ function ItemRow(props: { item: SecurityItem; busy: boolean; onFix: () => void }
   return (
     <li className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
       <div className="min-w-0">
-        <p className="font-medium">{item.title}</p>
-        <p className="mt-0.5 text-muted-foreground">{item.detail}</p>
+        <p className="flex items-center gap-1.5 font-medium">
+          {item.title}
+          <HelpTip>{item.detail}</HelpTip>
+        </p>
         {bad && item.fix?.enabled && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
             Fixed, but not in effect yet. Check that the site can write to its files, then reload.

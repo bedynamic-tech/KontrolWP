@@ -1,8 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, ExternalLinkIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { HelpTip } from "./HelpTip";
 import type { SiteSummary } from "../../shared/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +35,11 @@ import { timeAgo } from "../format";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
-import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
+import {
+  MagicLoginButton,
+  MagicLoginUserForm,
+  MagicLoginUserSelect,
+} from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
@@ -40,7 +50,11 @@ import { PluginsSection } from "./PluginsSection";
 import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
-import { compareVersions, KONTROLWP_CONNECT_VERSION, SELF_UPDATING_SINCE } from "../../shared/plugin-version";
+import {
+  compareVersions,
+  KONTROLWP_CONNECT_VERSION,
+  SELF_UPDATING_SINCE,
+} from "../../shared/plugin-version";
 import { SiteUpdatePolicyRow } from "./UpdatePolicy";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { SiteIcon } from "./SiteIcon";
@@ -59,18 +73,47 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "security", "seo", "accessibility", "domain"];
-const STATIC_TABS = ["overview", "analytics", "pages", "accessibility", "domain"];
+const WORDPRESS_TABS = [
+  "overview",
+  "analytics",
+  "content",
+  "plugins",
+  "users",
+  "links",
+  "security",
+  "seo",
+  "accessibility",
+  "domain",
+];
+const STATIC_TABS = [
+  "overview",
+  "analytics",
+  "pages",
+  "accessibility",
+  "domain",
+];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
-const CLOUDFLARE_TABS = ["overview", "analytics", "pages", "deployments", "accessibility", "domain"];
+const CLOUDFLARE_TABS = [
+  "overview",
+  "analytics",
+  "pages",
+  "deployments",
+  "accessibility",
+  "domain",
+];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
   // The tab lives in the address, so a refresh or a shared link opens the same one.
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = TABS.includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
-  const setTab = (next: string) => setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
+  const requestedTab = TABS.includes(searchParams.get("tab") ?? "")
+    ? searchParams.get("tab")!
+    : "overview";
+  const setTab = (next: string) =>
+    setSearchParams(next === "overview" ? {} : { tab: next }, {
+      replace: true,
+    });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [connectionKey, setConnectionKey] = useState("");
@@ -96,7 +139,9 @@ export function SitePage() {
     queryFn: () => fetchSite(id),
     refetchInterval: (query) => {
       const job = query.state.data?.site.self_update_status;
-      return job === "queued" || job === "running" ? 3_000 : updatesRefetchInterval(query.state.data?.updates);
+      return job === "queued" || job === "running"
+        ? 3_000
+        : updatesRefetchInterval(query.state.data?.updates);
     },
   });
   const refresh = () => {
@@ -104,7 +149,10 @@ export function SitePage() {
     queryClient.invalidateQueries({ queryKey: ["overview"] });
   };
   // A failed sync is recorded on the site, so the refreshed page shows why.
-  const sync = useMutation({ mutationFn: () => syncSite(id), onSettled: refresh });
+  const sync = useMutation({
+    mutationFn: () => syncSite(id),
+    onSettled: refresh,
+  });
   const excludeUpdates = useMutation({
     mutationFn: (excluded: boolean) => setUpdatesExcluded(id, excluded),
     onSettled: refresh,
@@ -129,30 +177,51 @@ export function SitePage() {
     },
   });
 
-  const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
-  const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
-  const analyticsOn = !!umami.data?.configured && !data?.site.analytics_excluded;
+  const layout = useQuery({
+    queryKey: ["settings", "layout"],
+    queryFn: fetchLayoutSettings,
+    refetchInterval: false,
+  });
+  const umami = useQuery({
+    queryKey: ["settings", "umami"],
+    queryFn: fetchUmamiSettings,
+    refetchInterval: false,
+  });
+  const analyticsOn =
+    !!umami.data?.configured && !data?.site.analytics_excluded;
   const twoColumns = layout.data?.site_columns === 2 && analyticsOn;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
-  const tabs = kind === "static" ? (data?.site.cf_hosted ? CLOUDFLARE_TABS : STATIC_TABS) : WORDPRESS_TABS;
+  const tabs =
+    kind === "static"
+      ? data?.site.cf_hosted
+        ? CLOUDFLARE_TABS
+        : STATIC_TABS
+      : WORDPRESS_TABS;
   const switchedOff =
     (requestedTab === "analytics" && umami.data && !analyticsOn) ||
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded);
-  const tab = switchedOff || (kind && !tabs.includes(requestedTab)) ? "overview" : requestedTab;
+  const tab =
+    switchedOff || (kind && !tabs.includes(requestedTab))
+      ? "overview"
+      : requestedTab;
 
   if (isPending) return <PageSkeleton />;
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
-  if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
+  if (!data)
+    return <p className="text-sm text-destructive">{error?.message}</p>;
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
 
   return (
     <div>
-      <Link to="/sites" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <Link
+        to="/sites"
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeftIcon className="size-3" /> Sites
       </Link>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -171,8 +240,17 @@ export function SitePage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2">
-          {!isStatic && <MagicLoginButton site={site} onChooseUser={() => setChoosingLoginUser(true)} />}
-          <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+          {!isStatic && (
+            <MagicLoginButton
+              site={site}
+              onChooseUser={() => setChoosingLoginUser(true)}
+            />
+          )}
+          <Button
+            size="sm"
+            onClick={() => sync.mutate()}
+            disabled={sync.isPending}
+          >
             <RefreshCwIcon className={sync.isPending ? "animate-spin" : ""} />
             {sync.isPending ? "Syncing..." : "Sync now"}
           </Button>
@@ -188,16 +266,21 @@ export function SitePage() {
         </div>
       </div>
 
-      {site.plugin_version && compareVersions(site.plugin_version, SELF_UPDATING_SINCE) < 0 && (
-        <div className="mt-4 rounded-xl border px-4 py-3 text-sm">
-          <p className="font-medium">Install the new KontrolWP Connect once</p>
-          <p className="mt-1 text-muted-foreground">
-            At its last sync ({timeAgo(site.last_synced_at).toLowerCase()}) this site reported KontrolWP Connect{" "}
-            {site.plugin_version}, which cannot update itself. Install {KONTROLWP_CONNECT_VERSION} from KontrolWP
-            Connect in the sidebar; later versions install automatically. Already did? Select Sync now.
-          </p>
-        </div>
-      )}
+      {site.plugin_version &&
+        compareVersions(site.plugin_version, SELF_UPDATING_SINCE) < 0 && (
+          <div className="mt-4 rounded-xl border px-4 py-3 text-sm">
+            <p className="font-medium">
+              Install the new KontrolWP Connect once
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              At its last sync ({timeAgo(site.last_synced_at).toLowerCase()})
+              this site reported KontrolWP Connect {site.plugin_version}, which
+              cannot update itself. Install {KONTROLWP_CONNECT_VERSION} from
+              KontrolWP Connect in the sidebar; later versions install
+              automatically. Already did? Select Sync now.
+            </p>
+          </div>
+        )}
 
       <SelfUpdateNote site={site} />
 
@@ -206,12 +289,21 @@ export function SitePage() {
       <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isStatic ? (
           <>
-            <Fact label="Type" value={onCloudflare ? "Static site on Cloudflare" : "Static site"} />
-            {onCloudflare && <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />}
+            <Fact
+              label="Type"
+              value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
+            />
+            {onCloudflare && (
+              <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
+            )}
             {onCloudflare && (
               <Fact
                 label="Last deployed"
-                value={site.last_deployed_at ? timeAgo(site.last_deployed_at) : "No deployments"}
+                value={
+                  site.last_deployed_at
+                    ? timeAgo(site.last_deployed_at)
+                    : "No deployments"
+                }
               />
             )}
             <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
@@ -288,11 +380,19 @@ export function SitePage() {
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
             const main = isStatic ? (
-              onCloudflare && <DeploymentsSection site={site} compact onChooseWorker={() => setSettingsOpen(true)} />
+              onCloudflare && (
+                <DeploymentsSection
+                  site={site}
+                  compact
+                  onChooseWorker={() => setSettingsOpen(true)}
+                />
+              )
             ) : (
               <>
                 <SiteUpdatesSection site={site} updates={updates} />
-                <Section title={`Comments awaiting review (${site.pending_comments})`}>
+                <Section
+                  title={`Comments awaiting review (${site.pending_comments})`}
+                >
                   <CommentsList comments={comments} showSite={false} />
                 </Section>
               </>
@@ -320,7 +420,12 @@ export function SitePage() {
           {isStatic && <SitemapTab site={site} />}
         </TabsContent>
         <TabsContent value="deployments" className={TAB_CLASS}>
-          {onCloudflare && <DeploymentsSection site={site} onChooseWorker={() => setSettingsOpen(true)} />}
+          {onCloudflare && (
+            <DeploymentsSection
+              site={site}
+              onChooseWorker={() => setSettingsOpen(true)}
+            />
+          )}
         </TabsContent>
         <TabsContent value="content" className={TAB_CLASS}>
           <ContentTab site={site} />
@@ -361,45 +466,73 @@ export function SitePage() {
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">Check for updates</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {site.updates_excluded
-                      ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
-                      : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    Check for updates
+                    <HelpTip>
+                      {site.updates_excluded
+                        ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
+                        : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                    </HelpTip>
                   </p>
                   {excludeUpdates.error && (
-                    <p className="mt-1 text-xs text-destructive">{excludeUpdates.error.message}</p>
+                    <p className="mt-1 text-xs text-destructive">
+                      {excludeUpdates.error.message}
+                    </p>
                   )}
                 </div>
-                {excludeUpdates.isPending && <Spinner className="size-4 text-muted-foreground" />}
+                {excludeUpdates.isPending && (
+                  <Spinner className="size-4 text-muted-foreground" />
+                )}
                 <input
                   type="checkbox"
                   className="size-4 shrink-0 accent-primary"
-                  checked={excludeUpdates.isPending ? excludeUpdates.variables === false : !site.updates_excluded}
+                  checked={
+                    excludeUpdates.isPending
+                      ? excludeUpdates.variables === false
+                      : !site.updates_excluded
+                  }
                   disabled={excludeUpdates.isPending}
-                  onChange={(event) => excludeUpdates.mutate(!event.target.checked)}
+                  onChange={(event) =>
+                    excludeUpdates.mutate(!event.target.checked)
+                  }
                 />
               </label>
             )}
-            {!isStatic && !site.updates_excluded && <SiteUpdatePolicyRow site={site} />}
+            {!isStatic && !site.updates_excluded && (
+              <SiteUpdatePolicyRow site={site} />
+            )}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">Check for broken links</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {site.links_excluded
-                      ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
-                      : "KontrolWP scans this site's posts and pages for broken links."}
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    Check for broken links
+                    <HelpTip>
+                      {site.links_excluded
+                        ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
+                        : "KontrolWP scans this site's posts and pages for broken links."}
+                    </HelpTip>
                   </p>
-                  {excludeLinks.error && <p className="mt-1 text-xs text-destructive">{excludeLinks.error.message}</p>}
+                  {excludeLinks.error && (
+                    <p className="mt-1 text-xs text-destructive">
+                      {excludeLinks.error.message}
+                    </p>
+                  )}
                 </div>
-                {excludeLinks.isPending && <Spinner className="size-4 text-muted-foreground" />}
+                {excludeLinks.isPending && (
+                  <Spinner className="size-4 text-muted-foreground" />
+                )}
                 <input
                   type="checkbox"
                   className="size-4 shrink-0 accent-primary"
-                  checked={excludeLinks.isPending ? excludeLinks.variables === false : !site.links_excluded}
+                  checked={
+                    excludeLinks.isPending
+                      ? excludeLinks.variables === false
+                      : !site.links_excluded
+                  }
                   disabled={excludeLinks.isPending}
-                  onChange={(event) => excludeLinks.mutate(!event.target.checked)}
+                  onChange={(event) =>
+                    excludeLinks.mutate(!event.target.checked)
+                  }
                 />
               </label>
             )}
@@ -429,27 +562,51 @@ export function SitePage() {
               off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
             />
             {!isStatic && (
-              <SettingRow title="Magic Login administrator" detail="Magic Login opens wp-admin signed in as this user.">
+              <SettingRow
+                title="Magic Login administrator"
+                detail="Magic Login opens wp-admin signed in as this user."
+              >
                 <MagicLoginUserSelect site={site} />
               </SettingRow>
             )}
             {isStatic && <CloudflareRow site={site} />}
             {umami.data?.configured && (
-              <SettingRow title="Umami website" detail="Where this site's analytics come from.">
+              <SettingRow
+                title="Umami website"
+                detail="Where this site's analytics come from."
+              >
                 <div className="[&_select]:max-w-52">
-                  <WebsitePicker site={site} current={site.umami_website_id} chosen={!!site.umami_website_id} />
+                  <WebsitePicker
+                    site={site}
+                    current={site.umami_website_id}
+                    chosen={!!site.umami_website_id}
+                  />
                 </div>
               </SettingRow>
             )}
             {!isStatic && (
-              <SettingRow title="Connection key" detail="Paste a new key after creating one in KontrolWP Connect.">
-                <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
+              <SettingRow
+                title="Connection key"
+                detail="Paste a new key after creating one in KontrolWP Connect."
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={fromSettings(setReplacingKey)}
+                >
                   Change
                 </Button>
               </SettingRow>
             )}
-            <SettingRow title="Remove site" detail="KontrolWP forgets this site. Nothing changes on the site itself.">
-              <Button size="sm" variant="destructive" onClick={fromSettings(setConfirmRemove)}>
+            <SettingRow
+              title="Remove site"
+              detail="KontrolWP forgets this site. Nothing changes on the site itself."
+            >
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={fromSettings(setConfirmRemove)}
+              >
                 Remove
               </Button>
             </SettingRow>
@@ -461,14 +618,20 @@ export function SitePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Magic Login</DialogTitle>
-            <DialogDescription>Choose the administrator Magic Login signs you in to {site.name} as.</DialogDescription>
+            <DialogDescription>
+              Choose the administrator Magic Login signs you in to {site.name}{" "}
+              as.
+            </DialogDescription>
           </DialogHeader>
           {choosingLoginUser && (
             <MagicLoginUserForm
               site={site}
               submitLabel="Save"
               onDone={() => setChoosingLoginUser(false)}
-              secondary={{ label: "Cancel", onClick: () => setChoosingLoginUser(false) }}
+              secondary={{
+                label: "Cancel",
+                onClick: () => setChoosingLoginUser(false),
+              }}
             />
           )}
         </DialogContent>
@@ -486,8 +649,8 @@ export function SitePage() {
             <DialogHeader>
               <DialogTitle>Change connection key</DialogTitle>
               <DialogDescription>
-                If you created a new key in KontrolWP Connect, or reinstalled it, paste the site's current Connection
-                Key here.
+                If you created a new key in KontrolWP Connect, or reinstalled
+                it, paste the site's current Connection Key here.
               </DialogDescription>
             </DialogHeader>
             <ConnectionSteps siteUrl={site.url} />
@@ -501,9 +664,17 @@ export function SitePage() {
               autoComplete="off"
               required
             />
-            {replaceKey.error && <p className="text-sm text-destructive">{replaceKey.error.message}</p>}
+            {replaceKey.error && (
+              <p className="text-sm text-destructive">
+                {replaceKey.error.message}
+              </p>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => closeKeyDialog(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeKeyDialog(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" loading={replaceKey.isPending}>
@@ -519,16 +690,23 @@ export function SitePage() {
           <DialogHeader>
             <DialogTitle>Remove {site.name}?</DialogTitle>
             <DialogDescription>
-              KontrolWP forgets this site and its Connection Key; nothing changes on the site itself. To shut the door
-              on the site too, deactivate KontrolWP Connect or create a new key there.
+              KontrolWP forgets this site and its Connection Key; nothing
+              changes on the site itself. To shut the door on the site too,
+              deactivate KontrolWP Connect or create a new key there.
             </DialogDescription>
           </DialogHeader>
-          {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
+          {remove.error && (
+            <p className="text-sm text-destructive">{remove.error.message}</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmRemove(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={() => remove.mutate()} loading={remove.isPending}>
+            <Button
+              variant="destructive"
+              onClick={() => remove.mutate()}
+              loading={remove.isPending}
+            >
               Remove site
             </Button>
           </DialogFooter>
@@ -544,7 +722,11 @@ function CloudflareRow(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const save = useMutation({
-    mutationFn: (input: { hosted: boolean; account_id?: string; worker?: string }) => setSiteCloudflare(site.id, input),
+    mutationFn: (input: {
+      hosted: boolean;
+      account_id?: string;
+      worker?: string;
+    }) => setSiteCloudflare(site.id, input),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["site", site.id] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
@@ -554,17 +736,26 @@ function CloudflareRow(props: { site: SiteSummary }) {
     <>
       <label className="flex cursor-pointer items-center gap-3 py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Hosted on Cloudflare Workers</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Shows this site's deployments and build logs from Cloudflare. Leave it off for a site hosted anywhere else.
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            Hosted on Cloudflare Workers
+            <HelpTip>
+              Shows this site's deployments and build logs from Cloudflare.
+              Leave it off for a site hosted anywhere else.
+            </HelpTip>
           </p>
-          {save.error && !site.cf_hosted && <p className="mt-1 text-xs text-destructive">{save.error.message}</p>}
+          {save.error && !site.cf_hosted && (
+            <p className="mt-1 text-xs text-destructive">
+              {save.error.message}
+            </p>
+          )}
         </div>
         {save.isPending && <Spinner className="size-4 text-muted-foreground" />}
         <input
           type="checkbox"
           className="size-4 shrink-0 accent-primary"
-          checked={save.isPending ? save.variables?.hosted === true : site.cf_hosted}
+          checked={
+            save.isPending ? save.variables?.hosted === true : site.cf_hosted
+          }
           disabled={save.isPending}
           onChange={(event) => save.mutate({ hosted: event.target.checked })}
         />
@@ -578,9 +769,17 @@ function CloudflareRow(props: { site: SiteSummary }) {
         >
           <CloudflareWorkerSelect
             value={
-              site.cf_worker && site.cf_account_id ? { account_id: site.cf_account_id, worker: site.cf_worker } : null
+              site.cf_worker && site.cf_account_id
+                ? { account_id: site.cf_account_id, worker: site.cf_worker }
+                : null
             }
-            onChange={(worker) => save.mutate({ hosted: true, account_id: worker?.account_id, worker: worker?.worker })}
+            onChange={(worker) =>
+              save.mutate({
+                hosted: true,
+                account_id: worker?.account_id,
+                worker: worker?.worker,
+              })
+            }
             disabled={save.isPending}
           />
         </SettingRow>
@@ -589,17 +788,33 @@ function CloudflareRow(props: { site: SiteSummary }) {
   );
 }
 
-function SettingRow(props: { title: string; detail: string; error?: string; stacked?: boolean; children: ReactNode }) {
+function SettingRow(props: {
+  title: string;
+  detail: string;
+  error?: string;
+  stacked?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div
-      className={props.stacked ? "flex flex-col gap-2 py-3" : "flex flex-col gap-2 py-3 sm:flex-row sm:items-center"}
+      className={
+        props.stacked
+          ? "flex flex-col gap-2 py-3"
+          : "flex flex-col gap-2 py-3 sm:flex-row sm:items-center"
+      }
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{props.title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{props.detail}</p>
-        {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {props.title}
+          <HelpTip>{props.detail}</HelpTip>
+        </p>
+        {props.error && (
+          <p className="mt-1 text-xs text-destructive">{props.error}</p>
+        )}
       </div>
-      <div className={props.stacked ? "flex justify-end" : "shrink-0"}>{props.children}</div>
+      <div className={props.stacked ? "flex justify-end" : "shrink-0"}>
+        {props.children}
+      </div>
     </div>
   );
 }
@@ -608,7 +823,9 @@ function Fact(props: { label: string; value: string | null }) {
   return (
     <div className="rounded-xl border bg-background px-4 py-3">
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
-      <dd className="mt-1 truncate text-sm font-medium">{props.value || "Unknown"}</dd>
+      <dd className="mt-1 truncate text-sm font-medium">
+        {props.value || "Unknown"}
+      </dd>
     </div>
   );
 }
@@ -629,25 +846,34 @@ function SelfUpdateNote(props: { site: SiteSummary }) {
     return null;
   }
   const target = site.self_update_version ?? KONTROLWP_CONNECT_VERSION;
-  const active = site.self_update_status === "queued" || site.self_update_status === "running";
+  const active =
+    site.self_update_status === "queued" ||
+    site.self_update_status === "running";
   // A finished job for an older release says nothing about this one; the
   // next sync queues it.
-  if (!active && site.self_update_version !== KONTROLWP_CONNECT_VERSION) return null;
+  if (!active && site.self_update_version !== KONTROLWP_CONNECT_VERSION)
+    return null;
   if (active) {
     return (
       <div className="mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm text-muted-foreground">
         <Spinner className="mt-0.5 size-4" />
         <span>
-          {site.self_update_status === "running" ? "Updating" : "Waiting to update"} KontrolWP Connect from {version} to{" "}
-          {target}...
-          {site.self_update_status === "queued" && site.self_update_error && <> {site.self_update_error}</>}
+          {site.self_update_status === "running"
+            ? "Updating"
+            : "Waiting to update"}{" "}
+          KontrolWP Connect from {version} to {target}...
+          {site.self_update_status === "queued" && site.self_update_error && (
+            <> {site.self_update_error}</>
+          )}
         </span>
       </div>
     );
   }
   return (
     <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-      <p className="font-medium text-destructive">KontrolWP Connect did not update to {target}</p>
+      <p className="font-medium text-destructive">
+        KontrolWP Connect did not update to {target}
+      </p>
       <p className="mt-1 text-muted-foreground">
         {site.self_update_status === "failed" && site.self_update_error
           ? site.self_update_error
