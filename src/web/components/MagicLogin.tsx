@@ -167,7 +167,7 @@ export function MagicLoginUserForm(props: {
 }
 
 const ADMIN_SELECT_CLASS =
-  "h-8 max-w-56 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
+  "h-8 w-full rounded-lg sm:max-w-56 border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
 
 /** The Magic Login administrator as a dropdown that saves when changed. */
 export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) {

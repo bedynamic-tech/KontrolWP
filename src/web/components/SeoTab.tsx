@@ -37,7 +37,7 @@ import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
 
 const SELECT_CLASS =
-  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-8 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 const TITLE_LENGTH = 60;
 const DESCRIPTION_LENGTH = 160;

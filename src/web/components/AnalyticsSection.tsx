@@ -19,7 +19,7 @@ export const RANGE_LABELS: Record<AnalyticsRange, string> = {
 };
 
 export const SELECT_CLASS =
-  "h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 /** The site's Umami analytics; shows nothing until Umami is connected in Settings. */
 /** The chosen date range, remembered in this browser and shared by the Overview card and the Analytics tab. */
@@ -49,7 +49,7 @@ export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: Ana
       aria-label="Date range"
       value={props.range}
       onChange={(event) => props.onChange(event.target.value as AnalyticsRange)}
-      className={SELECT_CLASS}
+      className={`${SELECT_CLASS} w-auto!`}
     >
       {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((value) => (
         <option key={value} value={value}>
