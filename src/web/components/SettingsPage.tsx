@@ -29,6 +29,7 @@ import {
   saveSyncSettings,
   saveUmamiSettings,
 } from "../api";
+import { HelpTip } from "./HelpTip";
 import { Section } from "./Section";
 import { UpdatePolicySettingsSection } from "./UpdatePolicy";
 import { Spinner } from "./Spinner";
@@ -113,10 +114,12 @@ function SyncSettingsSection() {
     >
       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span>
-          <span className="block text-sm font-medium">Check every site</span>
-          <span className="block text-xs text-muted-foreground">
-            Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at
-            once.
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            Check every site
+            <HelpTip>
+              Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at
+              once.
+            </HelpTip>
           </span>
         </span>
         <select
@@ -207,20 +210,22 @@ function LinkScanSettingsSection() {
       <div className="divide-y">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            <span className="block text-sm font-medium">Check every site's links</span>
-            <span className="block text-xs text-muted-foreground">
-              At midnight, one site at a time, a couple of minutes apart.
-              {data?.next_run_at
-                ? ` Next: ${new Date(data.next_run_at * 1000).toLocaleString(undefined, {
-                    timeZone: zone,
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}.`
-                : ""}
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              Check every site's links
+              <HelpTip>At midnight, one site at a time, a couple of minutes apart.</HelpTip>
             </span>
+            {data?.next_run_at ? (
+              <span className="block text-xs text-muted-foreground">
+                {`Next: ${new Date(data.next_run_at * 1000).toLocaleString(undefined, {
+                  timeZone: zone,
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}.`}
+              </span>
+            ) : null}
           </span>
           <select
             aria-label="Link check interval"
@@ -238,9 +243,9 @@ function LinkScanSettingsSection() {
         </div>
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            <span className="block text-sm font-medium">Time zone</span>
-            <span className="block text-xs text-muted-foreground">
-              Where midnight is. Set from this browser at first.
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              Time zone
+              <HelpTip>Where midnight is. Set from this browser at first.</HelpTip>
             </span>
           </span>
           <select
@@ -285,8 +290,10 @@ function LayoutSettingsSection() {
         onChange={() => save.mutate({ ...layout.data, site_columns: value })}
       />
       <span>
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="block text-xs text-muted-foreground">{detail}</span>
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          {title}
+          <HelpTip>{detail}</HelpTip>
+        </span>
       </span>
     </label>
   );
@@ -355,7 +362,14 @@ function UmamiSettingsSection() {
   };
 
   return (
-    <Section title="Umami analytics">
+    <Section
+      title="Umami analytics"
+      hint={
+        settings.data?.configured
+          ? `Connected to ${settings.data.mode === "cloud" ? "Umami Cloud" : settings.data.url}. Each site's page shows its analytics from the Umami website with the same domain.`
+          : "Connect Umami to see each site's visitors, pageviews and top pages on its page. KontrolWP matches each site to the Umami website with the same domain."
+      }
+    >
       {settings.isPending ? (
         <div className="space-y-3 p-4">
           <Skeleton className="h-8 w-full" />
@@ -365,11 +379,6 @@ function UmamiSettingsSection() {
         <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
       ) : (
         <form onSubmit={submit} className="space-y-4 p-4">
-          <p className="text-sm text-muted-foreground">
-            {settings.data.configured
-              ? `Connected to ${settings.data.mode === "cloud" ? "Umami Cloud" : settings.data.url}. Each site's page shows its analytics from the Umami website with the same domain.`
-              : "Connect Umami to see each site's visitors, pageviews and top pages on its page. KontrolWP matches each site to the Umami website with the same domain."}
-          </p>
           <Tabs value={mode} onValueChange={(value) => setMode(value as UmamiMode)}>
             <TabsList>
               <TabsTrigger value="cloud">Umami Cloud</TabsTrigger>
@@ -377,7 +386,13 @@ function UmamiSettingsSection() {
             </TabsList>
             <TabsContent value="cloud" className="space-y-3 pt-3">
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium">API key</span>
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  API key
+                  <HelpTip>
+                    Create one in Umami Cloud under Settings, API keys. The API key is stored encrypted, like each site's
+                    connection key, and is never shown again.
+                  </HelpTip>
+                </span>
                 <Input
                   type="password"
                   value={secret}
@@ -386,9 +401,6 @@ function UmamiSettingsSection() {
                   required={mode === "cloud" && !saved}
                   autoComplete="off"
                 />
-                <span className="block text-xs text-muted-foreground">
-                  Create one in Umami Cloud under Settings, API keys.
-                </span>
               </label>
             </TabsContent>
             <TabsContent value="self-hosted" className="space-y-3 pt-3">
@@ -414,7 +426,13 @@ function UmamiSettingsSection() {
                   />
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-medium">Password</span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    Password
+                    <HelpTip>
+                      A view-only Umami user is enough. KontrolWP signs in with it each time it loads analytics. The
+                      password is stored encrypted, like each site's connection key, and is never shown again.
+                    </HelpTip>
+                  </span>
                   <Input
                     type="password"
                     value={secret}
@@ -425,15 +443,8 @@ function UmamiSettingsSection() {
                   />
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                A view-only Umami user is enough. KontrolWP signs in with it each time it loads analytics.
-              </p>
             </TabsContent>
           </Tabs>
-          <p className="text-xs text-muted-foreground">
-            The {mode === "cloud" ? "API key" : "password"} is stored encrypted, like each site's connection key, and is
-            never shown again.
-          </p>
           {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
           {save.isSuccess && (
             <p className="text-sm text-muted-foreground">
@@ -492,7 +503,14 @@ function WordfenceSettingsSection() {
 
   return (
     <div id="wordfence" className="scroll-mt-4">
-      <Section title="Wordfence vulnerability data">
+      <Section
+        title="Wordfence vulnerability data"
+        hint={
+          settings.data?.configured
+            ? "Connected. Each site's Security tab matches its WordPress and plugin versions against Wordfence's vulnerability database, downloaded once a day."
+            : "Each site's Security tab lists known vulnerabilities in its WordPress and plugins from Wordfence Intelligence. Wordfence's free feed needs an API key."
+        }
+      >
         {settings.isPending ? (
           <div className="space-y-3 p-4">
             <Skeleton className="h-8 w-full" />
@@ -507,13 +525,14 @@ function WordfenceSettingsSection() {
             }}
             className="space-y-4 p-4"
           >
-            <p className="text-sm text-muted-foreground">
-              {settings.data.configured
-                ? "Connected. Each site's Security tab matches its WordPress and plugin versions against Wordfence's vulnerability database, downloaded once a day."
-                : "Each site's Security tab lists known vulnerabilities in its WordPress and plugins from Wordfence Intelligence. Wordfence's free feed needs an API key."}
-            </p>
             <label className="block space-y-1.5">
-              <span className="text-sm font-medium">API key</span>
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                API key
+                <HelpTip>
+                  Create a free account at wordfence.com/threat-intel, then copy the key from its API key page.
+                  Wordfence allows one download every 30 minutes. The key is stored encrypted and never shown again.
+                </HelpTip>
+              </span>
               <Input
                 type="password"
                 value={key}
@@ -524,10 +543,6 @@ function WordfenceSettingsSection() {
                 required={!settings.data.configured}
                 autoComplete="off"
               />
-              <span className="block text-xs text-muted-foreground">
-                Create a free account at wordfence.com/threat-intel, then copy the key from its API key page. Wordfence
-                allows one download every 30 minutes. The key is stored encrypted and never shown again.
-              </span>
             </label>
             {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
             {save.isSuccess && (
@@ -587,7 +602,14 @@ function CloudflareSettingsSection() {
   };
 
   return (
-    <Section title="Cloudflare">
+    <Section
+      title="Cloudflare"
+      hint={
+        settings.data?.configured
+          ? "Connected. A static site on Cloudflare Workers shows its deployments and build logs once you choose its Worker."
+          : "Connect Cloudflare to show a static site's deployments and build logs. KontrolWP only reads from Cloudflare."
+      }
+    >
       {settings.isPending ? (
         <div className="space-y-3 p-4">
           <Skeleton className="h-8 w-full" />
@@ -596,13 +618,15 @@ function CloudflareSettingsSection() {
         <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
       ) : (
         <form onSubmit={submit} className="space-y-4 p-4">
-          <p className="text-sm text-muted-foreground">
-            {settings.data.configured
-              ? "Connected. A static site on Cloudflare Workers shows its deployments and build logs once you choose its Worker."
-              : "Connect Cloudflare to show a static site's deployments and build logs. KontrolWP only reads from Cloudflare."}
-          </p>
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium">API token</span>
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              API token
+              <HelpTip>
+                Create a user API token in Cloudflare under My Profile, API Tokens, with read access to Account
+                Settings, Workers Scripts and Workers Builds Configuration. It is stored encrypted and never shown
+                again.
+              </HelpTip>
+            </span>
             <Input
               type="password"
               value={token}
@@ -611,10 +635,6 @@ function CloudflareSettingsSection() {
               required={!settings.data.configured}
               autoComplete="off"
             />
-            <span className="block text-xs text-muted-foreground">
-              Create a user API token in Cloudflare under My Profile, API Tokens, with read access to Account Settings,
-              Workers Scripts and Workers Builds Configuration. It is stored encrypted and never shown again.
-            </span>
           </label>
           {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
           {save.isSuccess && (

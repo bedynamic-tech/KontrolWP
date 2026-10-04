@@ -7,6 +7,7 @@ import { scoreBand, type AccessibilityImpact, type ScoreBand } from "../../share
 import type { AccessibilityIssue, SiteAccessibility, SiteSummary } from "../../shared/types";
 import { fetchAccessibility, scanAccessibility, setAccessibilityFixes } from "../api";
 import { timeAgo } from "../format";
+import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 
 const IMPACT_LABEL: Record<AccessibilityImpact, string> = {
@@ -55,11 +56,11 @@ function IssueRow(props: { issue: AccessibilityIssue; busy: boolean; onFix: () =
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{issue.title}</span>
+          <HelpTip>{issue.help}</HelpTip>
           <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", IMPACT_CLASS[issue.impact])}>
             {IMPACT_LABEL[issue.impact]}
           </span>
         </div>
-        <p className="mt-0.5 text-muted-foreground">{issue.help}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           Found {issue.count.toLocaleString()} {issue.count === 1 ? "time" : "times"} on {issue.pages.length}{" "}
           {issue.pages.length === 1 ? "page" : "pages"}. WCAG {issue.wcag}.
@@ -252,15 +253,20 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
       )}
 
       {site.kind === "wordpress" && (
-        <Section title="Automatic fixes">
+        <Section
+          title="Automatic fixes"
+          hint="Fixes change the page as it is sent to visitors. They never edit your content or theme, and turning one off puts the page back."
+        >
           {result.fixes_note && <p className="border-b px-4 py-3 text-sm text-muted-foreground">{result.fixes_note}</p>}
           {result.fixes.length ? (
             <ul className="divide-y">
               {result.fixes.map((fix) => (
                 <li key={fix.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
                   <div className="min-w-0">
-                    <p className="font-medium">{fix.title}</p>
-                    <p className="mt-0.5 text-muted-foreground">{fix.detail}</p>
+                    <p className="flex items-center gap-1.5 font-medium">
+                      {fix.title}
+                      <HelpTip>{fix.detail}</HelpTip>
+                    </p>
                   </div>
                   {fix.enabled ? (
                     <div className="flex shrink-0 items-center gap-2">
@@ -290,10 +296,6 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
           ) : (
             !result.fixes_note && <EmptyRow>Fixes are not available for this site.</EmptyRow>
           )}
-          <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
-            Fixes change the page as it is sent to visitors. They never edit your content or theme, and turning one off
-            puts the page back.
-          </p>
         </Section>
       )}
     </div>
