@@ -425,7 +425,7 @@ export function SitePage() {
             <DialogDescription>{site.name}</DialogDescription>
           </DialogHeader>
           <div className="divide-y border-y">
-            {!isStatic && <CoreAutoUpdateRow site={site} className="py-3" />}
+            {!isStatic && !site.updates_excluded && <CoreAutoUpdateRow site={site} className="py-3" />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
