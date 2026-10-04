@@ -22,14 +22,16 @@ import type {
   CloudflareSettings,
   CloudflareWorker,
   SiteContent,
+  SeoPages,
   SiteAccessibility,
+  SiteSeo,
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
-import { UPDATE_FREQUENCIES } from "../../shared/types.ts";
+import { SEO_SEPARATORS, UPDATE_FREQUENCIES } from "../../shared/types.ts";
 import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
@@ -85,6 +87,7 @@ import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
 import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
+import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../sites/seo.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import {
   cleanExcluded,
@@ -213,8 +216,17 @@ async function addStaticSite(c: AppContext, input: z.infer<typeof staticSiteInpu
 }
 
 // A static site has no KontrolWP Connect, so nothing that talks to WordPress applies to it.
+async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!(error instanceof SeoError)) throw error;
+    return c.json({ error: error.message }, error.status);
+  }
+}
+
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -952,6 +964,72 @@ api.put("/sites/:id/accessibility/fixes", async (c) => {
   // Page caches may keep serving the old HTML for a while, so the scan can still show the problem.
   await scanNow(c.env, site, { force: true }).catch(() => undefined);
   return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, credentials));
+});
+
+/** The site's SEO settings, and whether another SEO plugin is in the way. */
+api.get("/sites/:id/seo", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  return seoResponse(c, async () => c.json<SiteSeo>(await siteSeo(c.env, site, credentials)));
+});
+
+const seoText = (max: number) => z.string().max(max);
+const seoSettingsBody = z.object({
+  enabled: z.boolean(),
+  separator: z.enum(SEO_SEPARATORS),
+  title_template: seoText(200),
+  home_title: seoText(200),
+  home_description: seoText(320),
+  og_enabled: z.boolean(),
+  og_image: seoText(2000),
+  twitter_card: z.enum(["summary", "summary_large_image"]),
+  twitter_site: seoText(40),
+  noindex_search: z.boolean(),
+  noindex_author: z.boolean(),
+  noindex_date: z.boolean(),
+  canonical: z.boolean(),
+  sitemap: z.boolean(),
+});
+
+api.put("/sites/:id/seo", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  const parsed = seoSettingsBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  return seoResponse(c, async () => c.json<SiteSeo>(await saveSeoSettings(c.env, site, credentials, parsed.data)));
+});
+
+const seoPagesBody = z.object({ page: z.number().int().min(1).max(10000).catch(1), search: z.string().max(100).catch("") });
+
+/** Published pages and posts with their SEO overrides. POST so the search text stays out of the URL. */
+api.post("/sites/:id/seo/pages", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  const { page, search } = seoPagesBody.parse((await c.req.json().catch(() => null)) ?? {});
+  return seoResponse(c, async () => c.json<SeoPages>(await listSeoPages(c.env, site, credentials, page, search.trim())));
+});
+
+const seoPageBody = z.object({
+  seo_title: seoText(200).optional(),
+  description: seoText(320).optional(),
+  noindex: z.boolean().optional(),
+  image: seoText(2000).optional(),
+});
+
+api.put("/sites/:id/seo/pages/:pageId", async (c) => {
+  const id = siteId(c);
+  const pageId = Number(c.req.param("pageId"));
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site || !Number.isInteger(pageId) || pageId < 1) return c.json({ error: "Site not found" }, 404);
+  const parsed = seoPageBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  return seoResponse(c, async () => {
+    await saveSeoPage(c.env, site, credentials, pageId, parsed.data);
+    return c.json({ ok: true });
+  });
 });
 
 /** Known vulnerabilities and insecure settings on one WordPress site. */

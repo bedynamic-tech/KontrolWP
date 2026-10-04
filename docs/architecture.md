@@ -394,6 +394,10 @@ error, run one site per cron tick, and never in a tick that starts a sync.
 | `GET /security` | No body. Settings worth fixing: whether errors are printed into pages (`WP_DEBUG` with `WP_DEBUG_DISPLAY`), whether the wp-admin code editor is allowed, whether a user named `admin` exists and whether XML-RPC is on. Read-only. Added in 0.12.0. |
 | `GET /accessibility` | No body. Returns `{fixes: {id: {enabled, applied}}}` for the accessibility fixes. Added in 0.14.0. |
 | `POST /accessibility/fixes` | `{ids: [fix ids], enabled}`. Switches accessibility fixes on or off. Ids: `image_alt`, `form_labels`, `link_names`, `frame_titles`, `viewport_zoom`, `skip_link`. Added in 0.14.0. |
+| `GET /seo` | No body. Returns `{settings, conflict, site_name, tagline, home_url, discouraged}`. `conflict` names another active SEO plugin. Added in 0.15.0. |
+| `POST /seo/settings` | The settings object. Cleaned and saved; returns the same as `GET /seo`. Added in 0.15.0. |
+| `POST /seo/pages` | `{page, search}`. Published posts and pages with their overrides, 20 at a time: `{items: [...], total}`. Added in 0.15.0. |
+| `POST /seo/page` | `{id, seo_title?, description?, noindex?, image?}`. Saves one page's overrides; an empty value removes one. Added in 0.15.0. |
 | `POST /security/fixes` | `{ids: [fix ids], enabled}`. Switches hardening fixes on or off and returns each fix's `{enabled, applied}`. Ids: `directory_listing`, `generator`, `rsd`, `wlw`, `db_errors`, `php_errors`, `readme`, `file_edit`, `xmlrpc`. Added in 0.13.0. |
 | `POST /links/unlink` | `{items: [{url, post_ids}]}` (up to 50). Unwraps links to `url` in those published posts, keeping the text; leaves button blocks. Saves through `wp_update_post` (a revision is kept) without kses, so nothing else in the post is filtered. Returns posts changed and buttons kept per address. Added in 0.9.3. |
 | `GET /comments` | Pending count and the 50 newest comments awaiting moderation. |
@@ -451,3 +455,9 @@ has no page titles, so rows show the path.
 ## Per-site feature switches
 
 Site settings can turn off analytics, broken link checks, security checks and accessibility checks for one site. All are on by default. The flags are `analytics_excluded`, `security_excluded` and `accessibility_excluded` on `sites` (migration 0023), set through `PUT /sites/:id/feature-excluded`, and `links_excluded` as before. A turned-off feature answers 409 on its routes, is skipped by the cron (accessibility scans, link scans, and the vulnerability feed refresh when no WordPress site has security on), and its tab is hidden. Stored analytics, security and accessibility results are kept, so turning a feature back on shows them again. Turning broken link checks off still clears that site's links.
+
+## SEO
+
+The SEO tab (plugin 0.15.0, WordPress only) is an Easy-mode set of basics. The settings live on the site, in the autoloaded option `kontrolwp_connect_seo`, and the per-page overrides are post meta (`_kontrolwp_seo_title`, `_kontrolwp_seo_description`, `_kontrolwp_seo_noindex`, `_kontrolwp_seo_image`). The dashboard stores nothing of its own: `src/worker/sites/seo.ts` reads and writes through the plugin routes above and keeps the answers in `content_cache` under kind `seo` (cleared when anything is saved).
+
+When SEO is on, the plugin prints a description, canonical link and Open Graph and Twitter tags in `wp_head`, sets the document title from a template (`%title%`, `%sitename%`, `%tagline%`, `%sep%`) or the page's own title, adds `noindex` through `wp_robots` for search, author and date pages and for pages marked hidden, and can turn the core sitemap off. If Yoast SEO, Rank Math, All in One SEO, SEOPress or The SEO Framework is active it prints nothing and the tab says so. WordPress's own "Discourage search engines" switch is reported but not changed. Turning SEO off, or deleting the plugin, leaves pages as WordPress renders them.
