@@ -769,6 +769,14 @@ export interface SeoSettings {
   noindex_search: boolean;
   noindex_author: boolean;
   noindex_date: boolean;
+  /** Hide attachment pages (the page WordPress makes for each uploaded file). */
+  noindex_attachment: boolean;
+  /** Hide author pages on a site where one person writes everything, as they repeat the blog. */
+  noindex_author_single: boolean;
+  /** Taxonomies (tags, categories, ...) whose pages are hidden from search and left out of the sitemap. */
+  hidden_taxonomies: string[];
+  /** Content types hidden from search and the sitemap. */
+  hidden_types: string[];
   canonical: boolean;
   sitemap: boolean;
   local: SeoLocal;
@@ -785,6 +793,9 @@ export interface SiteSeo {
   discouraged: boolean;
   /** Title and address of each page a location is tied to, by page id. */
   location_pages: Record<string, { title: string; url: string }>;
+  /** Public content types and taxonomies on the site, for the hide lists. */
+  post_types: { name: string; label: string }[];
+  taxonomies: { name: string; label: string }[];
 }
 
 /** One page's SEO overrides; an empty value means the site-wide defaults apply. */

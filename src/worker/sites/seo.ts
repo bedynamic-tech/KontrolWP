@@ -28,7 +28,14 @@ export function normalizeSeo(report: SiteSeo): SiteSeo {
     settings: {
       ...report.settings,
       local: { enabled: !!local.enabled, locations: locations.map((item) => ({ ...emptyLocation(), ...item })) },
+      // A site on an older plugin reports none of these; they then change nothing.
+      noindex_attachment: !!report.settings?.noindex_attachment,
+      noindex_author_single: !!report.settings?.noindex_author_single,
+      hidden_taxonomies: report.settings?.hidden_taxonomies ?? [],
+      hidden_types: report.settings?.hidden_types ?? [],
     },
+    post_types: report.post_types ?? [],
+    taxonomies: report.taxonomies ?? [],
     location_pages: report.location_pages && !Array.isArray(report.location_pages) ? report.location_pages : {},
   };
 }
