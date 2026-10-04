@@ -298,6 +298,9 @@ class KontrolWP_Connect_Redirects {
 			add_action( 'transition_post_status', array( __CLASS__, 'auto_post_published' ), 10, 3 );
 			add_action( 'edit_terms', array( __CLASS__, 'auto_term_before' ), 10, 2 );
 			add_action( 'edited_term', array( __CLASS__, 'auto_term_after' ), 10, 3 );
+			add_action( 'pre_delete_term', array( __CLASS__, 'auto_term_deleting' ), 10, 2 );
+			add_action( 'delete_term', array( __CLASS__, 'auto_term_deleted' ), 10, 3 );
+			add_action( 'created_term', array( __CLASS__, 'auto_term_created' ), 10, 3 );
 		}
 	}
 
@@ -562,7 +565,7 @@ class KontrolWP_Connect_Redirects {
 		}
 	}
 
-	/** A category, tag or other term whose address changed. Terms below it are not followed. */
+	/** A category, tag or other term whose address changed. Terms below it are covered by a prefix rule. */
 	public static function auto_term_after( $term_id, $tt_id, $taxonomy ) {
 		$term_id = (int) $term_id;
 		if ( ! isset( self::$term_links[ $term_id ] ) ) {
@@ -571,8 +574,76 @@ class KontrolWP_Connect_Redirects {
 		$old = self::$term_links[ $term_id ];
 		unset( self::$term_links[ $term_id ] );
 		$new = get_term_link( $term_id, $taxonomy );
-		if ( ! is_wp_error( $new ) && $new !== $old ) {
-			self::add_moved( $old, $new );
+		if ( is_wp_error( $new ) || $new === $old ) {
+			return;
+		}
+		$source = self::add_moved( $old, $new );
+		if ( '' !== $source && is_taxonomy_hierarchical( $taxonomy ) && get_term_children( $term_id, $taxonomy ) ) {
+			self::upsert_auto( $source, 'prefix', rtrim( self::stored_address( $new ), '/' ) . '/$1', 301 );
+		}
+	}
+
+	/** Term addresses recorded before a delete: the term's own, and those of the terms directly below it, which move up a level. */
+	private static $deleting = array();
+
+	public static function auto_term_deleting( $term_id, $taxonomy ) {
+		if ( ! is_taxonomy_viewable( $taxonomy ) ) {
+			return;
+		}
+		$link = get_term_link( (int) $term_id, $taxonomy );
+		if ( is_wp_error( $link ) ) {
+			return;
+		}
+		$children = array();
+		if ( is_taxonomy_hierarchical( $taxonomy ) ) {
+			$ids = get_terms(
+				array(
+					'taxonomy'   => $taxonomy,
+					'parent'     => (int) $term_id,
+					'hide_empty' => false,
+					'fields'     => 'ids',
+					'number'     => 50,
+				)
+			);
+			foreach ( is_array( $ids ) ? $ids : array() as $child ) {
+				$child_link = get_term_link( (int) $child, $taxonomy );
+				if ( ! is_wp_error( $child_link ) ) {
+					$children[ (int) $child ] = $child_link;
+				}
+			}
+		}
+		self::$deleting[ (int) $term_id ] = array(
+			'link'     => $link,
+			'children' => $children,
+		);
+	}
+
+	/** A term was deleted: its address follows the delete setting, and the terms that moved up keep their old addresses working. */
+	public static function auto_term_deleted( $term_id, $tt_id, $taxonomy ) {
+		$term_id = (int) $term_id;
+		if ( ! isset( self::$deleting[ $term_id ] ) ) {
+			return;
+		}
+		$was = self::$deleting[ $term_id ];
+		unset( self::$deleting[ $term_id ] );
+		foreach ( $was['children'] as $child => $old ) {
+			$new = get_term_link( $child, $taxonomy );
+			if ( ! is_wp_error( $new ) && $new !== $old ) {
+				self::add_moved( $old, $new );
+			}
+		}
+		self::add_removed( $was['link'] );
+	}
+
+	/** A term created at an address that an automatic rule points away from: the rule goes. */
+	public static function auto_term_created( $term_id, $tt_id, $taxonomy ) {
+		if ( ! is_taxonomy_viewable( $taxonomy ) ) {
+			return;
+		}
+		$link = get_term_link( (int) $term_id, $taxonomy );
+		if ( ! is_wp_error( $link ) ) {
+			self::drop_auto_at( self::relative_path( $link, home_url() ) );
+			self::refresh_state();
 		}
 	}
 
