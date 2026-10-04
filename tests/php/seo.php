@@ -4,6 +4,7 @@
 
 define( 'ABSPATH', __DIR__ . '/' );
 function wp_strip_all_tags( $text ) { return trim( strip_tags( $text ) ); }
+function wp_json_encode( $value, $flags = 0 ) { return json_encode( $value, $flags ); }
 function strip_shortcodes( $text ) { return preg_replace( '/\[[^\]]+\]/', '', $text ); }
 class KontrolWP_Connect_Rest { const NAMESPACE_V1 = 'kontrolwp/v1'; }
 require __DIR__ . '/../../plugin/kontrolwp-connect/includes/class-kontrolwp-connect-seo.php';

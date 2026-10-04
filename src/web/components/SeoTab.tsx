@@ -13,7 +13,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
-import { SEO_SEPARATORS, type SeoPage, type SeoSettings, type SiteSeo, type SiteSummary } from "../../shared/types";
+import {
+  SEO_BUSINESS_TYPES,
+  SEO_DAYS,
+  SEO_SEPARATORS,
+  type SeoLocal,
+  type SeoPage,
+  type SeoSettings,
+  type SiteSeo,
+  type SiteSummary,
+} from "../../shared/types";
 import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
@@ -166,6 +175,136 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Business details for local search, marked up on the home page. */
+function LocalSection(props: { local: SeoLocal; siteName: string; onChange: (local: SeoLocal) => void }) {
+  const { local, onChange } = props;
+  const set = <K extends keyof SeoLocal>(key: K, value: SeoLocal[K]) => onChange({ ...local, [key]: value });
+  const text = (key: keyof SeoLocal & string, label: string, placeholder = "") => (
+    <Row title={label}>
+      <Input
+        aria-label={label}
+        value={local[key] as string}
+        onChange={(event) => set(key, event.target.value as never)}
+        placeholder={placeholder}
+      />
+    </Row>
+  );
+  const setHours = (day: string, part: "open" | "close", value: string) => {
+    const current = local.hours[day] ?? { open: "", close: "" };
+    const next = { ...current, [part]: value };
+    const hours = { ...local.hours };
+    if (next.open || next.close) hours[day] = next;
+    else delete hours[day];
+    set("hours", hours);
+  };
+  const incomplete = !local.phone && !local.street;
+  return (
+    <Section title="Local SEO">
+      <div className="divide-y">
+        <CheckRow
+          title="Mark up this business for local search"
+          detail="Adds schema.org business details to the home page, which search engines use for local results and knowledge panels."
+          checked={local.enabled}
+          onChange={(value) => set("enabled", value)}
+        />
+        {local.enabled && (
+          <>
+            {incomplete && (
+              <p className="px-4 py-3 text-xs text-muted-foreground">
+                Add a phone number or a street address. Nothing is added to the page until you do.
+              </p>
+            )}
+            <Row title="Business type">
+              <select
+                aria-label="Business type"
+                className={SELECT_CLASS}
+                value={local.type}
+                onChange={(event) => set("type", event.target.value)}
+              >
+                {SEO_BUSINESS_TYPES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+            {text("name", "Business name", props.siteName)}
+            {text("phone", "Phone", "+1 555 0100")}
+            {text("email", "Email")}
+            {text("street", "Street address")}
+            {text("city", "City")}
+            {text("region", "State or region")}
+            {text("postal", "Postal code")}
+            {text("country", "Country", "US")}
+            <Row title="Map location" detail="Optional latitude and longitude, such as 30.2672 and -97.7431.">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  aria-label="Latitude"
+                  value={local.latitude}
+                  onChange={(event) => set("latitude", event.target.value)}
+                  placeholder="Latitude"
+                />
+                <Input
+                  aria-label="Longitude"
+                  value={local.longitude}
+                  onChange={(event) => set("longitude", event.target.value)}
+                  placeholder="Longitude"
+                />
+              </div>
+            </Row>
+            {text("price_range", "Price range", "$$")}
+            {text("logo", "Logo address", "https://")}
+            {text("image", "Photo address", "https://")}
+            <div className="px-4 py-3">
+              <p className="text-sm font-medium">Opening hours</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Leave both times empty for a day you are closed.</p>
+              <ul className="mt-3 grid gap-2">
+                {SEO_DAYS.map(([day, label]) => (
+                  <li key={day} className="flex items-center gap-3 text-sm">
+                    <span className="w-24 shrink-0">{label}</span>
+                    <Input
+                      type="time"
+                      aria-label={`${label} opens`}
+                      className="w-32"
+                      value={local.hours[day]?.open ?? ""}
+                      onChange={(event) => setHours(day, "open", event.target.value)}
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="time"
+                      aria-label={`${label} closes`}
+                      className="w-32"
+                      value={local.hours[day]?.close ?? ""}
+                      onChange={(event) => setHours(day, "close", event.target.value)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Row
+              title="Profile links"
+              detail="One address per line: your Google Business, Facebook, Instagram and other profiles."
+            >
+              <Textarea
+                aria-label="Profile links"
+                rows={3}
+                value={local.same_as.join("\n")}
+                onChange={(event) =>
+                  set(
+                    "same_as",
+                    event.target.value.split("\n").map((line) => line.trim()),
+                  )
+                }
+                placeholder="https://"
+              />
+            </Row>
+          </>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -488,6 +627,8 @@ export function SeoTab(props: { site: SiteSummary }) {
           />
         </div>
       </Section>
+
+      <LocalSection local={draft.local} siteName={data.site_name} onChange={(local) => set("local", local)} />
 
       <PagesSection site={site} seo={data} />
     </>

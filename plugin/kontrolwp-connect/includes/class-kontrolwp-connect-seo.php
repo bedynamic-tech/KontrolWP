@@ -29,6 +29,58 @@ class KontrolWP_Connect_SEO {
 
 	const SEPARATORS = array( '-', '|', '·', '»', '•' );
 
+	/** Schema.org types the business can be marked up as. */
+	const BUSINESS_TYPES = array(
+		'LocalBusiness',
+		'Restaurant',
+		'CafeOrCoffeeShop',
+		'Store',
+		'ProfessionalService',
+		'LegalService',
+		'AccountingService',
+		'FinancialService',
+		'Dentist',
+		'Physician',
+		'HealthAndBeautyBusiness',
+		'RealEstateAgent',
+		'HomeAndConstructionBusiness',
+		'AutomotiveBusiness',
+		'LodgingBusiness',
+		'SportsActivityLocation',
+		'EntertainmentBusiness',
+	);
+
+	/** Days in the order the dashboard lists them, with schema.org's names for them. */
+	const DAYS = array(
+		'mon' => 'Monday',
+		'tue' => 'Tuesday',
+		'wed' => 'Wednesday',
+		'thu' => 'Thursday',
+		'fri' => 'Friday',
+		'sat' => 'Saturday',
+		'sun' => 'Sunday',
+	);
+
+	const LOCAL_DEFAULTS = array(
+		'enabled'     => false,
+		'type'        => 'LocalBusiness',
+		'name'        => '',
+		'phone'       => '',
+		'email'       => '',
+		'logo'        => '',
+		'image'       => '',
+		'street'      => '',
+		'city'        => '',
+		'region'      => '',
+		'postal'      => '',
+		'country'     => '',
+		'latitude'    => '',
+		'longitude'   => '',
+		'price_range' => '',
+		'hours'       => array(),
+		'same_as'     => array(),
+	);
+
 	const DEFAULTS = array(
 		'enabled'            => false,
 		'separator'          => '-',
@@ -44,6 +96,7 @@ class KontrolWP_Connect_SEO {
 		'noindex_date'       => true,
 		'canonical'          => true,
 		'sitemap'            => true,
+		'local'              => self::LOCAL_DEFAULTS,
 	);
 
 	public static function register_routes( $auth ) {
@@ -145,7 +198,132 @@ class KontrolWP_Connect_SEO {
 			$handle                = ltrim( trim( $input['twitter_site'] ), '@' );
 			$out['twitter_site'] = preg_match( '/^[A-Za-z0-9_]{1,15}$/', $handle ) ? '@' . $handle : '';
 		}
+		$out['local'] = self::clean_local( isset( $input['local'] ) && is_array( $input['local'] ) ? $input['local'] : array() );
 		return $out;
+	}
+
+	/** The business details with only known keys, each of the right type. Pure. */
+	public static function clean_local( $input ) {
+		$out = self::LOCAL_DEFAULTS;
+		if ( array_key_exists( 'enabled', $input ) ) {
+			$out['enabled'] = (bool) $input['enabled'];
+		}
+		if ( isset( $input['type'] ) && in_array( $input['type'], self::BUSINESS_TYPES, true ) ) {
+			$out['type'] = $input['type'];
+		}
+		foreach ( array( 'name', 'phone', 'email', 'street', 'city', 'region', 'postal', 'country', 'price_range' ) as $key ) {
+			if ( isset( $input[ $key ] ) && is_string( $input[ $key ] ) ) {
+				$out[ $key ] = self::line( $input[ $key ], 200 );
+			}
+		}
+		foreach ( array( 'logo', 'image' ) as $key ) {
+			if ( isset( $input[ $key ] ) && is_string( $input[ $key ] ) ) {
+				$out[ $key ] = self::url( $input[ $key ] );
+			}
+		}
+		// Coordinates: a number inside the range, or empty.
+		foreach ( array( 'latitude' => 90, 'longitude' => 180 ) as $key => $limit ) {
+			if ( isset( $input[ $key ] ) && ( is_string( $input[ $key ] ) || is_numeric( $input[ $key ] ) ) ) {
+				$value = trim( (string) $input[ $key ] );
+				if ( is_numeric( $value ) && abs( (float) $value ) <= $limit ) {
+					$out[ $key ] = (string) ( (float) $value );
+				}
+			}
+		}
+		if ( isset( $input['hours'] ) && is_array( $input['hours'] ) ) {
+			foreach ( array_keys( self::DAYS ) as $day ) {
+				$hours = isset( $input['hours'][ $day ] ) && is_array( $input['hours'][ $day ] ) ? $input['hours'][ $day ] : array();
+				$open  = isset( $hours['open'] ) && is_string( $hours['open'] ) ? trim( $hours['open'] ) : '';
+				$close = isset( $hours['close'] ) && is_string( $hours['close'] ) ? trim( $hours['close'] ) : '';
+				$valid = '/^([01]\d|2[0-3]):[0-5]\d$/';
+				if ( preg_match( $valid, $open ) && preg_match( $valid, $close ) ) {
+					$out['hours'][ $day ] = array(
+						'open'  => $open,
+						'close' => $close,
+					);
+				}
+			}
+		}
+		if ( isset( $input['same_as'] ) && is_array( $input['same_as'] ) ) {
+			foreach ( $input['same_as'] as $link ) {
+				$link = is_string( $link ) ? self::url( $link ) : '';
+				if ( '' !== $link && ! in_array( $link, $out['same_as'], true ) && count( $out['same_as'] ) < 10 ) {
+					$out['same_as'][] = $link;
+				}
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The schema.org markup for the business, or null when there is too little
+	 * to describe it (a name and either a phone number or a street address).
+	 * Pure; $site_name and $home_url come from WordPress.
+	 */
+	public static function business_schema( $local, $site_name, $home_url ) {
+		$name = '' !== $local['name'] ? $local['name'] : $site_name;
+		if ( '' === $name || ( '' === $local['phone'] && '' === $local['street'] ) ) {
+			return null;
+		}
+		$schema = array(
+			'@context' => 'https://schema.org',
+			'@type'    => $local['type'],
+			'name'     => $name,
+			'url'      => $home_url,
+		);
+		foreach ( array(
+			'telephone'  => 'phone',
+			'email'      => 'email',
+			'image'      => 'image',
+			'priceRange' => 'price_range',
+		) as $property => $key ) {
+			if ( '' !== $local[ $key ] ) {
+				$schema[ $property ] = $local[ $key ];
+			}
+		}
+		if ( '' !== $local['logo'] ) {
+			$schema['logo'] = $local['logo'];
+		}
+		$address = array();
+		foreach ( array(
+			'streetAddress'   => 'street',
+			'addressLocality' => 'city',
+			'addressRegion'   => 'region',
+			'postalCode'      => 'postal',
+			'addressCountry'  => 'country',
+		) as $property => $key ) {
+			if ( '' !== $local[ $key ] ) {
+				$address[ $property ] = $local[ $key ];
+			}
+		}
+		if ( $address ) {
+			$schema['address'] = array_merge( array( '@type' => 'PostalAddress' ), $address );
+		}
+		if ( '' !== $local['latitude'] && '' !== $local['longitude'] ) {
+			$schema['geo'] = array(
+				'@type'     => 'GeoCoordinates',
+				'latitude'  => (float) $local['latitude'],
+				'longitude' => (float) $local['longitude'],
+			);
+		}
+		$hours = array();
+		foreach ( self::DAYS as $key => $day ) {
+			if ( isset( $local['hours'][ $key ] ) ) {
+				$hours[] = array(
+					'@type'     => 'OpeningHoursSpecification',
+					'dayOfWeek' => $day,
+					'opens'     => $local['hours'][ $key ]['open'],
+					'closes'    => $local['hours'][ $key ]['close'],
+				);
+			}
+		}
+		if ( $hours ) {
+			$schema['openingHoursSpecification'] = $hours;
+		}
+		if ( $local['same_as'] ) {
+			$schema['sameAs'] = $local['same_as'];
+		}
+		return $schema;
 	}
 
 	/** Plain text on one line, cut to a length. */
@@ -247,6 +425,14 @@ class KontrolWP_Connect_SEO {
 			$meta( 'name', 'twitter:description', $page['description'] );
 			$meta( 'name', 'twitter:image', $page['image'] );
 			$meta( 'name', 'twitter:site', $settings['twitter_site'] );
+		}
+		if ( 'home' === $page['kind'] && ! empty( $settings['local']['enabled'] ) ) {
+			$schema = self::business_schema( $settings['local'], $page['site_name'], $page['url'] );
+			if ( $schema ) {
+				$tags[] = '<script type="application/ld+json">'
+					. wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP )
+					. '</script>';
+			}
 		}
 		return $tags ? "<!-- KontrolWP SEO -->\n" . implode( "\n", $tags ) . "\n<!-- /KontrolWP SEO -->\n" : '';
 	}
