@@ -30,6 +30,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
@@ -337,7 +338,9 @@ export function SitePage() {
           <SecurityTab site={site} />
         </TabsContent>
         <TabsContent value="seo" className={TAB_CLASS}>
-          <SeoTab site={site} />
+          <ErrorBoundary label="The SEO tab">
+            <SeoTab site={site} />
+          </ErrorBoundary>
         </TabsContent>
         <TabsContent value="accessibility" className={TAB_CLASS}>
           <AccessibilityTab site={site} />

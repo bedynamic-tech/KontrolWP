@@ -10,7 +10,7 @@ function setup() {
   return { DB: db };
 }
 
-const site = (extra = {}) => ({ id: 1, url: "https://a.test/", kind: "wordpress", plugin_version: "0.15.0", ...extra });
+const site = (extra = {}) => ({ id: 1, url: "https://a.test/", kind: "wordpress", plugin_version: "0.15.1", ...extra });
 const credentials = { id: 1, url: "https://a.test/", keyId: "k", secret: "c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0MTIzNDU2" };
 const settings = {
   local: { enabled: false, locations: [] },
@@ -49,7 +49,7 @@ test("SEO is refused for static sites, missing keys and old plugins", async () =
   const env = setup();
   await assert.rejects(siteSeo(env, site({ kind: "static" }), credentials), SeoError);
   await assert.rejects(siteSeo(env, site(), null), SeoError);
-  await assert.rejects(siteSeo(env, site({ plugin_version: "0.14.0" }), credentials), /0\.15\.0/);
+  await assert.rejects(siteSeo(env, site({ plugin_version: "0.15.0" }), credentials), /0\.15\.1/);
   await assert.rejects(siteSeo(env, site({ plugin_version: null }), credentials), SeoError);
 });
 
@@ -62,6 +62,7 @@ test("settings are read once and kept, and saving clears what was kept", async (
     tagline: "",
     home_url: "https://a.test/",
     discouraged: false,
+    location_pages: {},
   };
   await withSite(
     () => report,
@@ -97,4 +98,54 @@ test("page lists are kept per page and search, and saving a page clears them", a
       assert.equal(calls.length, 5);
     },
   );
+});
+
+test("a report kept before locations existed is reshaped so the tab can draw it", async () => {
+  const { normalizeSeo } = await import("../src/worker/sites/seo.ts");
+  const old = {
+    settings: {
+      ...settings,
+      local: { enabled: true, type: "Dentist", name: "Smile Co", phone: "555", hours: {}, same_as: [] },
+    },
+    conflict: "",
+    site_name: "A",
+    tagline: "",
+    home_url: "https://a.test/",
+    discouraged: false,
+  };
+  const out = normalizeSeo(old);
+  assert.equal(out.settings.local.enabled, true);
+  assert.equal(out.settings.local.locations.length, 1);
+  assert.equal(out.settings.local.locations[0].name, "Smile Co");
+  assert.equal(out.settings.local.locations[0].type, "Dentist");
+  assert.deepEqual(out.settings.local.locations[0].same_as, []);
+  assert.deepEqual(out.location_pages, {});
+  const bare = normalizeSeo({ ...old, settings: { ...settings, local: undefined } });
+  assert.deepEqual(bare.settings.local, { enabled: false, locations: [] });
+  const current = {
+    ...old,
+    settings: { ...settings, local: { enabled: false, locations: [{ id: "abcd1234", name: "X" }] } },
+    location_pages: { 7: { title: "T", url: "u" } },
+  };
+  const kept = normalizeSeo(current);
+  assert.equal(kept.settings.local.locations[0].page_id, 0);
+  assert.equal(kept.settings.local.locations[0].id, "abcd1234");
+  assert.deepEqual(kept.location_pages, { 7: { title: "T", url: "u" } });
+});
+
+test("an old cached answer is reshaped when the tab reads it", async () => {
+  const env = setup();
+  const old = {
+    settings: { ...settings, local: { enabled: true, name: "Smile Co", phone: "555" } },
+    conflict: "",
+    site_name: "A",
+    tagline: "",
+    home_url: "https://a.test/",
+    discouraged: false,
+  };
+  env.DB.sqlite
+    .prepare("INSERT INTO content_cache (site_id, kind, key, body, cached_at) VALUES (1, 'seo', 'settings', ?, ?)")
+    .run(JSON.stringify(old), Math.floor(Date.now() / 1000));
+  const out = await siteSeo(env, site(), credentials);
+  assert.equal(out.settings.local.locations.length, 1);
 });
