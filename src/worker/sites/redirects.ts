@@ -1,12 +1,17 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version.ts";
+import { compareVersions, SEO_MIGRATE_SINCE, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version.ts";
 import type {
   NotFoundLog,
   RedirectImportResult,
   RedirectInput,
+  SeoMigrationParts,
+  SeoMigrationPreview,
+  SeoMigrationResult,
+  SeoMigrationSource,
   SiteRedirects,
   SiteSummary,
 } from "../../shared/types.ts";
+import { clearContentCache } from "../content-cache.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { SeoError } from "./seo.ts";
 
@@ -85,4 +90,60 @@ export async function listNotFound(site: SiteSummary, credentials: SiteCredentia
 
 export async function clearNotFound(site: SiteSummary, credentials: SiteCredentials | null): Promise<void> {
   await call(requireSupported(site, credentials), "/seo/404s/clear", {});
+}
+
+/* ---- Importing from another SEO plugin ---- */
+
+function requireMigrate(site: SiteSummary, credentials: SiteCredentials | null): SiteCredentials {
+  if (site.kind === "static" || !credentials)
+    throw new SeoError("Importing needs a WordPress site with KontrolWP Connect.", 400);
+  if (!site.plugin_version || compareVersions(site.plugin_version, SEO_MIGRATE_SINCE) < 0) {
+    throw new SeoError(
+      `Importing from another SEO plugin needs KontrolWP Connect ${SEO_MIGRATE_SINCE} or later. It updates automatically; select Sync now to check.`,
+      400,
+    );
+  }
+  return credentials;
+}
+
+/** SEO plugins installed on the site, active or not. */
+export async function listMigrationSources(site: SiteSummary, credentials: SiteCredentials | null) {
+  return call<{ sources: SeoMigrationSource[] }>(requireMigrate(site, credentials), "/seo/migrate", {});
+}
+
+/** What importing from a plugin would bring in. Changes nothing. */
+export async function previewMigration(site: SiteSummary, credentials: SiteCredentials | null, source: string) {
+  return call<SeoMigrationPreview>(requireMigrate(site, credentials), "/seo/migrate/preview", { source });
+}
+
+/** Bring the chosen parts in. Only adds, so it is safe to run again. Clears anything cached for the site. */
+export async function runMigration(
+  env: Env,
+  site: SiteSummary,
+  credentials: SiteCredentials | null,
+  source: string,
+  parts: SeoMigrationParts,
+) {
+  const result = await call<SeoMigrationResult>(requireMigrate(site, credentials), "/seo/migrate/run", {
+    source,
+    ...parts,
+  });
+  await clearContentCache(env.DB, site.id);
+  return result;
+}
+
+/** Deactivate the other plugin. The caller has confirmed; the plugin and its data are kept. */
+export async function deactivateMigrationSource(
+  env: Env,
+  site: SiteSummary,
+  credentials: SiteCredentials | null,
+  source: string,
+) {
+  const result = await call<{ name: string; deactivated: string[] }>(
+    requireMigrate(site, credentials),
+    "/seo/migrate/deactivate",
+    { source },
+  );
+  await clearContentCache(env.DB, site.id);
+  return result;
 }

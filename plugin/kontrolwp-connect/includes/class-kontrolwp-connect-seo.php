@@ -403,14 +403,14 @@ class KontrolWP_Connect_SEO {
 	}
 
 	/** Plain text on one line, cut to a length. */
-	private static function line( $text, $max ) {
+	public static function line( $text, $max ) {
 		$text = wp_strip_all_tags( $text );
 		$text = trim( preg_replace( '/\s+/u', ' ', $text ) );
 		return function_exists( 'mb_substr' ) ? mb_substr( $text, 0, $max ) : substr( $text, 0, $max );
 	}
 
 	/** An http or https address, or an empty string. */
-	private static function url( $value ) {
+	public static function url( $value ) {
 		$value = trim( $value );
 		return preg_match( '#^https?://[^\s<>"\']+$#i', $value ) ? $value : '';
 	}

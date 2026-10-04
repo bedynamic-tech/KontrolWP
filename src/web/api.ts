@@ -14,6 +14,10 @@ import type {
   NotFoundLog,
   RedirectImportResult,
   RedirectInput,
+  SeoMigrationParts,
+  SeoMigrationPreview,
+  SeoMigrationResult,
+  SeoMigrationSource,
   SeoPageChange,
   SeoPages,
   SeoSettings,
@@ -363,5 +367,16 @@ export const fetchNotFound = (siteId: number, page: number) =>
   request<NotFoundLog>(`/sites/${siteId}/seo/404s`, { method: "POST", json: { page } });
 export const clearNotFound = (siteId: number) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/404s/clear`, { method: "POST", json: {} });
+export const fetchMigrationSources = (siteId: number) =>
+  request<{ sources: SeoMigrationSource[] }>(`/sites/${siteId}/seo/migrate`);
+export const previewMigration = (siteId: number, source: string) =>
+  request<SeoMigrationPreview>(`/sites/${siteId}/seo/migrate/preview`, { method: "POST", json: { source } });
+export const runMigration = (siteId: number, source: string, parts: SeoMigrationParts) =>
+  request<SeoMigrationResult>(`/sites/${siteId}/seo/migrate/run`, { method: "POST", json: { source, ...parts } });
+export const deactivateMigrationSource = (siteId: number, source: string) =>
+  request<{ name: string; deactivated: string[] }>(`/sites/${siteId}/seo/migrate/deactivate`, {
+    method: "POST",
+    json: { source, confirm: true },
+  });
 export const saveSeoPage = (siteId: number, pageId: number, change: SeoPageChange) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/pages/${pageId}`, { method: "PUT", json: change });
