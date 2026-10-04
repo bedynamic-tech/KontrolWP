@@ -296,7 +296,7 @@ export function ToolsTab(props: { site: SiteSummary }) {
         hint="Tells Bing, Yandex and other search engines that use it the moment a page is published, changed or removed, so they do not wait to find it. Google does not use IndexNow. KontrolWP makes the key and answers for its file."
       >
         <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-          <p className="min-w-0 flex-1 text-sm font-medium">Notify search engines when content changes</p>
+          <p className="min-w-0 flex-1 text-sm font-medium">Enable IndexNow</p>
           <input
             type="checkbox"
             className="size-4 shrink-0 accent-primary"

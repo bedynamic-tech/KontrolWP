@@ -589,7 +589,7 @@ function LocalSection(props: {
     >
       <div className="divide-y">
         <CheckRow
-          title="Mark up my business locations for local search"
+          title="Enable local business markup"
           detail="Adds schema.org business details, which search engines use for local results and knowledge panels. A location without its own page is marked up on the home page."
           checked={local.enabled}
           onChange={(value) => {
@@ -872,7 +872,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       >
         <div className="divide-y">
           <CheckRow
-            title="Add SEO tags to this site"
+            title="Enable SEO Management"
             detail="KontrolWP Connect adds titles, descriptions, social tags and robots rules to the head of your pages. Turning this off puts the pages back as WordPress made them."
             checked={draft.enabled}
             onChange={(value) => set("enabled", value)}
@@ -954,7 +954,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       <Section title="Social sharing">
         <div className="divide-y">
           <CheckRow
-            title="Open Graph and Twitter tags"
+            title="Enable Open Graph and Twitter tags"
             detail="Control the title, description and image shown when a page is shared."
             checked={draft.og_enabled}
             onChange={(value) => set("og_enabled", value)}
@@ -1074,13 +1074,13 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       <Section title="Technical">
         <div className="divide-y">
           <CheckRow
-            title="Canonical links"
+            title="Enable canonical links"
             detail="Tells search engines each page's preferred address, so tracking links and duplicates count as one page."
             checked={draft.canonical}
             onChange={(value) => set("canonical", value)}
           />
           <CheckRow
-            title="XML sitemap"
+            title="Enable XML sitemap"
             detail="WordPress's built-in sitemap at /wp-sitemap.xml, which search engines use to find your pages."
             checked={draft.sitemap}
             onChange={(value) => set("sitemap", value)}

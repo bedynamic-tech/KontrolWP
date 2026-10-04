@@ -430,7 +430,7 @@ export function SitePage() {
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
-                    Check for updates
+                    Enable update checks
                     <HelpTip>
                       {site.updates_excluded
                         ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
@@ -468,7 +468,7 @@ export function SitePage() {
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
-                    Check for broken links
+                    Enable broken link checks
                     <HelpTip>
                       {site.links_excluded
                         ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
@@ -503,7 +503,7 @@ export function SitePage() {
               <FeatureSwitchRow
                 site={site}
                 feature="analytics"
-                title="Show analytics"
+                title="Enable analytics"
                 on="This site's visitor numbers appear on its Overview and Analytics tab."
                 off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
               />
@@ -512,7 +512,7 @@ export function SitePage() {
               <FeatureSwitchRow
                 site={site}
                 feature="security"
-                title="Check security"
+                title="Enable security checks"
                 on="KontrolWP checks this site for known vulnerabilities and insecure settings."
                 off="KontrolWP does not run security checks on this site, and its Security tab is off."
               />
@@ -520,7 +520,7 @@ export function SitePage() {
             <FeatureSwitchRow
               site={site}
               feature="accessibility"
-              title="Check accessibility"
+              title="Enable accessibility checks"
               on="KontrolWP scans this site for accessibility problems on a schedule."
               off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
             />

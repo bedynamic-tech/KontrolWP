@@ -94,7 +94,7 @@ export function LinksTab(props: { site: SiteSummary }) {
     return (
       <Section title="Links">
         <EmptyRow>
-          Broken link detection is turned off for this site. Turn on Check for broken links in Site settings to scan it
+          Broken link detection is turned off for this site. Select Enable broken link checks in Site settings to scan it
           again.
         </EmptyRow>
       </Section>
