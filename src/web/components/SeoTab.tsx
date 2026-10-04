@@ -29,7 +29,7 @@ import {
 import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
 import { MigrateTab } from "./MigrateTab";
-import { RedirectsTab } from "./RedirectsTab";
+import { NotFoundTab, RedirectsTab } from "./RedirectsTab";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
@@ -1059,6 +1059,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
 const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
   { value: "redirects", label: "Redirects" },
+  { value: "404", label: "404 log" },
   { value: "migrate", label: "Import" },
 ];
 
@@ -1073,6 +1074,9 @@ export function SeoTab(props: { site: SiteSummary }) {
       </TabsContent>
       <TabsContent value="redirects">
         <RedirectsTab site={props.site} />
+      </TabsContent>
+      <TabsContent value="404">
+        <NotFoundTab site={props.site} />
       </TabsContent>
       <TabsContent value="migrate">
         <MigrateTab site={props.site} />
