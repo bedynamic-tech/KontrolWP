@@ -24,6 +24,7 @@ import type {
   SiteContent,
   RedirectCode,
   SeoPages,
+  SeoScore,
   SeoTools,
   SiteAccessibility,
   SiteSeo,
@@ -117,7 +118,7 @@ import {
 } from "../sites/redirects.ts";
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
-import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../sites/seo.ts";
+import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import {
   cleanExcluded,
@@ -1076,6 +1077,7 @@ const seoPageBody = z.object({
   description: seoText(320).optional(),
   noindex: z.boolean().optional(),
   image: seoText(2000).optional(),
+  keyword: seoText(80).optional(),
 });
 
 api.put("/sites/:id/seo/pages/:pageId", async (c) => {
@@ -1089,6 +1091,23 @@ api.put("/sites/:id/seo/pages/:pageId", async (c) => {
     await saveSeoPage(c.env, site, credentials, pageId, parsed.data);
     return c.json({ ok: true });
   });
+});
+
+const seoScoreBody = z.object({
+  seo_title: seoText(200).optional(),
+  description: seoText(320).optional(),
+  keyword: seoText(80).optional(),
+});
+
+/** The content checklist for one page, using the unsaved title, description and keyword when sent. */
+api.post("/sites/:id/seo/pages/:pageId/score", async (c) => {
+  const id = siteId(c);
+  const pageId = Number(c.req.param("pageId"));
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site || !Number.isInteger(pageId) || pageId < 1) return c.json({ error: "Site not found" }, 404);
+  const parsed = seoScoreBody.safeParse((await c.req.json().catch(() => null)) ?? {});
+  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  return seoResponse(c, async () => c.json<SeoScore>(await scoreSeoPage(site, credentials, pageId, parsed.data)));
 });
 
 /** Verification codes, robots.txt, llms.txt and IndexNow for one site. */

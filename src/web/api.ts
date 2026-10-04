@@ -26,6 +26,7 @@ import type {
   SeoTools,
   SeoToolsSettings,
   SeoPages,
+  SeoScore,
   SeoSettings,
   SiteAccessibility,
   SiteRedirects,
@@ -395,3 +396,8 @@ export const saveSeoContent = (siteId: number, settings: SeoContentSettings) =>
   request<SeoContent>(`/sites/${siteId}/seo/content`, { method: "PUT", json: settings });
 export const saveSeoPage = (siteId: number, pageId: number, change: SeoPageChange) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/pages/${pageId}`, { method: "PUT", json: change });
+export const fetchSeoScore = (
+  siteId: number,
+  pageId: number,
+  draft: { seo_title: string; description: string; keyword: string },
+) => request<SeoScore>(`/sites/${siteId}/seo/pages/${pageId}/score`, { method: "POST", json: draft });

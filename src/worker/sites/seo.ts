@@ -1,10 +1,11 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, SEO_SINCE } from "../../shared/plugin-version.ts";
+import { compareVersions, SEO_SCORE_SINCE, SEO_SINCE } from "../../shared/plugin-version.ts";
 import type {
   SeoLocal,
   SeoLocation,
   SeoPageChange,
   SeoPages,
+  SeoScore,
   SeoSettings,
   SiteSeo,
   SiteSummary,
@@ -140,4 +141,21 @@ export async function saveSeoPage(
   const creds = requireSupported(site, credentials);
   await call(creds, "/seo/page", { id, ...change });
   await clearContentCache(env.DB, site.id);
+}
+
+/** The checklist for one page, from its saved values or the unsaved ones in `draft`. Needs a plugin that has it. */
+export async function scoreSeoPage(
+  site: SiteSummary,
+  credentials: SiteCredentials | null,
+  id: number,
+  draft: { seo_title?: string; description?: string; keyword?: string },
+): Promise<SeoScore> {
+  const creds = requireSupported(site, credentials);
+  if (compareVersions(site.plugin_version ?? "0", SEO_SCORE_SINCE) < 0) {
+    throw new SeoError(
+      `The checklist needs KontrolWP Connect ${SEO_SCORE_SINCE} or later. It updates automatically; select Sync now to check.`,
+      400,
+    );
+  }
+  return call<SeoScore>(creds, "/seo/score", { id, ...draft });
 }

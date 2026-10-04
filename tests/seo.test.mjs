@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { listSeoPages, saveSeoPage, saveSeoSettings, SeoError, siteSeo } from "../src/worker/sites/seo.ts";
+import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../src/worker/sites/seo.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 function setup() {
@@ -167,4 +167,19 @@ test("a report from an older plugin gets the archive settings switched off", asy
   assert.deepEqual(out.settings.type_templates, {});
   const kept = normalizeSeo({ settings: { ...settings, type_templates: [] }, conflict: "", site_name: "A", tagline: "", home_url: "https://a.test/", discouraged: false });
   assert.deepEqual(kept.settings.type_templates, {});
+});
+
+test("the page checklist is sent the unsaved values and needs a plugin that has it", async () => {
+  await assert.rejects(scoreSeoPage(site({ plugin_version: "0.22.0" }), credentials, 7, {}), /0\.23\.0/);
+  await assert.rejects(scoreSeoPage(site({ kind: "static", plugin_version: "0.23.0" }), credentials, 7, {}), SeoError);
+  const answer = { keyword: "mug", status: "good", checks: [] };
+  await withSite(
+    () => answer,
+    async (calls) => {
+      const out = await scoreSeoPage(site({ plugin_version: "0.23.0" }), credentials, 7, { keyword: "mug", description: "d" });
+      assert.deepEqual(out, answer);
+      assert.match(calls[0].path, /\/seo\/score$/);
+      assert.deepEqual(calls[0].body, { id: 7, keyword: "mug", description: "d" });
+    },
+  );
 });
