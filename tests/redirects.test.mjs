@@ -72,7 +72,7 @@ test("bulk, import, settings and the 404 log reach their routes", async () => {
       await bulkRedirects(site(), credentials, "delete", [1, 2]);
       assert.deepEqual(calls[0].body, { action: "delete", ids: [1, 2] });
       assert.deepEqual(await importRedirects(site(), credentials, [rule]), { added: 1, skipped: 0, errors: [] });
-      await setRedirectSettings(site(), credentials, true);
+      await setRedirectSettings(site(), credentials, { log_404: true });
       assert.deepEqual(calls[2].body, { log_404: true });
       await listNotFound(site(), credentials, 2);
       assert.deepEqual(calls[3].body, { page: 2 });
@@ -116,6 +116,22 @@ test("the import routes send the source and the parts to import", async () => {
       assert.deepEqual(calls[2].body, { source: "yoast", settings: true, pages: false, redirects: true });
       await deactivateMigrationSource(env, s, credentials, "yoast");
       assert.match(calls[3].path, /migrate\/deactivate$/);
+    },
+  );
+});
+
+test("automatic redirect settings need plugin 0.18.0, but the 404 log setting does not", async () => {
+  await assert.rejects(setRedirectSettings(site(), credentials, { auto_enabled: true }), /0\.18\.0/);
+  await withSite(
+    () => ({ log_404: true }),
+    async (calls) => {
+      await setRedirectSettings(site(), credentials, { log_404: true });
+      await setRedirectSettings(site({ plugin_version: "0.18.0" }), credentials, {
+        auto_enabled: true,
+        on_delete: "301",
+        delete_target: "/",
+      });
+      assert.deepEqual(calls[1].body, { auto_enabled: true, on_delete: "301", delete_target: "/" });
     },
   );
 });

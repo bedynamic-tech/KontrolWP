@@ -11,7 +11,9 @@ import type {
   SecurityFix,
   GlobalUpdatePolicy,
   GlobalUpdatePolicyView,
+  AutoRedirectSettings,
   NotFoundLog,
+  RedirectSettingsChange,
   RedirectImportResult,
   RedirectInput,
   SeoMigrationParts,
@@ -351,7 +353,7 @@ export const fetchSeoPages = (siteId: number, page: number, search: string) =>
   request<SeoPages>(`/sites/${siteId}/seo/pages`, { method: "POST", json: { page, search } });
 export const fetchRedirects = (
   siteId: number,
-  query: { page: number; search: string; per_page?: number; export?: boolean },
+  query: { page: number; search: string; per_page?: number; export?: boolean; auto?: boolean },
 ) => request<SiteRedirects>(`/sites/${siteId}/seo/redirects`, { method: "POST", json: query });
 export const createRedirect = (siteId: number, rule: RedirectInput) =>
   request<{ ok: true }>(`/sites/${siteId}/seo/redirect`, { method: "POST", json: rule });
@@ -361,8 +363,11 @@ export const bulkRedirects = (siteId: number, action: "enable" | "disable" | "de
   request<{ ok: true }>(`/sites/${siteId}/seo/redirects/bulk`, { method: "POST", json: { action, ids } });
 export const importRedirects = (siteId: number, rows: Partial<RedirectInput>[]) =>
   request<RedirectImportResult>(`/sites/${siteId}/seo/redirects/import`, { method: "POST", json: { rows } });
-export const setRedirectLogging = (siteId: number, log404: boolean) =>
-  request<{ log_404: boolean }>(`/sites/${siteId}/seo/redirects-settings`, { method: "PUT", json: { log_404: log404 } });
+export const setRedirectSettings = (siteId: number, change: RedirectSettingsChange) =>
+  request<{ log_404: boolean; auto?: AutoRedirectSettings }>(`/sites/${siteId}/seo/redirects-settings`, {
+    method: "PUT",
+    json: change,
+  });
 export const fetchNotFound = (siteId: number, page: number) =>
   request<NotFoundLog>(`/sites/${siteId}/seo/404s`, { method: "POST", json: { page } });
 export const clearNotFound = (siteId: number) =>

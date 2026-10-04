@@ -60,3 +60,21 @@ test("regex rules substitute their groups", { skip }, () => {
   assert.deepEqual(call("match_rule", rule, "/p/12/hello"), ["/post-12/hello", 301]);
   assert.equal(call("match_rule", rule, "/q/12/hello"), null);
 });
+
+test("an address becomes a path on the site, without the site's own folder", { skip }, () => {
+  assert.equal(call("relative_path", "https://a.test/blog/Old-Page/?x=1", "https://a.test"), "/blog/Old-Page");
+  assert.equal(call("relative_path", "https://a.test/blog/old", "https://a.test/blog"), "/old");
+  assert.equal(call("relative_path", "https://a.test/", "https://a.test"), "/");
+  assert.equal(call("relative_path", "https://a.test/blogger", "https://a.test/blog"), "/blogger");
+});
+
+test("an address on another host has no path on this site", { skip }, () => {
+  assert.equal(call("relative_path", "https://other.test/x", "https://a.test"), "");
+});
+
+test("a redirect target is a full address or a path on the site", { skip }, () => {
+  assert.equal(call("target_ok", "/new"), true);
+  assert.equal(call("target_ok", "https://a.test/new"), true);
+  assert.equal(call("target_ok", "javascript:alert(1)"), false);
+  assert.equal(call("target_ok", "new"), false);
+});

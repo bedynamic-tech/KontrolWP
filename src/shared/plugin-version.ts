@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.17.0";
+export const KONTROLWP_CONNECT_VERSION = "0.18.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -66,3 +66,6 @@ export const SEO_REDIRECTS_SINCE = "0.16.0";
 
 /** Importing from another SEO plugin arrived in this version. */
 export const SEO_MIGRATE_SINCE = "0.17.0";
+
+/** Automatic redirects when content moves or is removed arrived in this version. */
+export const SEO_AUTO_REDIRECTS_SINCE = "0.18.0";

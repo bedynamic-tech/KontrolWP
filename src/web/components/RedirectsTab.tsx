@@ -11,10 +11,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { compareVersions, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version";
+import { compareVersions, SEO_AUTO_REDIRECTS_SINCE, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version";
 import { redirectsFromCsv, redirectsToCsv } from "../../shared/redirect-csv";
 import {
   REDIRECT_CODES,
+  REDIRECT_DELETE_ACTIONS,
+  type AutoRedirectSettings,
+  type RedirectDeleteAction,
   type Redirect,
   type RedirectImportResult,
   type RedirectInput,
@@ -27,7 +30,7 @@ import {
   fetchNotFound,
   fetchRedirects,
   importRedirects,
-  setRedirectLogging,
+  setRedirectSettings,
   updateRedirect,
 } from "../api";
 import { timeAgo } from "../format";
@@ -266,12 +269,13 @@ function download(name: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
-function RulesSection(props: { site: SiteSummary; onNew: (rule: Redirect | null) => void }) {
+function RulesSection(props: { site: SiteSummary; hasAuto: boolean; onNew: (rule: Redirect | null) => void }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   const [page, setPage] = useState(1);
+  const [autoOnly, setAutoOnly] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [importing, setImporting] = useState<Partial<RedirectInput>[] | null>(null);
   const [fileError, setFileError] = useState("");
@@ -284,8 +288,8 @@ function RulesSection(props: { site: SiteSummary; onNew: (rule: Redirect | null)
     return () => clearTimeout(timer);
   }, [search]);
   const rules = useQuery({
-    queryKey: ["site", site.id, "seo", "redirects", page, term],
-    queryFn: () => fetchRedirects(site.id, { page, search: term, per_page: PER_PAGE }),
+    queryKey: ["site", site.id, "seo", "redirects", page, term, autoOnly],
+    queryFn: () => fetchRedirects(site.id, { page, search: term, per_page: PER_PAGE, auto: autoOnly }),
     placeholderData: (previous) => previous,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "seo", "redirects"] });
@@ -351,6 +355,20 @@ function RulesSection(props: { site: SiteSummary; onNew: (rule: Redirect | null)
             className="pl-8"
           />
         </div>
+        {props.hasAuto && (
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={autoOnly}
+              onChange={(event) => {
+                setAutoOnly(event.target.checked);
+                setPage(1);
+              }}
+            />
+            Automatic only
+          </label>
+        )}
         {selected.length > 0 && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">{selected.length} selected</span>
@@ -413,6 +431,7 @@ function RulesSection(props: { site: SiteSummary; onNew: (rule: Redirect | null)
                     {item.hits} {item.hits === 1 ? "hit" : "hits"}
                     {item.last_hit ? `, last ${timeAgo(item.last_hit)}` : ""}
                     {item.enabled ? "" : " · Off"}
+                    {item.auto ? " · Automatic" : ""}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => props.onNew(item)}>
@@ -429,12 +448,137 @@ function RulesSection(props: { site: SiteSummary; onNew: (rule: Redirect | null)
   );
 }
 
+const DELETE_LABELS: Record<RedirectDeleteAction, string> = {
+  none: "Do nothing",
+  "410": "Show that the page is gone (410)",
+  "301": "Redirect to another address",
+};
+
+/** Redirects KontrolWP makes by itself when content is moved or removed. */
+function AutoSection(props: { site: SiteSummary; auto?: AutoRedirectSettings }) {
+  const { site } = props;
+  const queryClient = useQueryClient();
+  const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_AUTO_REDIRECTS_SINCE) >= 0;
+  const [action, setAction] = useState<RedirectDeleteAction>(props.auto?.on_delete ?? "none");
+  const [target, setTarget] = useState(props.auto?.target ?? "");
+  // Follow what the site reports once it arrives or changes.
+  const reportedAction = props.auto?.on_delete;
+  const reportedTarget = props.auto?.target;
+  useEffect(() => {
+    if (reportedAction) setAction(reportedAction);
+    if (reportedTarget !== undefined) setTarget(reportedTarget);
+  }, [reportedAction, reportedTarget]);
+  const save = useMutation({
+    mutationFn: (change: Parameters<typeof setRedirectSettings>[1]) => setRedirectSettings(site.id, change),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "seo", "redirects"] }),
+  });
+  if (!supported) {
+    return (
+      <Section title="Automatic redirects">
+        <EmptyRow>
+          Automatic redirects need KontrolWP Connect {SEO_AUTO_REDIRECTS_SINCE} or later on this site. It updates
+          automatically; select Sync now to check.
+        </EmptyRow>
+      </Section>
+    );
+  }
+  if (!props.auto) return null;
+  const dirty = action !== props.auto.on_delete || (action === "301" && target.trim() !== props.auto.target);
+  return (
+    <Section
+      title="Automatic redirects"
+      hint="Keeps links working when you change a page's address or remove it. Rules made this way are marked Automatic in the list below, and you can edit or delete them."
+    >
+      <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            Redirect automatically when content changes address
+            <HelpTip>
+              When a published page, post or other public content gets a new address, such as a changed slug or parent,
+              or a category or tag is renamed, the old address is sent to the new one with a 301. Earlier automatic
+              redirects are updated to point straight at the newest address. Pages below a moved page are covered too.
+            </HelpTip>
+          </p>
+        </div>
+        <input
+          type="checkbox"
+          className="size-4 shrink-0 accent-primary"
+          checked={props.auto.enabled}
+          disabled={save.isPending}
+          onChange={(event) => save.mutate({ auto_enabled: event.target.checked })}
+        />
+      </label>
+      {props.auto.enabled && (
+        <div className="grid gap-3 border-t px-4 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              When content is deleted or trashed
+              <HelpTip>
+                Moving content back out of the trash removes the rule made when it went in. Publishing new content at an
+                address removes an automatic rule from that address.
+              </HelpTip>
+            </p>
+            <select
+              aria-label="When content is deleted or trashed"
+              className={`${SELECT_CLASS} sm:w-80`}
+              value={action}
+              onChange={(event) => setAction(event.target.value as RedirectDeleteAction)}
+            >
+              {REDIRECT_DELETE_ACTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {DELETE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {action === "301" && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <label htmlFor="auto-redirect-target" className="text-sm font-medium">
+                Send visitors to
+              </label>
+              <Input
+                id="auto-redirect-target"
+                className="sm:w-80"
+                value={target}
+                onChange={(event) => setTarget(event.target.value)}
+                placeholder="/ or https://"
+              />
+            </div>
+          )}
+          {dirty && (
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAction(props.auto!.on_delete);
+                  setTarget(props.auto!.target);
+                }}
+              >
+                Discard
+              </Button>
+              <Button
+                size="sm"
+                disabled={save.isPending}
+                onClick={() => save.mutate({ on_delete: action, delete_target: action === "301" ? target.trim() : "" })}
+              >
+                Save
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      {save.error && <p className="border-t px-4 py-3 text-sm text-destructive">{save.error.message}</p>}
+    </Section>
+  );
+}
+
 function NotFoundSection(props: { site: SiteSummary; logging: boolean; onRedirect: (path: string) => void }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const toggle = useMutation({
-    mutationFn: (value: boolean) => setRedirectLogging(site.id, value),
+    mutationFn: (value: boolean) => setRedirectSettings(site.id, { log_404: value }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["site", site.id, "seo", "redirects"] }),
   });
   const log = useQuery({
@@ -537,8 +681,10 @@ export function RedirectsTab(props: { site: SiteSummary }) {
   }
   return (
     <>
+      <AutoSection site={site} auto={state.data?.auto} />
       <RulesSection
         site={site}
+        hasAuto={!!state.data?.auto}
         onNew={(rule) =>
           setEditing({
             rule,

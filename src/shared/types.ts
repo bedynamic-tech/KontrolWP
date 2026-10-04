@@ -827,14 +827,36 @@ export interface RedirectInput {
 
 export interface Redirect extends RedirectInput {
   id: number;
+  /** Made by KontrolWP when content moved or was removed, not by a person. */
+  auto: boolean;
   hits: number;
   /** Unix seconds, 0 when never used. */
   last_hit: number;
 }
 
+export const REDIRECT_DELETE_ACTIONS = ["none", "410", "301"] as const;
+export type RedirectDeleteAction = (typeof REDIRECT_DELETE_ACTIONS)[number];
+
+/** Redirects KontrolWP makes by itself when content moves or is removed. */
+export interface AutoRedirectSettings {
+  enabled: boolean;
+  /** What happens to the address of removed content: nothing, a "gone" answer, or a redirect to `target`. */
+  on_delete: RedirectDeleteAction;
+  target: string;
+}
+
+export interface RedirectSettingsChange {
+  log_404?: boolean;
+  auto_enabled?: boolean;
+  on_delete?: RedirectDeleteAction;
+  delete_target?: string;
+}
+
 export interface SiteRedirects {
   items: Redirect[];
   total: number;
+  /** Absent from sites running a plugin older than 0.18.0. */
+  auto?: AutoRedirectSettings;
   /** Whether the site records addresses that answered "not found". */
   log_404: boolean;
 }

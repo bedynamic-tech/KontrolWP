@@ -1,9 +1,16 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, SEO_MIGRATE_SINCE, SEO_REDIRECTS_SINCE } from "../../shared/plugin-version.ts";
+import {
+  compareVersions,
+  SEO_AUTO_REDIRECTS_SINCE,
+  SEO_MIGRATE_SINCE,
+  SEO_REDIRECTS_SINCE,
+} from "../../shared/plugin-version.ts";
 import type {
+  AutoRedirectSettings,
   NotFoundLog,
   RedirectImportResult,
   RedirectInput,
+  RedirectSettingsChange,
   SeoMigrationParts,
   SeoMigrationPreview,
   SeoMigrationResult,
@@ -45,6 +52,7 @@ export interface RedirectQuery {
   search: string;
   per_page?: number;
   export?: boolean;
+  auto?: boolean;
 }
 
 export async function listRedirects(site: SiteSummary, credentials: SiteCredentials | null, query: RedirectQuery) {
@@ -78,10 +86,22 @@ export async function importRedirects(
   return call<RedirectImportResult>(requireSupported(site, credentials), "/seo/redirects/import", { rows });
 }
 
-export async function setRedirectSettings(site: SiteSummary, credentials: SiteCredentials | null, log404: boolean) {
-  return call<{ log_404: boolean }>(requireSupported(site, credentials), "/seo/redirects/settings", {
-    log_404: log404,
-  });
+export async function setRedirectSettings(
+  site: SiteSummary,
+  credentials: SiteCredentials | null,
+  change: RedirectSettingsChange,
+) {
+  const creds = requireSupported(site, credentials);
+  if (
+    (change.auto_enabled !== undefined || change.on_delete !== undefined || change.delete_target !== undefined) &&
+    (!site.plugin_version || compareVersions(site.plugin_version, SEO_AUTO_REDIRECTS_SINCE) < 0)
+  ) {
+    throw new SeoError(
+      `Automatic redirects need KontrolWP Connect ${SEO_AUTO_REDIRECTS_SINCE} or later. It updates automatically; select Sync now to check.`,
+      400,
+    );
+  }
+  return call<{ log_404: boolean; auto?: AutoRedirectSettings }>(creds, "/seo/redirects/settings", change);
 }
 
 export async function listNotFound(site: SiteSummary, credentials: SiteCredentials | null, page: number) {

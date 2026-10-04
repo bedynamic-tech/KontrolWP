@@ -17,11 +17,16 @@ class KontrolWP_Connect_Redirects {
 
 	const DB_OPTION    = 'kontrolwp_connect_redirects_db';
 	const STATE_OPTION = 'kontrolwp_connect_redirects_state';
-	const DB_VERSION   = '1';
+	const DB_VERSION   = '2';
 
 	/** Statuses a rule can answer with. 410 and 451 have no target. */
 	const CODES = array( 301, 302, 307, 308, 410, 451 );
 	const TYPES = array( 'exact', 'prefix', 'regex' );
+
+	/** What to do when content is deleted or trashed. */
+	const DELETE_ACTIONS = array( 'none', '410', '301' );
+
+	const META_AUTO_SOURCE = '_kontrolwp_auto_redirect_source';
 
 	const MAX_RULES    = 5000;
 	const MAX_404      = 500;
@@ -82,6 +87,32 @@ class KontrolWP_Connect_Redirects {
 		return '#' . str_replace( '#', '\\#', $pattern ) . '#i';
 	}
 
+	/** Whether a redirect target is a full http(s) address or a path on this site. */
+	public static function target_ok( $target ) {
+		return (bool) preg_match( '#^(https?://[^\s<>"\']+|/[^\s<>"\']*)$#i', $target ) && strlen( $target ) <= 1000;
+	}
+
+	/**
+	 * A URL as a path on the site: the host, query and the site's own folder
+	 * taken off. Empty when the URL is on another host.
+	 */
+	public static function relative_path( $url, $home ) {
+		$u = wp_parse_url( $url );
+		$h = wp_parse_url( $home );
+		if ( ! is_array( $u ) || ! is_array( $h ) ) {
+			return '';
+		}
+		if ( ! empty( $u['host'] ) && ! empty( $h['host'] ) && strtolower( $u['host'] ) !== strtolower( $h['host'] ) ) {
+			return '';
+		}
+		$path = self::normalize_path( rawurldecode( isset( $u['path'] ) ? $u['path'] : '/' ) );
+		$base = isset( $h['path'] ) ? rtrim( $h['path'], '/' ) : '';
+		if ( '' !== $base && ( $path === $base || 0 === strpos( $path, $base . '/' ) ) ) {
+			$path = self::normalize_path( substr( $path, strlen( $base ) ) );
+		}
+		return $path;
+	}
+
 	/**
 	 * A rule from untrusted input: only known fields of the right shape.
 	 * Returns array( rule, error ); the error is empty when the rule is fine.
@@ -110,7 +141,7 @@ class KontrolWP_Connect_Redirects {
 			if ( '' === $target ) {
 				return array( null, 'Enter the address to redirect to.' );
 			}
-			if ( ! preg_match( '#^(https?://[^\s<>"\']+|/[^\s<>"\']*)$#i', $target ) || strlen( $target ) > 1000 ) {
+			if ( ! self::target_ok( $target ) ) {
 				return array( null, 'The target must be a full address starting with http:// or https://, or a path starting with /.' );
 			}
 			if ( 'exact' === $type && '/' === $target[0] && self::key( $target ) === self::key( $source ) ) {
@@ -194,6 +225,7 @@ class KontrolWP_Connect_Redirects {
 				target varchar(1000) NOT NULL DEFAULT '',
 				status_code smallint(5) unsigned NOT NULL DEFAULT 301,
 				enabled tinyint(1) NOT NULL DEFAULT 1,
+				auto tinyint(1) NOT NULL DEFAULT 0,
 				hits bigint(20) unsigned NOT NULL DEFAULT 0,
 				last_hit bigint(20) unsigned NOT NULL DEFAULT 0,
 				created bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -219,21 +251,30 @@ class KontrolWP_Connect_Redirects {
 	private static function state() {
 		$state = get_option( self::STATE_OPTION, array() );
 		$state = is_array( $state ) ? $state : array();
+		$auto  = isset( $state['auto'] ) && is_array( $state['auto'] ) ? $state['auto'] : array();
 		return array(
-			'rules'    => isset( $state['rules'] ) ? (int) $state['rules'] : 0,
-			'others'   => isset( $state['others'] ) ? (int) $state['others'] : 0,
-			'log_404'  => ! empty( $state['log_404'] ),
+			'rules'   => isset( $state['rules'] ) ? (int) $state['rules'] : 0,
+			'others'  => isset( $state['others'] ) ? (int) $state['others'] : 0,
+			'log_404' => ! empty( $state['log_404'] ),
+			'auto'    => array(
+				'enabled'   => ! empty( $auto['enabled'] ),
+				'on_delete' => isset( $auto['on_delete'] ) && in_array( $auto['on_delete'], self::DELETE_ACTIONS, true ) ? $auto['on_delete'] : 'none',
+				'target'    => isset( $auto['target'] ) && is_string( $auto['target'] ) ? $auto['target'] : '',
+			),
 		);
 	}
 
 	/** Recount the rules after any change and keep the answer where every request can read it. */
-	private static function refresh_state( $log_404 = null ) {
+	private static function refresh_state( $log_404 = null, $auto = null ) {
 		global $wpdb;
 		$state            = self::state();
 		$state['rules']   = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE enabled = 1' ); // phpcs:ignore WordPress.DB
 		$state['others']  = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() . " WHERE enabled = 1 AND match_type <> 'exact'" ); // phpcs:ignore WordPress.DB
 		if ( null !== $log_404 ) {
 			$state['log_404'] = (bool) $log_404;
+		}
+		if ( null !== $auto ) {
+			$state['auto'] = $auto;
 		}
 		update_option( self::STATE_OPTION, $state, true );
 		return $state;
@@ -248,6 +289,15 @@ class KontrolWP_Connect_Redirects {
 		}
 		if ( $state['log_404'] ) {
 			add_action( 'template_redirect', array( __CLASS__, 'log_404' ), 99 );
+		}
+		if ( $state['auto']['enabled'] ) {
+			add_action( 'post_updated', array( __CLASS__, 'auto_post_updated' ), 10, 3 );
+			add_action( 'wp_trash_post', array( __CLASS__, 'auto_post_removed' ) );
+			add_action( 'before_delete_post', array( __CLASS__, 'auto_post_removed' ) );
+			add_action( 'untrashed_post', array( __CLASS__, 'auto_post_restored' ) );
+			add_action( 'transition_post_status', array( __CLASS__, 'auto_post_published' ), 10, 3 );
+			add_action( 'edit_terms', array( __CLASS__, 'auto_term_before' ), 10, 2 );
+			add_action( 'edited_term', array( __CLASS__, 'auto_term_after' ), 10, 3 );
 		}
 	}
 
@@ -349,6 +399,183 @@ class KontrolWP_Connect_Redirects {
 		}
 	}
 
+	/* ---- Automatic redirects (0.18.0) ---- */
+
+	/** An address as stored in a rule: a path on this site, or the full address when it is on another host. */
+	private static function stored_address( $url ) {
+		$path = self::relative_path( $url, home_url() );
+		return '' !== $path ? $path : esc_url_raw( $url );
+	}
+
+	/** Add or update an automatic rule. A rule someone made by hand for the same address is left alone. */
+	private static function upsert_auto( $source, $type, $target, $code ) {
+		global $wpdb;
+		$key      = self::key( $source );
+		$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT id, auto FROM ' . self::table() . ' WHERE match_type = %s AND source_key = %s LIMIT 1', $type, $key ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		if ( $existing ) {
+			if ( ! empty( $existing['auto'] ) ) {
+				$wpdb->update( self::table(), array( 'target' => $target, 'status_code' => $code, 'enabled' => 1 ), array( 'id' => (int) $existing['id'] ) ); // phpcs:ignore WordPress.DB
+				return true;
+			}
+			return false;
+		}
+		if ( (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() ) >= self::MAX_RULES ) { // phpcs:ignore WordPress.DB
+			return false;
+		}
+		return false !== self::insert(
+			array(
+				'source'      => $source,
+				'match_type'  => $type,
+				'target'      => $target,
+				'status_code' => $code,
+				'enabled'     => true,
+				'auto'        => true,
+			)
+		);
+	}
+
+	/** Forget automatic rules that start at an address now serving real content, so they cannot hide it or loop. */
+	private static function drop_auto_at( $path ) {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table() . " WHERE auto = 1 AND match_type IN ('exact', 'prefix') AND source_key = %s", self::key( $path ) ) ); // phpcs:ignore WordPress.DB
+	}
+
+	/** An address changed: send the old one to the new one, and point earlier automatic rules at the new one too. */
+	private static function add_moved( $old_url, $new_url ) {
+		global $wpdb;
+		self::install();
+		$source = self::relative_path( $old_url, home_url() );
+		$target = self::stored_address( $new_url );
+		if ( '' === $source || '/' === $source || self::key( $source ) === self::key( $target ) ) {
+			return '';
+		}
+		self::drop_auto_at( self::relative_path( $new_url, home_url() ) );
+		// Chains collapse: whatever automatically pointed at the old address now points at the new one.
+		$wpdb->query( $wpdb->prepare( 'UPDATE ' . self::table() . " SET target = %s WHERE auto = 1 AND match_type = 'exact' AND status_code = 301 AND target = %s", $target, $source ) ); // phpcs:ignore WordPress.DB
+		self::upsert_auto( $source, 'exact', $target, 301 );
+		self::refresh_state();
+		return $source;
+	}
+
+	/** An address stopped serving content. Returns the path a rule was made for, or an empty string. */
+	private static function add_removed( $url ) {
+		global $wpdb;
+		$state  = self::state();
+		$action = $state['auto']['on_delete'];
+		$source = self::relative_path( $url, home_url() );
+		if ( 'none' === $action || '' === $source || '/' === $source ) {
+			return '';
+		}
+		self::install();
+		if ( '410' === $action ) {
+			$made = self::upsert_auto( $source, 'exact', '', 410 );
+		} else {
+			$target = $state['auto']['target'];
+			$own    = '/' === substr( $target, 0, 1 ) ? $target : self::relative_path( $target, home_url() );
+			if ( '' === $target || self::key( $own ) === self::key( $source ) ) {
+				return '';
+			}
+			// Automatic rules that led here lead to the fallback now.
+			$wpdb->query( $wpdb->prepare( 'UPDATE ' . self::table() . " SET target = %s WHERE auto = 1 AND match_type = 'exact' AND status_code = 301 AND target = %s", $target, $source ) ); // phpcs:ignore WordPress.DB
+			$made = self::upsert_auto( $source, 'exact', $target, 301 );
+		}
+		self::refresh_state();
+		return $made ? $source : '';
+	}
+
+	private static function viewable( $post ) {
+		return $post instanceof WP_Post && 'attachment' !== $post->post_type && is_post_type_viewable( $post->post_type );
+	}
+
+	/** A published page or post whose address changed. */
+	public static function auto_post_updated( $post_id, $after, $before ) {
+		if ( ! self::viewable( $after ) || 'publish' !== $before->post_status || 'publish' !== $after->post_status || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		$old = get_permalink( $before );
+		$new = get_permalink( $after );
+		if ( ! $old || ! $new || $old === $new ) {
+			return;
+		}
+		$source = self::add_moved( $old, $new );
+		// Pages below this one moved with it, without being saved themselves.
+		if ( '' !== $source && is_post_type_hierarchical( $after->post_type ) ) {
+			$children = get_children(
+				array(
+					'post_parent' => $post_id,
+					'post_type'   => $after->post_type,
+					'post_status' => 'publish',
+					'numberposts' => 1,
+					'fields'      => 'ids',
+				)
+			);
+			if ( $children ) {
+				self::upsert_auto( $source, 'prefix', rtrim( self::stored_address( $new ), '/' ) . '/$1', 301 );
+			}
+		}
+	}
+
+	/** Published content is being trashed or deleted. Content already in the trash was handled when it went there. */
+	public static function auto_post_removed( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! self::viewable( $post ) || 'publish' !== $post->post_status ) {
+			return;
+		}
+		$source = self::add_removed( get_permalink( $post ) );
+		if ( '' !== $source ) {
+			update_post_meta( $post_id, self::META_AUTO_SOURCE, $source );
+		}
+	}
+
+	/** Content came back from the trash: the rule made when it left is no longer wanted. */
+	public static function auto_post_restored( $post_id ) {
+		$source = (string) get_post_meta( $post_id, self::META_AUTO_SOURCE, true );
+		if ( '' === $source ) {
+			return;
+		}
+		self::drop_auto_at( $source );
+		delete_post_meta( $post_id, self::META_AUTO_SOURCE );
+		self::refresh_state();
+	}
+
+	/** Content published at an address that an automatic rule points away from: the rule goes. */
+	public static function auto_post_published( $new_status, $old_status, $post ) {
+		if ( 'publish' !== $new_status || 'publish' === $old_status || ! self::viewable( $post ) ) {
+			return;
+		}
+		$path = self::relative_path( get_permalink( $post ), home_url() );
+		if ( '' !== $path ) {
+			self::drop_auto_at( $path );
+			self::refresh_state();
+		}
+	}
+
+	private static $term_links = array();
+
+	public static function auto_term_before( $term_id, $taxonomy ) {
+		if ( ! is_taxonomy_viewable( $taxonomy ) ) {
+			return;
+		}
+		$link = get_term_link( (int) $term_id, $taxonomy );
+		if ( ! is_wp_error( $link ) ) {
+			self::$term_links[ (int) $term_id ] = $link;
+		}
+	}
+
+	/** A category, tag or other term whose address changed. Terms below it are not followed. */
+	public static function auto_term_after( $term_id, $tt_id, $taxonomy ) {
+		$term_id = (int) $term_id;
+		if ( ! isset( self::$term_links[ $term_id ] ) ) {
+			return;
+		}
+		$old = self::$term_links[ $term_id ];
+		unset( self::$term_links[ $term_id ] );
+		$new = get_term_link( $term_id, $taxonomy );
+		if ( ! is_wp_error( $new ) && $new !== $old ) {
+			self::add_moved( $old, $new );
+		}
+	}
+
 	/* ---- Dashboard routes ---- */
 
 	private static function row_out( $row ) {
@@ -359,6 +586,7 @@ class KontrolWP_Connect_Redirects {
 			'target'      => $row['target'],
 			'status_code' => (int) $row['status_code'],
 			'enabled'     => (bool) $row['enabled'],
+			'auto'        => ! empty( $row['auto'] ),
 			'hits'        => (int) $row['hits'],
 			'last_hit'    => (int) $row['last_hit'],
 		);
@@ -369,11 +597,11 @@ class KontrolWP_Connect_Redirects {
 		global $wpdb;
 		self::install();
 		$search = trim( (string) $request->get_param( 'search' ) );
-		$where  = '1=1';
+		$where  = $request->get_param( 'auto' ) ? 'auto = 1' : '1=1';
 		$args   = array();
 		if ( '' !== $search ) {
 			$like   = '%' . $wpdb->esc_like( $search ) . '%';
-			$where  = '(source LIKE %s OR target LIKE %s)';
+			$where .= ' AND (source LIKE %s OR target LIKE %s)';
 			$args[] = $like;
 			$args[] = $like;
 		}
@@ -389,6 +617,7 @@ class KontrolWP_Connect_Redirects {
 			'items'   => array_map( array( __CLASS__, 'row_out' ), is_array( $rows ) ? $rows : array() ),
 			'total'   => $total,
 			'log_404' => $state['log_404'],
+			'auto'    => $state['auto'],
 		);
 	}
 
@@ -409,6 +638,7 @@ class KontrolWP_Connect_Redirects {
 				'target'      => $rule['target'],
 				'status_code' => $rule['status_code'],
 				'enabled'     => $rule['enabled'] ? 1 : 0,
+				'auto'        => ! empty( $rule['auto'] ) ? 1 : 0,
 				'created'     => time(),
 			)
 		);
@@ -518,10 +748,37 @@ class KontrolWP_Connect_Redirects {
 		);
 	}
 
+	/** Turn the 404 log and the automatic redirects on or off; only what is sent changes. */
 	public static function save_settings( $request ) {
 		self::install();
-		$state = self::refresh_state( (bool) $request->get_param( 'log_404' ) );
-		return array( 'log_404' => $state['log_404'] );
+		$state = self::state();
+		$auto  = $state['auto'];
+		$log   = null !== $request->get_param( 'log_404' ) ? (bool) $request->get_param( 'log_404' ) : null;
+		if ( null !== $request->get_param( 'auto_enabled' ) ) {
+			$auto['enabled'] = (bool) $request->get_param( 'auto_enabled' );
+		}
+		if ( null !== $request->get_param( 'on_delete' ) ) {
+			$action = (string) $request->get_param( 'on_delete' );
+			if ( ! in_array( $action, self::DELETE_ACTIONS, true ) ) {
+				return new WP_Error( 'kontrolwp_invalid_redirect', 'Choose what happens when content is removed.', array( 'status' => 400 ) );
+			}
+			$auto['on_delete'] = $action;
+		}
+		if ( null !== $request->get_param( 'delete_target' ) ) {
+			$target = trim( (string) $request->get_param( 'delete_target' ) );
+			if ( '' !== $target && ( ! self::target_ok( $target ) ) ) {
+				return new WP_Error( 'kontrolwp_invalid_redirect', 'The address must start with http:// or https://, or be a path starting with /.', array( 'status' => 400 ) );
+			}
+			$auto['target'] = $target;
+		}
+		if ( '301' === $auto['on_delete'] && '' === $auto['target'] ) {
+			return new WP_Error( 'kontrolwp_invalid_redirect', 'Enter the address to send removed pages to.', array( 'status' => 400 ) );
+		}
+		$state = self::refresh_state( $log, $auto );
+		return array(
+			'log_404' => $state['log_404'],
+			'auto'    => $state['auto'],
+		);
 	}
 
 	public static function not_found_index( $request ) {
