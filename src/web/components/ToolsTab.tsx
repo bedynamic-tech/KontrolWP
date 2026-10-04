@@ -26,7 +26,7 @@ const VERIFY_LABELS: Record<SeoVerifyService, string> = {
   pinterest: "Pinterest",
 };
 
-function Row(props: { title: string; hint?: ReactNode; children: ReactNode }) {
+export function Row(props: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
       <p className="flex items-center gap-1.5 text-sm font-medium sm:max-w-sm sm:pt-1.5">
@@ -38,7 +38,7 @@ function Row(props: { title: string; hint?: ReactNode; children: ReactNode }) {
   );
 }
 
-function Warning(props: { children: ReactNode }) {
+export function Warning(props: { children: ReactNode }) {
   return (
     <div className="flex items-start gap-3 border-t border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
@@ -60,6 +60,28 @@ function Preview(props: { label: string; text: string; href: string }) {
         {props.text || "(empty)"}
       </pre>
     </div>
+  );
+}
+
+export function CheckRow(props: {
+  title: string;
+  hint: ReactNode;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+      <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+        {props.title}
+        <HelpTip>{props.hint}</HelpTip>
+      </p>
+      <input
+        type="checkbox"
+        className="size-4 shrink-0 accent-primary"
+        checked={props.checked}
+        onChange={(event) => props.onChange(event.target.checked)}
+      />
+    </label>
   );
 }
 

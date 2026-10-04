@@ -1,297 +1,256 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ExternalLinkIcon, SearchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { compareVersions, CONTENT_LIST_SINCE } from "../../shared/plugin-version";
-import type { ContentStatus, ContentTypeInfo, SiteContentItem, SiteSummary } from "../../shared/types";
-import { fetchContent, type ContentFilter } from "../api";
-import { plural } from "../format";
-import { EditButton } from "./LinksTab";
+import { Textarea } from "@/components/ui/textarea";
+import { compareVersions, SEO_CONTENT_SINCE } from "../../shared/plugin-version";
+import {
+  MAX_SCHEMA_LINKS,
+  SEO_BREADCRUMB_SEPARATORS,
+  type SeoContentSettings,
+  type SiteSummary,
+} from "../../shared/types";
+import { fetchSeoContent, saveSeoContent } from "../api";
+import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
+import { Spinner } from "./Spinner";
+import { CheckRow, Row, Warning } from "./ToolsTab";
 
-const PAGE_SIZE = 25;
-
-const STATUS_LABELS: Record<ContentStatus, string> = {
-  publish: "Published",
-  future: "Scheduled",
-  draft: "Draft",
-  pending: "Pending review",
-  private: "Private",
-};
-
-const STATUS_TONES: Record<ContentStatus, string> = {
-  publish: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  future: "bg-sky-500/15 text-sky-800 dark:text-sky-300",
-  draft: "bg-muted text-muted-foreground",
-  pending: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
-  private: "bg-violet-500/15 text-violet-800 dark:text-violet-300",
-};
-
-/** What an older KontrolWP Connect lists: posts and pages, and no names for them. */
-const CORE_TYPES: ContentTypeInfo[] = [
-  { slug: "post", name: "Posts", singular: "Post" },
-  { slug: "page", name: "Pages", singular: "Page" },
-];
-
-function supported(site: SiteSummary): boolean {
-  return !site.plugin_version || compareVersions(site.plugin_version, CONTENT_LIST_SINCE) >= 0;
-}
-
-const formatDate = (seconds: number) =>
-  new Date(seconds * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-
-/** The Posts and pages tab: the site's content, filtered by status and type, read live from the site. */
+/** Site-wide schema, breadcrumbs, link rules, image alt text and the feed footer. */
 export function ContentTab(props: { site: SiteSummary }) {
   const { site } = props;
-  const [status, setStatus] = useState<ContentFilter["status"]>("all");
-  const [type, setType] = useState<ContentFilter["type"]>("all");
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-
-  // Search once typing pauses, from the first page.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setQuery(search.trim());
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
+  const queryClient = useQueryClient();
+  const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_CONTENT_SINCE) >= 0;
   const content = useQuery({
-    queryKey: ["site", site.id, "content", status, type, query, page],
-    queryFn: () => fetchContent(site.id, { status, type, search: query, page }),
-    enabled: supported(site),
-    placeholderData: keepPreviousData,
-    refetchInterval: false,
+    queryKey: ["site", site.id, "seo", "content"],
+    queryFn: () => fetchSeoContent(site.id),
+    enabled: supported,
+  });
+  const [draft, setDraft] = useState<SeoContentSettings | null>(null);
+  // The profile links are edited as lines of text, and turned back into a list on save.
+  const [links, setLinks] = useState("");
+  const saved = content.data?.settings;
+  useEffect(() => {
+    if (saved) {
+      setDraft(saved);
+      setLinks(saved.schema_same_as.join("\n"));
+    }
+  }, [saved]);
+  const save = useMutation({
+    mutationFn: (settings: SeoContentSettings) => saveSeoContent(site.id, settings),
+    onSuccess: (data) => queryClient.setQueryData(["site", site.id, "seo", "content"], data),
   });
 
-  if (!supported(site)) {
+  if (!supported) {
     return (
-      <Section title="Posts and pages">
+      <Section title="Schema and content">
         <EmptyRow>
-          Listing posts and pages needs KontrolWP Connect {CONTENT_LIST_SINCE} or later. This site runs{" "}
-          {site.plugin_version}; it updates automatically.
+          These settings need KontrolWP Connect {SEO_CONTENT_SINCE} or later on this site. It updates automatically;
+          select Sync now to check.
         </EmptyRow>
       </Section>
     );
   }
-  if (content.isPending) {
-    return (
-      <Section title="Posts and pages">
-        <EmptyRow>Loading posts and pages...</EmptyRow>
-      </Section>
+  if (content.isPending || !draft) {
+    return content.error ? (
+      <p className="mt-6 text-sm text-destructive">{content.error.message}</p>
+    ) : (
+      <div className="flex justify-center py-12">
+        <Spinner className="size-5 text-muted-foreground" label="Loading" />
+      </div>
     );
   }
-  if (content.error) {
-    return (
-      <Section title="Posts and pages">
-        <p className="px-4 py-6 text-center text-sm text-destructive">{content.error.message}</p>
-      </Section>
-    );
-  }
-
-  const { items, counts, total } = content.data;
-  const types = content.data.types ?? CORE_TYPES;
-  const typeOptions = [{ slug: "all", name: "All types", singular: "" }, ...types];
-  const all = Object.values(counts).reduce((sum, count) => sum + count, 0);
-  const chips: { value: ContentFilter["status"]; label: string; count: number }[] = [
-    { value: "all", label: "All", count: all },
-    ...(Object.keys(STATUS_LABELS) as ContentStatus[]).map((value) => ({
-      value,
-      label: STATUS_LABELS[value],
-      count: counts[value],
-    })),
-  ];
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;
-  const last = Math.min(total, page * PAGE_SIZE);
-
-  function choose<T>(set: (value: T) => void, value: T) {
-    set(value);
-    setPage(1);
-  }
-
-  return (
-    <section className="mt-8">
-      <div className="mb-3 space-y-2">
-        <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-          {chips
-            .filter((chip) => chip.value === "all" || chip.count > 0 || chip.value === status)
-            .map((chip) => (
-              <Button
-                key={chip.value}
-                size="sm"
-                variant={status === chip.value ? "secondary" : "ghost"}
-                className="flex-none"
-                onClick={() => choose(setStatus, chip.value)}
-                aria-pressed={status === chip.value}
-              >
-                {chip.label}
-                <span className="text-muted-foreground tabular-nums">{chip.count}</span>
-              </Button>
-            ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-1">
-            {typeOptions.map((option) => (
-              <Button
-                key={option.slug}
-                size="sm"
-                variant={type === option.slug ? "outline" : "ghost"}
-                onClick={() => choose(setType, option.slug)}
-                aria-pressed={type === option.slug}
-              >
-                {option.name}
-              </Button>
-            ))}
-          </div>
-          <div className="relative w-full sm:w-64">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search titles and content"
-              aria-label="Search titles and content"
-              className="pl-8"
-            />
-          </div>
-        </div>
-      </div>
-      <div
-        className={cn(
-          "overflow-hidden rounded-xl border bg-background",
-          content.isPlaceholderData && "opacity-60 transition-opacity",
-        )}
-      >
-        {items.length ? (
-          <ContentList site={site} items={items} types={types} />
-        ) : (
-          <EmptyRow>{query ? "Nothing matches your search." : "Nothing here yet."}</EmptyRow>
-        )}
-      </div>
-      {total > 0 && (
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>
-            {first.toLocaleString()} to {last.toLocaleString()} of {plural(total, "item")}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Previous
-            </Button>
-            <span className="tabular-nums">
-              {page} / {pages}
-            </span>
-            <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function StatusBadge(props: { item: SiteContentItem }) {
-  const { item } = props;
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-full px-2 text-xs font-medium",
-        STATUS_TONES[item.status],
-      )}
-    >
-      {STATUS_LABELS[item.status]}
-    </span>
-  );
-}
-
-function Actions(props: { site: SiteSummary; item: SiteContentItem }) {
-  const { site, item } = props;
-  return (
-    <div className="flex items-center justify-end gap-1">
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        asChild
-        title={
-          item.status === "publish" ? "View on the site" : "Open on the site (WordPress sign-in needed to preview)"
-        }
-      >
-        <a href={item.permalink} target="_blank" rel="noreferrer noopener" aria-label="View on the site">
-          <ExternalLinkIcon />
-        </a>
-      </Button>
-      <EditButton site={site} postId={item.id} />
-    </div>
-  );
-}
-
-function ContentList(props: { site: SiteSummary; items: SiteContentItem[]; types: ContentTypeInfo[] }) {
-  const { site, items, types } = props;
-  const typeLabel = (item: SiteContentItem) => types.find((type) => type.slug === item.type)?.singular || item.type;
-  const title = (item: SiteContentItem) => item.title || `(no title) #${item.id}`;
+  const data = content.data!;
+  const current: SeoContentSettings = {
+    ...draft,
+    schema_same_as: links
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, MAX_SCHEMA_LINKS),
+  };
+  const dirty = JSON.stringify(current) !== JSON.stringify(data.settings);
+  const set = <K extends keyof SeoContentSettings>(key: K, value: SeoContentSettings[K]) =>
+    setDraft({ ...draft, [key]: value });
+  const reset = () => {
+    setDraft(data.settings);
+    setLinks(data.settings.schema_same_as.join("\n"));
+  };
   return (
     <>
-      {/* Phones: one item per row. */}
-      <ul className="divide-y text-sm md:hidden">
-        {items.map((item) => (
-          <li key={item.id} className="space-y-1.5 px-4 py-3">
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 font-medium break-words">{title(item)}</p>
-              <Actions site={site} item={item} />
+      {(data.conflict || !data.seo_enabled) && (
+        <div className="mt-4">
+          <Warning>
+            {data.conflict
+              ? `${data.conflict} is active on this site, so KontrolWP does not apply any of these. Deactivate ${data.conflict} to use them.`
+              : "None of these apply until SEO tags are switched on in Settings."}
+          </Warning>
+        </div>
+      )}
+      <Section
+        title="Schema"
+        hint="Structured data that tells search engines who is behind the site and what each post is. It appears in the page head as JSON-LD."
+        action={
+          save.isPending ? (
+            <Spinner className="size-4 text-muted-foreground" label="Saving" />
+          ) : dirty ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={reset}>
+                Discard
+              </Button>
+              <Button size="sm" onClick={() => save.mutate(current)}>
+                Save changes
+              </Button>
             </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <StatusBadge item={item} />
-              <span>{typeLabel(item)}</span>
-              {item.author && <span>{item.author}</span>}
-              <span>{formatDate(item.date)}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <table className="hidden w-full text-sm md:table">
-        <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-          <tr>
-            <th className="px-4 py-2 font-medium">Title</th>
-            <th className="px-4 py-2 font-medium">Type</th>
-            <th className="px-4 py-2 font-medium">Status</th>
-            <th className="px-4 py-2 font-medium">Author</th>
-            <th className="px-4 py-2 font-medium">Date</th>
-            <th className="px-4 py-2 text-right font-medium">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {items.map((item) => (
-            <tr key={item.id} className="align-middle">
-              <td className="w-full max-w-0 px-4 py-2.5">
-                <a
-                  href={item.permalink}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="block truncate font-medium hover:underline"
-                  title={title(item)}
+          ) : undefined
+        }
+      >
+        {save.error && <p className="border-b px-4 py-3 text-sm text-destructive">{save.error.message}</p>}
+        <div className="divide-y">
+          <CheckRow
+            title="Describe the site and who runs it"
+            hint="Adds WebSite markup and the organization or person behind the site to the home page."
+            checked={draft.schema}
+            onChange={(value) => set("schema", value)}
+          />
+          {draft.schema && (
+            <>
+              <Row title="The site belongs to">
+                <select
+                  aria-label="The site belongs to"
+                  className={`${SELECT_CLASS} w-full`}
+                  value={draft.schema_type}
+                  onChange={(event) => set("schema_type", event.target.value as SeoContentSettings["schema_type"])}
                 >
-                  {title(item)}
-                </a>
-              </td>
-              <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{typeLabel(item)}</td>
-              <td className="px-4 py-2.5 whitespace-nowrap">
-                <StatusBadge item={item} />
-              </td>
-              <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{item.author}</td>
-              <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(item.date)}</td>
-              <td className="px-4 py-2.5">
-                <Actions site={site} item={item} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  <option value="organization">An organization or business</option>
+                  <option value="person">A person</option>
+                </select>
+              </Row>
+              <Row title="Name" hint="Empty uses the site name.">
+                <Input
+                  aria-label="Schema name"
+                  value={draft.schema_name}
+                  onChange={(event) => set("schema_name", event.target.value)}
+                  placeholder={data.site_name}
+                />
+              </Row>
+              <Row
+                title="Logo address"
+                hint="Empty uses the site icon. A square image of at least 112 pixels works best."
+              >
+                <Input
+                  aria-label="Schema logo address"
+                  value={draft.schema_logo}
+                  onChange={(event) => set("schema_logo", event.target.value)}
+                  placeholder={data.site_icon || "https://"}
+                />
+              </Row>
+              <Row
+                title="Profile links"
+                hint="One address per line, such as your social profiles. Search engines use them to connect the site to its accounts."
+              >
+                <Textarea
+                  aria-label="Profile links"
+                  value={links}
+                  onChange={(event) => setLinks(event.target.value)}
+                  placeholder="https://"
+                  rows={3}
+                />
+              </Row>
+            </>
+          )}
+          <CheckRow
+            title="Mark up posts as articles"
+            hint="Adds headline, dates, author, image and publisher to each blog post."
+            checked={draft.article_schema}
+            onChange={(value) => set("article_schema", value)}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Breadcrumbs"
+        hint="A trail like Home, News, This story. Search results can show it, and visitors can use it to move up a level. Add it to a page with the [kontrolwp_breadcrumbs] shortcode, or echo kontrolwp_breadcrumbs() in a theme."
+      >
+        <div className="divide-y">
+          <CheckRow
+            title="Breadcrumbs"
+            hint="Adds breadcrumb markup to posts, pages and archives, and turns on the shortcode."
+            checked={draft.breadcrumbs}
+            onChange={(value) => set("breadcrumbs", value)}
+          />
+          {draft.breadcrumbs && (
+            <>
+              <Row title="Home label">
+                <Input
+                  aria-label="Breadcrumb home label"
+                  value={draft.breadcrumb_home}
+                  onChange={(event) => set("breadcrumb_home", event.target.value)}
+                />
+              </Row>
+              <Row title="Separator">
+                <select
+                  aria-label="Breadcrumb separator"
+                  className={`${SELECT_CLASS} w-full`}
+                  value={draft.breadcrumb_sep}
+                  onChange={(event) =>
+                    set("breadcrumb_sep", event.target.value as SeoContentSettings["breadcrumb_sep"])
+                  }
+                >
+                  {SEO_BREADCRUMB_SEPARATORS.map((separator) => (
+                    <option key={separator} value={separator}>
+                      {separator}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+            </>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="Links and images"
+        hint="Changes are made as pages are shown. Nothing stored in your posts is edited, so turning a setting off puts everything back."
+      >
+        {!data.html_support && (
+          <Warning>These need WordPress 6.2 or later, which this site does not have, so they are not applied.</Warning>
+        )}
+        <div className="divide-y">
+          <CheckRow
+            title="Open links to other sites in a new tab"
+            hint="Applies to links in post and page content that go to another site. New tabs are not always welcome to people using assistive technology, so this is off by default."
+            checked={draft.external_new_tab}
+            onChange={(value) => set("external_new_tab", value)}
+          />
+          <CheckRow
+            title="Add nofollow to links to other sites"
+            hint="Asks search engines not to pass credit to the sites you link to. Most sites leave this off, since good outbound links help readers."
+            checked={draft.external_nofollow}
+            onChange={(value) => set("external_nofollow", value)}
+          />
+          <CheckRow
+            title="Fill in missing image alt text"
+            hint="Images with no alt text get the alt text saved in the media library, or else a readable version of the image's title. Camera file names such as IMG_1234 are never used, and images deliberately marked as decoration are left alone."
+            checked={draft.image_alt}
+            onChange={(value) => set("image_alt", value)}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Feeds"
+        hint="Text added under each item in your RSS feed, so a copy on another site points back to the original. Tokens: %title%, %link%, %sitename%. Leave empty to add nothing."
+      >
+        <Row title="Footer text">
+          <Textarea
+            aria-label="Feed footer"
+            value={draft.feed_footer}
+            onChange={(event) => set("feed_footer", event.target.value)}
+            rows={2}
+          />
+        </Row>
+      </Section>
     </>
   );
 }

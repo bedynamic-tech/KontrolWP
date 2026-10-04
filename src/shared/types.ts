@@ -961,6 +961,41 @@ export interface SeoTools {
 export const MAX_ROBOTS_TEXT = 5000;
 export const MAX_LLMS_TEXT = 20000;
 
+export const SEO_BREADCRUMB_SEPARATORS = ["›", "/", ">", "»", "-", "|"] as const;
+
+/** Site-wide schema, breadcrumbs, link rules, image alt text and the feed footer. */
+export interface SeoContentSettings {
+  schema: boolean;
+  schema_type: "organization" | "person";
+  /** Empty uses the site name. */
+  schema_name: string;
+  /** Empty uses the site icon. */
+  schema_logo: string;
+  schema_same_as: string[];
+  article_schema: boolean;
+  breadcrumbs: boolean;
+  breadcrumb_home: string;
+  breadcrumb_sep: (typeof SEO_BREADCRUMB_SEPARATORS)[number];
+  external_new_tab: boolean;
+  external_nofollow: boolean;
+  image_alt: boolean;
+  /** Tokens: %title%, %link%, %sitename%. Empty adds nothing to feeds. */
+  feed_footer: string;
+}
+
+export interface SeoContent {
+  settings: SeoContentSettings;
+  conflict: string;
+  /** SEO tags are switched on; none of these apply until they are. */
+  seo_enabled: boolean;
+  /** The site's WordPress can rewrite links and images as they are shown (6.2 or later). */
+  html_support: boolean;
+  site_icon: string;
+  site_name: string;
+}
+
+export const MAX_SCHEMA_LINKS = 20;
+
 export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
 
