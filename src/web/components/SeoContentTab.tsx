@@ -108,7 +108,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
         {save.error && <p className="border-b px-4 py-3 text-sm text-destructive">{save.error.message}</p>}
         <div className="divide-y">
           <CheckRow
-            title="Enable site schema"
+            title="Describe the site and who runs it"
             hint="Adds WebSite markup and the organization or person behind the site to the home page."
             checked={draft.schema}
             onChange={(value) => set("schema", value)}
@@ -160,7 +160,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
             </>
           )}
           <CheckRow
-            title="Enable article schema"
+            title="Mark up posts as articles"
             hint="Adds headline, dates, author, image and publisher to each blog post."
             checked={draft.article_schema}
             onChange={(value) => set("article_schema", value)}
@@ -174,7 +174,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
       >
         <div className="divide-y">
           <CheckRow
-            title="Enable breadcrumbs"
+            title="Breadcrumbs"
             hint="Adds breadcrumb markup to posts, pages and archives, and turns on the shortcode."
             checked={draft.breadcrumbs}
             onChange={(value) => set("breadcrumbs", value)}

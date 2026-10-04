@@ -492,7 +492,7 @@ function AutoSection(props: { site: SiteSummary; auto?: AutoRedirectSettings }) 
       <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium">
-            Enable automatic redirects
+            Redirect automatically when content changes address
             <HelpTip>
               When a published page, post or other public content gets a new address, such as a changed slug or parent,
               or a category or tag is renamed, the old address is sent to the new one with a 301. Earlier automatic
@@ -607,7 +607,7 @@ function NotFoundSection(props: { site: SiteSummary; logging: boolean; onRedirec
       <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium">
-            Enable 404 logging
+            Keep a log of pages not found
             <HelpTip>
               Records up to 500 missing addresses with how often each was requested. Images, scripts and other files are
               not recorded.
