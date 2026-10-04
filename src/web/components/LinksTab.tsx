@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronDownIcon,
   DownloadIcon,
   EyeOffIcon,
   ImageIcon,
@@ -33,6 +32,7 @@ import type { LinkRef, LinkScan, LinkUnlinkResult, SiteLink, SiteLinks, SiteSumm
 import { createMagicLogin, fetchLinks, ignoreLink, recheckLink, scanLinks, unlinkLinks } from "../api";
 import { download, linksTable, toCsv, toXlsx } from "../export";
 import { hostname, plural, timeAgo } from "../format";
+import { IconButton } from "./IconButton";
 import { EmptyRow, Section } from "./Section";
 
 type Filter = "problems" | "broken" | "unresponsive" | "blocked" | "ignored";
@@ -240,9 +240,9 @@ export function LinksTab(props: { site: SiteSummary }) {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="flex-none" disabled={!shown.length}>
-                  <DownloadIcon /> Download <ChevronDownIcon />
-                </Button>
+                <IconButton label="Download the list" className="flex-none" disabled={!shown.length}>
+                  <DownloadIcon />
+                </IconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => exportLinks("csv")}>CSV</DropdownMenuItem>

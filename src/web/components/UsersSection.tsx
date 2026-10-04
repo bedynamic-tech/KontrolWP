@@ -49,8 +49,8 @@ export function UsersSection(props: { site: SiteSummary }) {
       title={users.data ? `Users (${users.data.total})` : "Users"}
       action={
         users.data && (
-          <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-            <PlusIcon /> Add user
+          <Button size="sm" variant="outline" aria-label="Add user" onClick={() => setAdding(true)}>
+            <PlusIcon /> Add
           </Button>
         )
       }

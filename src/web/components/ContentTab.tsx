@@ -9,6 +9,7 @@ import type { ContentStatus, ContentTypeInfo, SiteContentItem, SiteSummary } fro
 import { fetchContent, type ContentFilter } from "../api";
 import { plural } from "../format";
 import { EditButton } from "./LinksTab";
+import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 
 const PAGE_SIZE = 25;
@@ -135,7 +136,19 @@ export function ContentTab(props: { site: SiteSummary }) {
             ))}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-1">
+          <select
+            aria-label="Content type"
+            className={`${SELECT_CLASS} sm:hidden`}
+            value={type}
+            onChange={(event) => choose(setType, event.target.value)}
+          >
+            {typeOptions.map((option) => (
+              <option key={option.slug} value={option.slug}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+          <div className="hidden gap-1 sm:flex">
             {typeOptions.map((option) => (
               <Button
                 key={option.slug}

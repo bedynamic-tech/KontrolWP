@@ -73,11 +73,12 @@ export function PluginsSection(props: { site: SiteSummary; updates: SiteUpdate[]
           <Button
             size="sm"
             variant="outline"
+            aria-label="Add plugin"
             onClick={() => setInstalling(true)}
             disabled={!canModify}
             title={canModify ? undefined : "File changes are disabled on this site (DISALLOW_FILE_MODS)"}
           >
-            <PlusIcon /> Add plugin
+            <PlusIcon /> Add
           </Button>
         )
       }

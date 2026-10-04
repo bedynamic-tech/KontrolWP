@@ -67,8 +67,8 @@ export function PluginsPage() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Plugins</h1>
-        <Button size="sm" onClick={() => setAdding(true)} disabled={!data}>
-          <PlusIcon /> Add plugin
+        <Button size="sm" aria-label="Add plugin" onClick={() => setAdding(true)} disabled={!data}>
+          <PlusIcon /> Add
         </Button>
       </div>
 

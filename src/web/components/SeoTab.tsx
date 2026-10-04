@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, CircleAlertIcon, MinusIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, MinusIcon, PlusIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -668,13 +668,14 @@ function LocalSection(props: {
           <Button
             variant="outline"
             size="sm"
+            aria-label="Add location"
             onClick={() => {
               const next = newLocation();
               setAdded(next.id);
               onChange({ ...local, locations: [...local.locations, next] });
             }}
           >
-            Add location
+            <PlusIcon /> Add
           </Button>
         ) : undefined
       }
