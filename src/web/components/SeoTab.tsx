@@ -17,7 +17,9 @@ import {
   SEO_BUSINESS_TYPES,
   SEO_DAYS,
   SEO_SEPARATORS,
+  MAX_SEO_LOCATIONS,
   type SeoLocal,
+  type SeoLocation,
   type SeoPage,
   type SeoSettings,
   type SiteSeo,
@@ -178,131 +180,334 @@ function PageDialog(props: { site: SiteSummary; seo: SiteSeo; page: SeoPage; onC
   );
 }
 
-/** Business details for local search, marked up on the home page. */
-function LocalSection(props: { local: SeoLocal; siteName: string; onChange: (local: SeoLocal) => void }) {
-  const { local, onChange } = props;
-  const set = <K extends keyof SeoLocal>(key: K, value: SeoLocal[K]) => onChange({ ...local, [key]: value });
-  const text = (key: keyof SeoLocal & string, label: string, placeholder = "") => (
+/** Choose the page that stands for a location, by searching the site's published pages. */
+function PagePicker(props: {
+  site: SiteSummary;
+  pageId: number;
+  known?: { title: string; url: string };
+  onPick: (page: { id: number; title: string; url: string } | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setTerm(search.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const results = useQuery({
+    queryKey: ["site", props.site.id, "seo", "pages", 1, term],
+    queryFn: () => fetchSeoPages(props.site.id, 1, term),
+    enabled: open,
+  });
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {props.pageId > 0 ? (
+          <span className="min-w-0 truncate">{props.known?.title ?? `Page ${props.pageId}`}</span>
+        ) : (
+          <span className="text-muted-foreground">None. Its markup goes on the home page.</span>
+        )}
+        <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+          {open ? "Close" : props.pageId > 0 ? "Change" : "Choose page"}
+        </Button>
+        {props.pageId > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => props.onPick(null)}>
+            Remove
+          </Button>
+        )}
+      </div>
+      {open && (
+        <div className="rounded-lg border">
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search pages"
+            aria-label="Search pages for this location"
+            className="rounded-b-none border-0 border-b"
+          />
+          {results.isPending ? (
+            <div className="flex justify-center py-4">
+              <Spinner className="size-4 text-muted-foreground" label="Loading pages" />
+            </div>
+          ) : results.error ? (
+            <p className="px-3 py-3 text-xs text-destructive">{results.error.message}</p>
+          ) : results.data.items.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-muted-foreground">No published pages match.</p>
+          ) : (
+            <ul className="max-h-48 divide-y overflow-y-auto">
+              {results.data.items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/50"
+                    onClick={() => {
+                      props.onPick({ id: item.id, title: item.title, url: item.permalink });
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="block truncate">{item.title || "Untitled"}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{item.permalink}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function newLocation(): SeoLocation {
+  return {
+    id: Math.random().toString(36).slice(2, 10).padEnd(8, "0"),
+    page_id: 0,
+    type: "LocalBusiness",
+    name: "",
+    phone: "",
+    email: "",
+    logo: "",
+    image: "",
+    street: "",
+    city: "",
+    region: "",
+    postal: "",
+    country: "",
+    latitude: "",
+    longitude: "",
+    price_range: "",
+    hours: {},
+    same_as: [],
+  };
+}
+
+function LocationCard(props: {
+  site: SiteSummary;
+  location: SeoLocation;
+  siteName: string;
+  known?: { title: string; url: string };
+  startOpen: boolean;
+  onChange: (location: SeoLocation) => void;
+  onPick: (page: { id: number; title: string; url: string } | null) => void;
+  onRemove: () => void;
+}) {
+  const { location, onChange } = props;
+  const set = <K extends keyof SeoLocation>(key: K, value: SeoLocation[K]) => onChange({ ...location, [key]: value });
+  const text = (
+    key:
+      | "name"
+      | "phone"
+      | "email"
+      | "street"
+      | "city"
+      | "region"
+      | "postal"
+      | "country"
+      | "price_range"
+      | "logo"
+      | "image",
+    label: string,
+    placeholder = "",
+  ) => (
     <Row title={label}>
       <Input
-        aria-label={label}
-        value={local[key] as string}
-        onChange={(event) => set(key, event.target.value as never)}
+        aria-label={`${label} for ${location.name || "this location"}`}
+        value={location[key]}
+        onChange={(event) => set(key, event.target.value)}
         placeholder={placeholder}
       />
     </Row>
   );
   const setHours = (day: string, part: "open" | "close", value: string) => {
-    const current = local.hours[day] ?? { open: "", close: "" };
+    const current = location.hours[day] ?? { open: "", close: "" };
     const next = { ...current, [part]: value };
-    const hours = { ...local.hours };
+    const hours = { ...location.hours };
     if (next.open || next.close) hours[day] = next;
     else delete hours[day];
     set("hours", hours);
   };
-  const incomplete = !local.phone && !local.street;
+  const incomplete = !location.phone && !location.street;
+  const summary = [location.city, location.phone].filter(Boolean).join(" · ");
   return (
-    <Section title="Local SEO">
+    <details className="group" open={props.startOpen}>
+      <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm">
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{location.name || props.siteName || "New location"}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {summary || "Add a phone number or a street address"}
+            {location.page_id > 0 && " · Has its own page"}
+          </span>
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Edit</span>
+      </summary>
+      <div className="divide-y border-t bg-muted/10">
+        {incomplete && (
+          <p className="px-4 py-3 text-xs text-muted-foreground">
+            Add a phone number or a street address. Nothing is marked up for this location until you do.
+          </p>
+        )}
+        <Row
+          title="Location page"
+          detail="Optional. Mark up this location on its own page, such as a Contact or branch page, instead of the home page."
+        >
+          <PagePicker site={props.site} pageId={location.page_id} known={props.known} onPick={props.onPick} />
+        </Row>
+        <Row title="Business type">
+          <select
+            aria-label={`Business type for ${location.name || "this location"}`}
+            className={SELECT_CLASS}
+            value={location.type}
+            onChange={(event) => set("type", event.target.value)}
+          >
+            {SEO_BUSINESS_TYPES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Row>
+        {text("name", "Business name", props.siteName)}
+        {text("phone", "Phone", "+1 555 0100")}
+        {text("email", "Email")}
+        {text("street", "Street address")}
+        {text("city", "City")}
+        {text("region", "State or region")}
+        {text("postal", "Postal code")}
+        {text("country", "Country", "US")}
+        <Row title="Map location" detail="Optional latitude and longitude, such as 30.2672 and -97.7431.">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              aria-label="Latitude"
+              value={location.latitude}
+              onChange={(event) => set("latitude", event.target.value)}
+              placeholder="Latitude"
+            />
+            <Input
+              aria-label="Longitude"
+              value={location.longitude}
+              onChange={(event) => set("longitude", event.target.value)}
+              placeholder="Longitude"
+            />
+          </div>
+        </Row>
+        {text("price_range", "Price range", "$$")}
+        {text("logo", "Logo address", "https://")}
+        {text("image", "Photo address", "https://")}
+        <div className="px-4 py-3">
+          <p className="text-sm font-medium">Opening hours</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Leave both times empty for a day you are closed.</p>
+          <ul className="mt-3 grid gap-2">
+            {SEO_DAYS.map(([day, label]) => (
+              <li key={day} className="flex items-center gap-3 text-sm">
+                <span className="w-24 shrink-0">{label}</span>
+                <Input
+                  type="time"
+                  aria-label={`${label} opens`}
+                  className="w-32"
+                  value={location.hours[day]?.open ?? ""}
+                  onChange={(event) => setHours(day, "open", event.target.value)}
+                />
+                <span className="text-muted-foreground">to</span>
+                <Input
+                  type="time"
+                  aria-label={`${label} closes`}
+                  className="w-32"
+                  value={location.hours[day]?.close ?? ""}
+                  onChange={(event) => setHours(day, "close", event.target.value)}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Row
+          title="Profile links"
+          detail="One address per line: Google Business, Facebook, Instagram and other profiles."
+        >
+          <Textarea
+            aria-label="Profile links"
+            rows={3}
+            value={location.same_as.join("\n")}
+            onChange={(event) =>
+              set(
+                "same_as",
+                event.target.value.split("\n").map((line) => line.trim()),
+              )
+            }
+            placeholder="https://"
+          />
+        </Row>
+        <div className="flex justify-end px-4 py-3">
+          <Button variant="outline" size="sm" onClick={props.onRemove}>
+            Remove location
+          </Button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+/** Business locations for local search, marked up as LocalBusiness on the home page or on a location's own page. */
+function LocalSection(props: {
+  site: SiteSummary;
+  local: SeoLocal;
+  siteName: string;
+  knownPages: Record<string, { title: string; url: string }>;
+  onPicked: (page: { id: number; title: string; url: string }) => void;
+  onChange: (local: SeoLocal) => void;
+}) {
+  const { local, onChange } = props;
+  const [added, setAdded] = useState<string | null>(null);
+  const update = (id: string, next: SeoLocation) =>
+    onChange({ ...local, locations: local.locations.map((item) => (item.id === id ? next : item)) });
+  return (
+    <Section
+      title="Local SEO"
+      action={
+        local.enabled && local.locations.length < MAX_SEO_LOCATIONS ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const next = newLocation();
+              setAdded(next.id);
+              onChange({ ...local, locations: [...local.locations, next] });
+            }}
+          >
+            Add location
+          </Button>
+        ) : undefined
+      }
+    >
       <div className="divide-y">
         <CheckRow
-          title="Mark up this business for local search"
-          detail="Adds schema.org business details to the home page, which search engines use for local results and knowledge panels."
+          title="Mark up my business locations for local search"
+          detail="Adds schema.org business details, which search engines use for local results and knowledge panels. A location without its own page is marked up on the home page."
           checked={local.enabled}
-          onChange={(value) => set("enabled", value)}
+          onChange={(value) => {
+            const locations = value && local.locations.length === 0 ? [newLocation()] : local.locations;
+            if (value && local.locations.length === 0) setAdded(locations[0].id);
+            onChange({ ...local, enabled: value, locations });
+          }}
         />
-        {local.enabled && (
-          <>
-            {incomplete && (
-              <p className="px-4 py-3 text-xs text-muted-foreground">
-                Add a phone number or a street address. Nothing is added to the page until you do.
-              </p>
-            )}
-            <Row title="Business type">
-              <select
-                aria-label="Business type"
-                className={SELECT_CLASS}
-                value={local.type}
-                onChange={(event) => set("type", event.target.value)}
-              >
-                {SEO_BUSINESS_TYPES.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Row>
-            {text("name", "Business name", props.siteName)}
-            {text("phone", "Phone", "+1 555 0100")}
-            {text("email", "Email")}
-            {text("street", "Street address")}
-            {text("city", "City")}
-            {text("region", "State or region")}
-            {text("postal", "Postal code")}
-            {text("country", "Country", "US")}
-            <Row title="Map location" detail="Optional latitude and longitude, such as 30.2672 and -97.7431.">
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  aria-label="Latitude"
-                  value={local.latitude}
-                  onChange={(event) => set("latitude", event.target.value)}
-                  placeholder="Latitude"
-                />
-                <Input
-                  aria-label="Longitude"
-                  value={local.longitude}
-                  onChange={(event) => set("longitude", event.target.value)}
-                  placeholder="Longitude"
-                />
-              </div>
-            </Row>
-            {text("price_range", "Price range", "$$")}
-            {text("logo", "Logo address", "https://")}
-            {text("image", "Photo address", "https://")}
-            <div className="px-4 py-3">
-              <p className="text-sm font-medium">Opening hours</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Leave both times empty for a day you are closed.</p>
-              <ul className="mt-3 grid gap-2">
-                {SEO_DAYS.map(([day, label]) => (
-                  <li key={day} className="flex items-center gap-3 text-sm">
-                    <span className="w-24 shrink-0">{label}</span>
-                    <Input
-                      type="time"
-                      aria-label={`${label} opens`}
-                      className="w-32"
-                      value={local.hours[day]?.open ?? ""}
-                      onChange={(event) => setHours(day, "open", event.target.value)}
-                    />
-                    <span className="text-muted-foreground">to</span>
-                    <Input
-                      type="time"
-                      aria-label={`${label} closes`}
-                      className="w-32"
-                      value={local.hours[day]?.close ?? ""}
-                      onChange={(event) => setHours(day, "close", event.target.value)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <Row
-              title="Profile links"
-              detail="One address per line: your Google Business, Facebook, Instagram and other profiles."
-            >
-              <Textarea
-                aria-label="Profile links"
-                rows={3}
-                value={local.same_as.join("\n")}
-                onChange={(event) =>
-                  set(
-                    "same_as",
-                    event.target.value.split("\n").map((line) => line.trim()),
-                  )
-                }
-                placeholder="https://"
-              />
-            </Row>
-          </>
-        )}
+        {local.enabled &&
+          local.locations.map((location) => (
+            <LocationCard
+              key={location.id}
+              site={props.site}
+              location={location}
+              siteName={props.siteName}
+              known={props.knownPages[String(location.page_id)]}
+              startOpen={location.id === added}
+              onChange={(next) => update(location.id, next)}
+              onPick={(page) => {
+                if (page) props.onPicked(page);
+                update(location.id, { ...location, page_id: page?.id ?? 0 });
+              }}
+              onRemove={() =>
+                onChange({ ...local, locations: local.locations.filter((item) => item.id !== location.id) })
+              }
+            />
+          ))}
       </div>
     </Section>
   );
@@ -405,6 +610,8 @@ export function SeoTab(props: { site: SiteSummary }) {
   const supported = !!site.plugin_version && compareVersions(site.plugin_version, SEO_SINCE) >= 0;
   const seo = useQuery({ queryKey: ["site", site.id, "seo"], queryFn: () => fetchSeo(site.id), enabled: supported });
   const [draft, setDraft] = useState<SeoSettings | null>(null);
+  // Pages chosen for locations since the last save, whose titles the site has not reported yet.
+  const [picked, setPicked] = useState<Record<string, { title: string; url: string }>>({});
   const saved = seo.data?.settings;
   useEffect(() => {
     if (saved) setDraft(saved);
@@ -628,7 +835,14 @@ export function SeoTab(props: { site: SiteSummary }) {
         </div>
       </Section>
 
-      <LocalSection local={draft.local} siteName={data.site_name} onChange={(local) => set("local", local)} />
+      <LocalSection
+        site={site}
+        local={draft.local}
+        siteName={data.site_name}
+        knownPages={{ ...data.location_pages, ...picked }}
+        onPicked={(page) => setPicked({ ...picked, [String(page.id)]: { title: page.title, url: page.url } })}
+        onChange={(local) => set("local", local)}
+      />
 
       <PagesSection site={site} seo={data} />
     </>

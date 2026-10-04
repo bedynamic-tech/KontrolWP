@@ -13,6 +13,7 @@ function setup() {
 const site = (extra = {}) => ({ id: 1, url: "https://a.test/", kind: "wordpress", plugin_version: "0.15.0", ...extra });
 const credentials = { id: 1, url: "https://a.test/", keyId: "k", secret: "c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0MTIzNDU2" };
 const settings = {
+  local: { enabled: false, locations: [] },
   enabled: true,
   separator: "|",
   title_template: "%title%",

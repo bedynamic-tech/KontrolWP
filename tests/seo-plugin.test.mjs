@@ -90,7 +90,7 @@ test("a noindex page has no canonical, and switches turn tag groups off", { skip
 });
 
 const business = {
-  enabled: true,
+  id: "abcd1234",
   type: "Dentist",
   name: "Smile Co",
   phone: "+1 555 0100",
@@ -108,20 +108,36 @@ const business = {
   same_as: ["https://facebook.com/smile", "javascript:alert(1)", "https://facebook.com/smile"],
 };
 
-test("business details are cleaned: bad types, times, coordinates and links are dropped", { skip }, () => {
-  const out = call("clean_local", { ...business, type: "Hacker", latitude: "200", extra: 1 });
+test("a location is cleaned: bad types, times, coordinates and links are dropped", { skip }, () => {
+  const out = call("clean_location", { ...business, type: "Hacker", latitude: "200", page_id: "12", extra: 1 });
   assert.equal(out.type, "LocalBusiness");
   assert.equal(out.latitude, "");
   assert.equal(out.longitude, "-97.7431");
+  assert.equal(out.page_id, 12);
+  assert.equal(out.id, "abcd1234");
   assert.deepEqual(out.hours, { mon: { open: "09:00", close: "17:00" } });
   assert.deepEqual(out.same_as, ["https://facebook.com/smile"]);
   assert.equal("extra" in out, false);
-  assert.equal(call("clean_local", business).type, "Dentist");
+  assert.equal(call("clean_location", business).type, "Dentist");
+  assert.equal(call("clean_location", { page_id: -3 }).page_id, 0);
+});
+
+test("locations get unique ids, are capped, and the one-business shape becomes one location", { skip }, () => {
+  const two = call("clean_local", { enabled: true, locations: [business, business, "junk"] });
+  assert.equal(two.locations.length, 2);
+  assert.notEqual(two.locations[0].id, two.locations[1].id);
+  const many = call("clean_local", { locations: Array.from({ length: 60 }, () => ({ name: "x", phone: "1" })) });
+  assert.equal(many.locations.length, 50);
+  const old = call("clean_local", { enabled: true, ...business, id: undefined });
+  assert.equal(old.enabled, true);
+  assert.equal(old.locations.length, 1);
+  assert.equal(old.locations[0].name, "Smile Co");
+  assert.deepEqual(call("clean_local", {}), { enabled: false, locations: [] });
 });
 
 test("business schema needs a name and a phone or street, and describes the business", { skip }, () => {
-  const local = call("clean_local", business);
-  const schema = call("business_schema", local, "Acme", "https://a.test/");
+  const location = call("clean_location", business);
+  const schema = call("business_schema", location, "Acme", "https://a.test/");
   assert.equal(schema["@type"], "Dentist");
   assert.equal(schema.name, "Smile Co");
   assert.equal(schema.address.streetAddress, "1 Main St");
@@ -129,25 +145,42 @@ test("business schema needs a name and a phone or street, and describes the busi
   assert.equal(schema.openingHoursSpecification.length, 1);
   assert.equal(schema.openingHoursSpecification[0].dayOfWeek, "Monday");
   assert.deepEqual(schema.sameAs, ["https://facebook.com/smile"]);
-  const bare = call("clean_local", { name: "Only a name" });
+  const bare = call("clean_location", { name: "Only a name" });
   assert.equal(call("business_schema", bare, "Acme", "https://a.test/"), null);
-  const named = call("clean_local", { phone: "555" });
+  const named = call("clean_location", { phone: "555" });
   assert.equal(call("business_schema", named, "Acme", "https://a.test/").name, "Acme");
 });
 
-test("the home page carries the business schema when switched on, and other pages do not", { skip }, () => {
-  const settings = { ...defaults, local: call("clean_local", business) };
-  const home = call("head_html", settings, {
-    ...page,
-    kind: "home",
-    title: "Home",
-    description: "",
-    url: "https://a.test/",
-  });
-  assert.match(home, /<script type="application\/ld\+json">\{"@context":"https:\/\/schema\.org","@type":"Dentist"/);
-  assert.ok(!call("head_html", settings, page).includes("ld+json"));
-  assert.ok(!call("head_html", defaults, { ...page, kind: "home" }).includes("ld+json"));
-  const evil = call("clean_local", { ...business, name: "</script><script>alert(1)</script>" });
-  const out = call("head_html", { ...defaults, local: evil }, { ...page, kind: "home" });
-  assert.ok(!out.includes("</script><script>"));
+const loc = (id, extra = {}) => ({ id, name: `Shop ${id}`, phone: "555", ...extra });
+const homePage = { ...page, kind: "home", url: "https://a.test/", home_url: "https://a.test/", post_id: 0 };
+const local = (...locations) => ({ ...defaults, local: call("clean_local", { enabled: true, locations }) });
+
+test("locations without a page go on the home page, in one graph when there are several", { skip }, () => {
+  const one = call("head_html", local(loc("aaaa1111")), homePage);
+  assert.match(
+    one,
+    /<script type="application\/ld\+json">\{"@context":"https:\/\/schema\.org","@type":"LocalBusiness"/,
+  );
+  const two = call("head_html", local(loc("aaaa1111"), loc("bbbb2222")), homePage);
+  assert.match(two, /"@graph":\[/);
+  assert.equal(two.match(/"@type":"LocalBusiness"/g).length, 2);
+  assert.ok(!call("head_html", local(loc("aaaa1111")), page).includes("ld+json"));
+  assert.ok(!call("head_html", defaults, homePage).includes("ld+json"));
+});
+
+test("a location with a page is marked up on that page only, with that page's address", { skip }, () => {
+  const settings = local(loc("aaaa1111", { page_id: 7 }), loc("bbbb2222"));
+  const there = call("head_html", settings, { ...page, kind: "singular", post_id: 7, url: "https://a.test/austin/" });
+  assert.match(there, /"name":"Shop aaaa1111"/);
+  assert.match(there, /"url":"https:\/\/a\.test\/austin\/"/);
+  assert.ok(!there.includes("Shop bbbb2222"));
+  const elsewhere = call("head_html", settings, { ...page, kind: "singular", post_id: 8 });
+  assert.ok(!elsewhere.includes("ld+json"));
+  const home = call("head_html", settings, homePage);
+  assert.ok(home.includes("Shop bbbb2222") && !home.includes("Shop aaaa1111"));
+});
+
+test("the schema script cannot be closed from a business name", { skip }, () => {
+  const evil = local(loc("aaaa1111", { name: "</script><script>alert(1)</script>" }));
+  assert.ok(!call("head_html", evil, homePage).includes("</script><script>"));
 });

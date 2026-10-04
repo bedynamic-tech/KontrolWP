@@ -31,7 +31,7 @@ import type {
   SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
-import { SEO_SEPARATORS, UPDATE_FREQUENCIES } from "../../shared/types.ts";
+import { MAX_SEO_LOCATIONS, SEO_SEPARATORS, UPDATE_FREQUENCIES } from "../../shared/types.ts";
 import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
@@ -975,8 +975,9 @@ api.get("/sites/:id/seo", async (c) => {
 });
 
 const seoText = (max: number) => z.string().max(max);
-const seoLocalBody = z.object({
-  enabled: z.boolean(),
+const seoLocationBody = z.object({
+  id: seoText(16),
+  page_id: z.number().int().min(0),
   type: seoText(60),
   name: seoText(200),
   phone: seoText(200),
@@ -994,6 +995,7 @@ const seoLocalBody = z.object({
   hours: z.record(z.string(), z.object({ open: seoText(5), close: seoText(5) })),
   same_as: z.array(seoText(2000)).max(20),
 });
+const seoLocalBody = z.object({ enabled: z.boolean(), locations: z.array(seoLocationBody).max(MAX_SEO_LOCATIONS) });
 const seoSettingsBody = z.object({
   local: seoLocalBody,
   enabled: z.boolean(),

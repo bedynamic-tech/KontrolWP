@@ -722,9 +722,12 @@ export const SEO_DAYS = [
   ["sun", "Sunday"],
 ] as const;
 
-/** Business details, marked up as schema.org LocalBusiness on the home page. */
-export interface SeoLocal {
-  enabled: boolean;
+/** One business location, marked up as schema.org LocalBusiness. */
+export interface SeoLocation {
+  /** Stable key for the list; made in the dashboard. */
+  id: string;
+  /** A page that stands for this location and carries its markup; 0 puts it on the home page. */
+  page_id: number;
   type: string;
   name: string;
   phone: string;
@@ -742,6 +745,13 @@ export interface SeoLocal {
   /** Opening hours by day key (mon to sun, 24 hour HH:MM); a missing day is closed. */
   hours: Record<string, { open: string; close: string }>;
   same_as: string[];
+}
+
+export const MAX_SEO_LOCATIONS = 50;
+
+export interface SeoLocal {
+  enabled: boolean;
+  locations: SeoLocation[];
 }
 
 /** The SEO options KontrolWP Connect applies to a site's pages. */
@@ -773,6 +783,8 @@ export interface SiteSeo {
   home_url: string;
   /** WordPress's own "Discourage search engines" switch is on. */
   discouraged: boolean;
+  /** Title and address of each page a location is tied to, by page id. */
+  location_pages: Record<string, { title: string; url: string }>;
 }
 
 /** One page's SEO overrides; an empty value means the site-wide defaults apply. */
