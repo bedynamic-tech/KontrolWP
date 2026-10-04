@@ -184,3 +184,41 @@ test("the schema script cannot be closed from a business name", { skip }, () => 
   const evil = local(loc("aaaa1111", { name: "</script><script>alert(1)</script>" }));
   assert.ok(!call("head_html", evil, homePage).includes("</script><script>"));
 });
+
+test("new settings default to hidden tags and attachments, and keep only valid names", { skip }, () => {
+  assert.deepEqual(defaults.hidden_taxonomies, ["post_tag"]);
+  assert.deepEqual(defaults.hidden_types, []);
+  assert.equal(defaults.noindex_attachment, true);
+  assert.equal(defaults.noindex_author_single, true);
+  const out = call("clean", { hidden_taxonomies: ["category", "Bad Name", "category", 5], hidden_types: "page" });
+  assert.deepEqual(out.hidden_taxonomies, ["category"]);
+  assert.deepEqual(out.hidden_types, defaults.hidden_types);
+});
+
+const noindex = (settings, ctx) => call("wants_noindex", { ...defaults, ...settings }, ctx);
+
+test("a page is hidden when a setting or its own flag says so", { skip }, () => {
+  assert.equal(noindex({}, {}), false);
+  assert.equal(noindex({}, { flagged: true }), true);
+  assert.equal(noindex({}, { search: true }), true);
+  assert.equal(noindex({}, { attachment: true }), true);
+  assert.equal(noindex({ noindex_attachment: false }, { attachment: true }), false);
+  assert.equal(noindex({}, { taxonomy: "post_tag" }), true);
+  assert.equal(noindex({}, { taxonomy: "category" }), false);
+  assert.equal(noindex({ hidden_types: ["page"] }, { post_type: "page" }), true);
+});
+
+test("an author page is hidden on a one-author site unless that is switched off", { skip }, () => {
+  const ctx = { author: true, single_author: true };
+  assert.equal(noindex({ noindex_author: false }, ctx), true);
+  assert.equal(noindex({ noindex_author: false, noindex_author_single: false }, ctx), false);
+  assert.equal(noindex({ noindex_author: false }, { author: true, single_author: false }), false);
+  assert.equal(noindex({ noindex_author: true }, { author: true, single_author: false }), true);
+});
+
+test("the placeholder tagline is not used, and later pages get a page number", { skip }, () => {
+  assert.equal(call("usable_tagline", "Just another WordPress site"), "");
+  assert.equal(call("usable_tagline", " Fresh bread daily "), "Fresh bread daily");
+  assert.equal(call("with_page_number", "Blog | Shop", "|", 1, "Page %s"), "Blog | Shop");
+  assert.equal(call("with_page_number", "Blog | Shop", "|", 3, "Page %s"), "Blog | Shop | Page 3");
+});

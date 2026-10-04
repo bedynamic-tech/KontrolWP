@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
+import { compareVersions, SEO_INDEXING_SINCE, SEO_SINCE } from "../../shared/plugin-version";
 import {
   SEO_BUSINESS_TYPES,
   SEO_DAYS,
@@ -629,6 +629,10 @@ function LocalSection(props: {
   );
 }
 
+function toggleName(list: string[], name: string, on: boolean) {
+  return on ? [...list.filter((item) => item !== name), name] : list.filter((item) => item !== name);
+}
+
 function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
   const { site, seo } = props;
   const [search, setSearch] = useState("");
@@ -800,6 +804,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
     );
   }
   const data = seo.data!;
+  const indexing = compareVersions(site.plugin_version ?? "0", SEO_INDEXING_SINCE) >= 0;
   const dirty = JSON.stringify(draft) !== JSON.stringify(data.settings);
   const set = <K extends keyof SeoSettings>(key: K, value: SeoSettings[K]) =>
     setDraft({ ...draft, [key]: value });
@@ -1017,8 +1022,52 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
             checked={draft.noindex_date}
             onChange={(value) => set("noindex_date", value)}
           />
+          {indexing && (
+            <>
+              <CheckRow
+                title="Hide attachment pages"
+                detail="WordPress makes a thin page for every uploaded file. Hiding them keeps those out of search results."
+                checked={draft.noindex_attachment}
+                onChange={(value) => set("noindex_attachment", value)}
+              />
+              <CheckRow
+                title="Hide author pages on a one-author site"
+                detail="When only one person has published posts, the author page repeats the blog, so it is hidden even if the setting above is off. It is listed normally once a second author publishes."
+                checked={draft.noindex_author_single}
+                onChange={(value) => set("noindex_author_single", value)}
+              />
+            </>
+          )}
         </div>
       </Section>
+
+      {indexing && (
+        <Section
+          title="Hide whole sections"
+          hint="Pages in a section that is hidden ask search engines not to list them, and are left out of the XML sitemap, so the two always agree. Tags are hidden by default on new sites because they are usually thin lists of posts that are already listed elsewhere."
+        >
+          <div className="divide-y">
+            {data.taxonomies.map((item) => (
+              <CheckRow
+                key={`tax-${item.name}`}
+                title={`${item.label} pages`}
+                detail="Archive pages for this grouping."
+                checked={draft.hidden_taxonomies.includes(item.name)}
+                onChange={(value) => set("hidden_taxonomies", toggleName(draft.hidden_taxonomies, item.name, value))}
+              />
+            ))}
+            {data.post_types.map((item) => (
+              <CheckRow
+                key={`type-${item.name}`}
+                title={item.label}
+                detail="Every page of this content type."
+                checked={draft.hidden_types.includes(item.name)}
+                onChange={(value) => set("hidden_types", toggleName(draft.hidden_types, item.name, value))}
+              />
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="Technical">
         <div className="divide-y">

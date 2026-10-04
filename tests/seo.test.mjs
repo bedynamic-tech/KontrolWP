@@ -26,6 +26,10 @@ const settings = {
   noindex_search: true,
   noindex_author: false,
   noindex_date: true,
+  noindex_attachment: true,
+  noindex_author_single: true,
+  hidden_taxonomies: ["post_tag"],
+  hidden_types: [],
   canonical: true,
   sitemap: true,
 };
@@ -63,6 +67,8 @@ test("settings are read once and kept, and saving clears what was kept", async (
     home_url: "https://a.test/",
     discouraged: false,
     location_pages: {},
+    post_types: [],
+    taxonomies: [],
   };
   await withSite(
     () => report,

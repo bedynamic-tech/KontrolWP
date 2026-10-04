@@ -104,10 +104,29 @@ class KontrolWP_Connect_SEO {
 		'noindex_search'     => true,
 		'noindex_author'     => false,
 		'noindex_date'       => true,
+		'noindex_attachment' => true,
+		'noindex_author_single' => true,
+		'hidden_taxonomies'  => array( 'post_tag' ),
+		'hidden_types'       => array(),
 		'canonical'          => true,
 		'sitemap'            => true,
 		'local'              => self::LOCAL_DEFAULTS,
 	);
+
+	/**
+	 * What a setting added after 0.15.0 means for a site that saved its
+	 * settings before it existed: what the plugin did then, so an update never
+	 * changes a live site's pages. Sites that never saved get the defaults.
+	 */
+	const UNCHANGED_FOR_EXISTING = array(
+		'noindex_attachment'    => false,
+		'noindex_author_single' => false,
+		'hidden_taxonomies'     => array(),
+		'hidden_types'          => array(),
+	);
+
+	/** The tagline WordPress installs with, which says nothing about the site. */
+	const DEFAULT_TAGLINE = 'Just another WordPress site';
 
 	public static function register_routes( $auth ) {
 		$ns = KontrolWP_Connect_Rest::NAMESPACE_V1;
@@ -172,14 +191,22 @@ class KontrolWP_Connect_SEO {
 
 	/** The saved settings with every missing value at its default. */
 	public static function settings() {
-		$saved = get_option( self::OPTION, array() );
-		return self::clean( is_array( $saved ) ? $saved : array() );
+		$saved = get_option( self::OPTION, false );
+		if ( ! is_array( $saved ) ) {
+			return self::clean( array() );
+		}
+		foreach ( self::UNCHANGED_FOR_EXISTING as $key => $value ) {
+			if ( ! array_key_exists( $key, $saved ) ) {
+				$saved[ $key ] = $value;
+			}
+		}
+		return self::clean( $saved );
 	}
 
 	/** A settings array with only known keys, each of the right type. Pure; used on input and on what is stored. */
 	public static function clean( $input ) {
 		$out = self::DEFAULTS;
-		foreach ( array( 'enabled', 'og_enabled', 'noindex_search', 'noindex_author', 'noindex_date', 'canonical', 'sitemap' ) as $key ) {
+		foreach ( array( 'enabled', 'og_enabled', 'noindex_search', 'noindex_author', 'noindex_date', 'noindex_attachment', 'noindex_author_single', 'canonical', 'sitemap' ) as $key ) {
 			if ( array_key_exists( $key, $input ) ) {
 				$out[ $key ] = (bool) $input[ $key ];
 			}
@@ -207,6 +234,17 @@ class KontrolWP_Connect_SEO {
 		if ( isset( $input['twitter_site'] ) && is_string( $input['twitter_site'] ) ) {
 			$handle                = ltrim( trim( $input['twitter_site'] ), '@' );
 			$out['twitter_site'] = preg_match( '/^[A-Za-z0-9_]{1,15}$/', $handle ) ? '@' . $handle : '';
+		}
+		foreach ( array( 'hidden_taxonomies', 'hidden_types' ) as $key ) {
+			if ( isset( $input[ $key ] ) && is_array( $input[ $key ] ) ) {
+				$names = array();
+				foreach ( array_slice( $input[ $key ], 0, 50 ) as $name ) {
+					if ( is_string( $name ) && preg_match( '/^[a-z0-9_-]{1,32}$/', $name ) ) {
+						$names[] = $name;
+					}
+				}
+				$out[ $key ] = array_values( array_unique( $names ) );
+			}
 		}
 		$out['local'] = self::clean_local( isset( $input['local'] ) && is_array( $input['local'] ) ? $input['local'] : array() );
 		return $out;
@@ -453,6 +491,33 @@ class KontrolWP_Connect_SEO {
 		return trim( $out );
 	}
 
+	/** The site's tagline, or an empty string when it is still WordPress's placeholder. */
+	public static function usable_tagline( $tagline, $placeholders = array( self::DEFAULT_TAGLINE ) ) {
+		$tagline = trim( (string) $tagline );
+		return in_array( $tagline, $placeholders, true ) ? '' : $tagline;
+	}
+
+	/** A title for page two and later of a list, so no two pages share a title. */
+	public static function with_page_number( $title, $sep, $number, $label ) {
+		return $number > 1 ? trim( $title . ' ' . $sep . ' ' . sprintf( $label, $number ) ) : $title;
+	}
+
+	/**
+	 * Whether a page asks search engines not to list it. $ctx keys: search,
+	 * author, date, attachment, taxonomy (the term page's taxonomy or ''),
+	 * post_type (the singular page's type or ''), single_author, flagged (the
+	 * page's own override).
+	 */
+	public static function wants_noindex( $settings, $ctx ) {
+		return ! empty( $ctx['flagged'] )
+			|| ( ! empty( $ctx['search'] ) && $settings['noindex_search'] )
+			|| ( ! empty( $ctx['author'] ) && ( $settings['noindex_author'] || ( $settings['noindex_author_single'] && ! empty( $ctx['single_author'] ) ) ) )
+			|| ( ! empty( $ctx['date'] ) && $settings['noindex_date'] )
+			|| ( ! empty( $ctx['attachment'] ) && $settings['noindex_attachment'] )
+			|| ( ! empty( $ctx['taxonomy'] ) && in_array( $ctx['taxonomy'], $settings['hidden_taxonomies'], true ) )
+			|| ( ! empty( $ctx['post_type'] ) && in_array( $ctx['post_type'], $settings['hidden_types'], true ) );
+	}
+
 	/** Plain text cut at a word boundary to the description length, with an ellipsis when cut. */
 	public static function trim_description( $text, $max = self::DESCRIPTION_LENGTH ) {
 		$text = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( strip_shortcodes( $text ) ) ) );
@@ -530,7 +595,51 @@ class KontrolWP_Connect_SEO {
 		}
 		if ( ! $settings['sitemap'] ) {
 			add_filter( 'wp_sitemaps_enabled', '__return_false' );
+		} else {
+			add_filter( 'wp_sitemaps_post_types', array( __CLASS__, 'sitemap_post_types' ) );
+			add_filter( 'wp_sitemaps_taxonomies', array( __CLASS__, 'sitemap_taxonomies' ) );
+			add_filter( 'wp_sitemaps_posts_query_args', array( __CLASS__, 'sitemap_posts_query' ) );
+			add_filter( 'wp_sitemaps_add_provider', array( __CLASS__, 'sitemap_provider' ), 10, 2 );
 		}
+	}
+
+	/* The sitemap lists what search engines are asked to list: nothing hidden, so the two never disagree. */
+
+	public static function sitemap_post_types( $types ) {
+		$settings = self::settings();
+		return array_diff_key( $types, array_flip( $settings['hidden_types'] ) );
+	}
+
+	public static function sitemap_taxonomies( $taxonomies ) {
+		$settings = self::settings();
+		return array_diff_key( $taxonomies, array_flip( $settings['hidden_taxonomies'] ) );
+	}
+
+	public static function sitemap_posts_query( $args ) {
+		$clause = array(
+			'relation' => 'OR',
+			array(
+				'key'     => self::META_NOINDEX,
+				'compare' => 'NOT EXISTS',
+			),
+			array(
+				'key'     => self::META_NOINDEX,
+				'value'   => '1',
+				'compare' => '!=',
+			),
+		);
+		$args['meta_query'] = isset( $args['meta_query'] ) && is_array( $args['meta_query'] ) ? array( 'relation' => 'AND', $args['meta_query'], $clause ) : array( $clause );
+		return $args;
+	}
+
+	/** The people sitemap goes when author pages are hidden, which includes a site with one author. */
+	public static function sitemap_provider( $provider, $name ) {
+		if ( 'users' !== $name ) {
+			return $provider;
+		}
+		$settings = self::settings();
+		$hidden   = $settings['noindex_author'] || ( $settings['noindex_author_single'] && self::single_author() );
+		return $hidden ? false : $provider;
 	}
 
 	public static function filter_separator( $sep ) {
@@ -541,7 +650,13 @@ class KontrolWP_Connect_SEO {
 	/** The page title from the post's override or the template. */
 	public static function filter_title( $title ) {
 		$page = self::page();
-		return '' !== $page['title'] ? $page['title'] : $title;
+		if ( '' === $page['title'] ) {
+			return $title;
+		}
+		$settings = self::settings();
+		$number   = max( (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ) );
+		return self::with_page_number( $page['title'], $settings['separator'], $number, __( 'Page %s' ) ); // phpcs:ignore WordPress.WP.I18n
+
 	}
 
 	public static function print_head() {
@@ -549,11 +664,41 @@ class KontrolWP_Connect_SEO {
 		echo self::head_html( $settings, self::page() ); // phpcs:ignore WordPress.Security.EscapeOutput
 	}
 
+	/** The tagline as the pages use it: decoded, and empty while it is still WordPress's placeholder. */
+	private static function site_tagline() {
+		return self::usable_tagline(
+			html_entity_decode( get_bloginfo( 'description' ), ENT_QUOTES, 'UTF-8' ),
+			array( self::DEFAULT_TAGLINE, __( 'Just another WordPress site' ) ) // phpcs:ignore WordPress.WP.I18n
+		);
+	}
+
+	/** Whether the site has fewer than two people with published posts, so an author page repeats the blog. */
+	private static function single_author() {
+		static $single = null;
+		if ( null === $single ) {
+			$single = count( get_users( array( 'has_published_posts' => true, 'fields' => 'ID', 'number' => 2 ) ) ) < 2;
+		}
+		return $single;
+	}
+
 	/** Robots directives: noindex for the pages the settings and per-page overrides ask for. */
 	public static function filter_robots( $robots ) {
 		$settings = self::settings();
 		$page     = self::page();
-		if ( $page['noindex'] || ( is_search() && $settings['noindex_search'] ) || ( is_author() && $settings['noindex_author'] ) || ( is_date() && $settings['noindex_date'] ) ) {
+		$object   = get_queried_object();
+		$ctx      = array(
+			'flagged'    => $page['noindex'],
+			'search'     => is_search(),
+			'author'     => is_author(),
+			'date'       => is_date(),
+			'attachment' => is_attachment(),
+			'taxonomy'   => ( is_category() || is_tag() || is_tax() ) && $object && isset( $object->taxonomy ) ? $object->taxonomy : '',
+			'post_type'  => is_singular() && $object && isset( $object->post_type ) ? $object->post_type : '',
+		);
+		if ( is_author() ) {
+			$ctx['single_author'] = self::single_author();
+		}
+		if ( self::wants_noindex( $settings, $ctx ) ) {
 			$robots['noindex'] = true;
 			$robots['follow']  = true;
 			unset( $robots['index'] );
@@ -570,7 +715,7 @@ class KontrolWP_Connect_SEO {
 		}
 		$settings  = self::settings();
 		$site_name = html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' );
-		$tagline   = html_entity_decode( get_bloginfo( 'description' ), ENT_QUOTES, 'UTF-8' );
+		$tagline   = self::site_tagline();
 		$vars      = array(
 			'sitename' => $site_name,
 			'tagline'  => $tagline,
@@ -581,7 +726,7 @@ class KontrolWP_Connect_SEO {
 			'title'       => '',
 			'description' => '',
 			'url'         => '',
-			'image'       => $settings['og_image'],
+			'image'       => '' !== $settings['og_image'] ? $settings['og_image'] : (string) get_site_icon_url( 512 ),
 			'type'        => 'website',
 			'noindex'     => false,
 			'site_name'   => $site_name,
@@ -616,6 +761,12 @@ class KontrolWP_Connect_SEO {
 			}
 			$link = $term ? get_term_link( $term ) : '';
 			$page['url'] = is_string( $link ) ? $link : '';
+		}
+
+		// Page two and later of a list is its own page, so it is its own canonical address.
+		$paged = (int) get_query_var( 'paged' );
+		if ( $paged > 1 && in_array( $page['kind'], array( 'home', 'term' ), true ) && '' !== $page['url'] ) {
+			$page['url'] = get_pagenum_link( $paged, false );
 		}
 
 		self::$page_cache = $page;
@@ -660,12 +811,28 @@ class KontrolWP_Connect_SEO {
 			'settings'  => self::settings(),
 			'conflict'  => self::conflict(),
 			'site_name' => html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ),
-			'tagline'   => html_entity_decode( get_bloginfo( 'description' ), ENT_QUOTES, 'UTF-8' ),
+			'tagline'   => self::site_tagline(),
 			'home_url'  => home_url( '/' ),
 			// WordPress's own "Discourage search engines" switch; when set, every page is noindex whatever is said here.
 			'discouraged' => '0' === (string) get_option( 'blog_public', '1' ),
 			'location_pages' => self::location_pages(),
+			'post_types'     => self::public_names( get_post_types( array( 'public' => true ), 'objects' ), array( 'attachment' ) ),
+			'taxonomies'     => self::public_names( get_taxonomies( array( 'public' => true ), 'objects' ), array( 'post_format' ) ),
 		);
+	}
+
+	/** Names and labels of public types or taxonomies, for the dashboard's checkboxes. */
+	private static function public_names( $objects, $skip ) {
+		$out = array();
+		foreach ( $objects as $name => $object ) {
+			if ( ! in_array( $name, $skip, true ) ) {
+				$out[] = array(
+					'name'  => $name,
+					'label' => isset( $object->labels->name ) ? (string) $object->labels->name : $name,
+				);
+			}
+		}
+		return $out;
 	}
 
 	/** The title and address of each page a location is tied to, by page id; pages that no longer exist are left out. */

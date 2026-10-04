@@ -1033,6 +1033,10 @@ const seoSettingsBody = z.object({
   noindex_search: z.boolean(),
   noindex_author: z.boolean(),
   noindex_date: z.boolean(),
+  noindex_attachment: z.boolean(),
+  noindex_author_single: z.boolean(),
+  hidden_taxonomies: z.array(z.string().max(32)).max(50),
+  hidden_types: z.array(z.string().max(32)).max(50),
   canonical: z.boolean(),
   sitemap: z.boolean(),
 });
