@@ -857,6 +857,47 @@ export interface RedirectImportResult {
   errors: { row: number; message: string }[];
 }
 
+/** Another SEO plugin on a site whose settings can be brought into KontrolWP. */
+export interface SeoMigrationSource {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface SeoMigrationPreview {
+  source: string;
+  name: string;
+  active: boolean;
+  /** KontrolWP's own SEO tags are already switched on. */
+  enabled: boolean;
+  /** Site-wide settings that would be filled in: the setting name and the value. */
+  settings: { key: string; value: string }[];
+  pages: {
+    total: number;
+    titles: number;
+    descriptions: number;
+    noindex: number;
+    images: number;
+    /** Pages that already have KontrolWP SEO values, which are kept. */
+    existing: number;
+    /** More pages than could be read; run the import again for the rest. */
+    truncated: boolean;
+  };
+  redirects: { total: number; importable: number; samples: RedirectInput[] };
+}
+
+export interface SeoMigrationParts {
+  settings: boolean;
+  pages: boolean;
+  redirects: boolean;
+}
+
+export interface SeoMigrationResult {
+  settings: string[];
+  pages: { updated: number; skipped: number };
+  redirects: RedirectImportResult;
+}
+
 export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
 

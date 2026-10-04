@@ -81,3 +81,41 @@ test("bulk, import, settings and the 404 log reach their routes", async () => {
     },
   );
 });
+
+import {
+  deactivateMigrationSource,
+  listMigrationSources,
+  previewMigration,
+  runMigration,
+} from "../src/worker/sites/redirects.ts";
+import { fakeD1, migrations } from "./helpers/d1.mjs";
+
+function envWithSite() {
+  const db = fakeD1();
+  for (const m of migrations) db.sqlite.exec(m.sql);
+  db.sqlite.exec("INSERT INTO sites (id, name, url, key_id, secret) VALUES (1, 'A', 'https://a.test/', 'k', 'x')");
+  return { DB: db };
+}
+
+test("importing needs plugin 0.17.0", async () => {
+  await assert.rejects(listMigrationSources(site(), credentials), /0\.17\.0/);
+  await assert.rejects(previewMigration(site({ kind: "static" }), credentials, "yoast"), SeoError);
+});
+
+test("the import routes send the source and the parts to import", async () => {
+  const env = envWithSite();
+  await withSite(
+    (path) =>
+      path.endsWith("/migrate") ? { sources: [{ id: "yoast", name: "Yoast SEO", active: true }] } : { ok: true },
+    async (calls) => {
+      const s = site({ plugin_version: "0.17.0" });
+      assert.equal((await listMigrationSources(s, credentials)).sources[0].id, "yoast");
+      await previewMigration(s, credentials, "yoast");
+      assert.deepEqual(calls[1].body, { source: "yoast" });
+      await runMigration(env, s, credentials, "yoast", { settings: true, pages: false, redirects: true });
+      assert.deepEqual(calls[2].body, { source: "yoast", settings: true, pages: false, redirects: true });
+      await deactivateMigrationSource(env, s, credentials, "yoast");
+      assert.match(calls[3].path, /migrate\/deactivate$/);
+    },
+  );
+});

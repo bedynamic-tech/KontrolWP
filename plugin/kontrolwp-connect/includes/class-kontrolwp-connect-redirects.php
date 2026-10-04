@@ -476,14 +476,19 @@ class KontrolWP_Connect_Redirects {
 
 	/** Add many rules from a file. Rules that already exist are skipped; bad rows are reported by row number. */
 	public static function import( $request ) {
+		self::install();
+		return self::import_rules( (array) $request->get_param( 'rows' ) );
+	}
+
+	/** Add rules from rows of untrusted input. Returns array( added, skipped, errors ). */
+	public static function import_rules( $rows ) {
 		global $wpdb;
 		self::install();
-		$rows   = (array) $request->get_param( 'rows' );
-		$count  = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() ); // phpcs:ignore WordPress.DB
-		$added  = 0;
+		$count   = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() ); // phpcs:ignore WordPress.DB
+		$added   = 0;
 		$skipped = 0;
-		$errors = array();
-		foreach ( array_slice( $rows, 0, self::MAX_RULES ) as $index => $row ) {
+		$errors  = array();
+		foreach ( array_slice( array_values( $rows ), 0, self::MAX_RULES ) as $index => $row ) {
 			list( $rule, $error ) = self::clean_rule( is_array( $row ) ? $row : array() );
 			if ( ! $rule ) {
 				$errors[] = array(

@@ -28,6 +28,7 @@ import {
 } from "../../shared/types";
 import { fetchSeo, fetchSeoPages, saveSeo, saveSeoPage } from "../api";
 import { HelpTip } from "./HelpTip";
+import { MigrateTab } from "./MigrateTab";
 import { RedirectsTab } from "./RedirectsTab";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
@@ -750,7 +751,7 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
 }
 
 /** Titles, descriptions, social tags, search visibility and per-page overrides. */
-function SeoSettingsPanel(props: { site: SiteSummary }) {
+function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const supported =
@@ -824,6 +825,9 @@ function SeoSettingsPanel(props: { site: SiteSummary }) {
               SEO tags. Two sets of tags on a page confuse search engines.
               Deactivate {data.conflict} to use these settings.
             </p>
+            <Button variant="outline" size="sm" className="ml-auto shrink-0" onClick={props.onMigrate}>
+              Import from {data.conflict}
+            </Button>
           </div>
         )}
         {data.discouraged && (
@@ -1055,6 +1059,7 @@ function SeoSettingsPanel(props: { site: SiteSummary }) {
 const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
   { value: "redirects", label: "Redirects" },
+  { value: "migrate", label: "Import" },
 ];
 
 /** The SEO tab: site-wide settings and page overrides, and redirects. */
@@ -1064,10 +1069,13 @@ export function SeoTab(props: { site: SiteSummary }) {
     <Tabs value={view} onValueChange={setView} className="mt-6 gap-0">
       <ResponsiveTabsList tabs={SEO_VIEWS} value={view} onChange={setView} label="SEO section" />
       <TabsContent value="settings">
-        <SeoSettingsPanel site={props.site} />
+        <SeoSettingsPanel site={props.site} onMigrate={() => setView("migrate")} />
       </TabsContent>
       <TabsContent value="redirects">
         <RedirectsTab site={props.site} />
+      </TabsContent>
+      <TabsContent value="migrate">
+        <MigrateTab site={props.site} />
       </TabsContent>
     </Tabs>
   );

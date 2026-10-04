@@ -98,6 +98,10 @@ import { requireSameOrigin } from "./csrf.ts";
 import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
 import {
   bulkRedirects,
+  deactivateMigrationSource,
+  listMigrationSources,
+  previewMigration,
+  runMigration,
   clearNotFound,
   importRedirects,
   listNotFound,
@@ -1153,6 +1157,39 @@ api.post("/sites/:id/seo/404s", async (c) => {
 });
 
 api.post("/sites/:id/seo/404s/clear", async (c) => redirectsCall(c, (site, credentials) => clearNotFound(site, credentials)));
+
+/** SEO plugins installed on the site whose settings, page values and redirects can be imported. */
+api.get("/sites/:id/seo/migrate", async (c) =>
+  redirectsCall(c, (site, credentials) => listMigrationSources(site, credentials)),
+);
+
+const migrateSource = z.object({ source: z.string().min(1).max(40) });
+
+api.post("/sites/:id/seo/migrate/preview", async (c) => {
+  const parsed = migrateSource.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+  return redirectsCall(c, (site, credentials) => previewMigration(site, credentials, parsed.data.source));
+});
+
+const migrateRunBody = migrateSource.extend({ settings: z.boolean(), pages: z.boolean(), redirects: z.boolean() });
+
+api.post("/sites/:id/seo/migrate/run", async (c) => {
+  const parsed = migrateRunBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+  const { source, ...parts } = parsed.data;
+  return redirectsCall(c, (site, credentials) => runMigration(c.env, site, credentials, source, parts));
+});
+
+// Deactivating another plugin takes a visible yes in the request, so nothing can do it by accident.
+const migrateDeactivateBody = migrateSource.extend({ confirm: z.literal(true) });
+
+api.post("/sites/:id/seo/migrate/deactivate", async (c) => {
+  const parsed = migrateDeactivateBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Confirm that you want to deactivate the plugin" }, 400);
+  return redirectsCall(c, (site, credentials) =>
+    deactivateMigrationSource(c.env, site, credentials, parsed.data.source),
+  );
+});
 
 /** Known vulnerabilities and insecure settings on one WordPress site. */
 api.get("/sites/:id/security", async (c) => {
