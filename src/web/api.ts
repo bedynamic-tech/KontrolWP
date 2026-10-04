@@ -11,7 +11,11 @@ import type {
   SecurityFix,
   GlobalUpdatePolicy,
   GlobalUpdatePolicyView,
+  SeoPageChange,
+  SeoPages,
+  SeoSettings,
   SiteAccessibility,
+  SiteSeo,
   SiteUpdatePolicy,
   SiteUpdatePolicyView,
   SiteSecurity,
@@ -331,3 +335,11 @@ export const saveWordfenceKey = (key: string) =>
   request<{ configured: boolean; updated_at: number | null }>("/settings/wordfence", { method: "PUT", json: { key } });
 
 export const deleteWordfenceKey = () => request<{ configured: boolean }>("/settings/wordfence", { method: "DELETE" });
+
+export const fetchSeo = (siteId: number) => request<SiteSeo>(`/sites/${siteId}/seo`);
+export const saveSeo = (siteId: number, settings: SeoSettings) =>
+  request<SiteSeo>(`/sites/${siteId}/seo`, { method: "PUT", json: settings });
+export const fetchSeoPages = (siteId: number, page: number, search: string) =>
+  request<SeoPages>(`/sites/${siteId}/seo/pages`, { method: "POST", json: { page, search } });
+export const saveSeoPage = (siteId: number, pageId: number, change: SeoPageChange) =>
+  request<{ ok: true }>(`/sites/${siteId}/seo/pages/${pageId}`, { method: "PUT", json: change });

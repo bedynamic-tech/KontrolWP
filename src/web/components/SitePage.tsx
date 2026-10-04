@@ -30,6 +30,7 @@ import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
 import { MagicLoginButton, MagicLoginUserForm, MagicLoginUserSelect } from "./MagicLogin";
+import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
 import { AnalyticsTab } from "./AnalyticsTab";
@@ -57,7 +58,7 @@ import { updatesRefetchInterval } from "./UpdatesList";
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
 
-const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "security", "accessibility", "domain"];
+const WORDPRESS_TABS = ["overview", "analytics", "content", "plugins", "users", "links", "security", "seo", "accessibility", "domain"];
 const STATIC_TABS = ["overview", "analytics", "pages", "accessibility", "domain"];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
 const CLOUDFLARE_TABS = ["overview", "analytics", "pages", "deployments", "accessibility", "domain"];
@@ -269,6 +270,9 @@ export function SitePage() {
                   Security
                 </TabsTrigger>
               )}
+              <TabsTrigger value="seo" className="flex-none px-3">
+                SEO
+              </TabsTrigger>
             </>
           )}
           {!site.accessibility_excluded && (
@@ -331,6 +335,9 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="security" className={TAB_CLASS}>
           <SecurityTab site={site} />
+        </TabsContent>
+        <TabsContent value="seo" className={TAB_CLASS}>
+          <SeoTab site={site} />
         </TabsContent>
         <TabsContent value="accessibility" className={TAB_CLASS}>
           <AccessibilityTab site={site} />

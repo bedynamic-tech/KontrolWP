@@ -2,7 +2,7 @@
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.14.0
+Stable tag: 0.15.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ lets the dashboard open wp-admin as the administrator you choose in KontrolWP,
 through a link that works once, for one minute.
 
 The plugin creates this site's Connection Key. KontrolWP signs every request
-with the secret in that key, which only this site and your dashboard know. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back);
+with the secret in that key, which only this site and your dashboard know. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back; when you switch on SEO in KontrolWP, it adds title, description, social and robots tags to your pages' head, and switching it off removes them);
 it only answers signed requests, and Magic Login links the dashboard asked for.
 
 == Installation ==

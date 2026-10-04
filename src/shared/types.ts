@@ -690,6 +690,60 @@ export interface SiteAccessibility {
   can_fix: boolean;
 }
 
+export const SEO_SEPARATORS = ["-", "|", "·", "»", "•"] as const;
+
+/** The SEO options KontrolWP Connect applies to a site's pages. */
+export interface SeoSettings {
+  enabled: boolean;
+  separator: (typeof SEO_SEPARATORS)[number];
+  /** Tokens: %title%, %sitename%, %tagline%, %sep%. */
+  title_template: string;
+  home_title: string;
+  home_description: string;
+  og_enabled: boolean;
+  og_image: string;
+  twitter_card: "summary" | "summary_large_image";
+  twitter_site: string;
+  noindex_search: boolean;
+  noindex_author: boolean;
+  noindex_date: boolean;
+  canonical: boolean;
+  sitemap: boolean;
+}
+
+export interface SiteSeo {
+  settings: SeoSettings;
+  /** The name of another SEO plugin on the site, which stops KontrolWP printing tags; empty when none. */
+  conflict: string;
+  site_name: string;
+  tagline: string;
+  home_url: string;
+  /** WordPress's own "Discourage search engines" switch is on. */
+  discouraged: boolean;
+}
+
+/** One page's SEO overrides; an empty value means the site-wide defaults apply. */
+export interface SeoPageChange {
+  seo_title?: string;
+  description?: string;
+  noindex?: boolean;
+  image?: string;
+}
+
+export interface SeoPage extends Required<SeoPageChange> {
+  id: number;
+  title: string;
+  type: string;
+  permalink: string;
+  /** What the description would be without an override. */
+  excerpt: string;
+}
+
+export interface SeoPages {
+  items: SeoPage[];
+  total: number;
+}
+
 export const UPDATE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
 
