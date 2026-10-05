@@ -99,3 +99,74 @@ test("nested values are found by path", { skip }, () => {
   assert.equal(call("dig", { a: { b: { c: "x" } } }, ["a", "b", "c"]), "x");
   assert.equal(call("dig", { a: 1 }, ["a", "b"]), null);
 });
+
+test("Twitter card types and what the site is map to KontrolWP's choices", { skip }, () => {
+  assert.equal(call("card_type", "summary_large_image"), "summary_large_image");
+  assert.equal(call("card_type", "summary_card"), "summary");
+  assert.equal(call("card_type", "summary"), "summary");
+  assert.equal(call("card_type", "player"), "");
+  assert.equal(call("schema_kind", "company"), "organization");
+  assert.equal(call("schema_kind", "organization"), "organization");
+  assert.equal(call("schema_kind", "person"), "person");
+  assert.equal(call("schema_kind", "other"), "");
+});
+
+test("a focus keyword is the first of a comma-separated list", { skip }, () => {
+  assert.equal(call("first_keyword", "blue widgets, red widgets"), "blue widgets");
+  assert.equal(call("first_keyword", " , cloud backup"), "cloud backup");
+  assert.equal(call("first_keyword", ""), "");
+  assert.equal(call("first_keyword", ["a", "b"]), "a");
+});
+
+test("All in One SEO reads the focus keyword from its column or the legacy JSON", { skip }, () => {
+  assert.equal(call("aioseo_keyword", { focus: "cloud backup", keyphrases: "" }), "cloud backup");
+  assert.equal(call("aioseo_keyword", { focus: "", keyphrases: '{"focus":{"keyphrase":"old phrase"}}' }), "old phrase");
+  assert.equal(call("aioseo_keyword", { focus: "", keyphrases: "not json" }), "");
+});
+
+test("profile and logo helpers keep only usable values", { skip }, () => {
+  assert.equal(call("handle_url", "@kontrol_wp"), "https://x.com/kontrol_wp");
+  assert.equal(call("handle_url", "not a handle!"), "");
+  assert.equal(call("entity_text", "&raquo;"), "»");
+  assert.deepEqual(
+    call("web_addresses", ["https://a.test/x", "nope", "https://a.test/x", "https://b.test/\nhttps://c.test/\nmailto:x@y.z", ["https://d.test/"]]),
+    ["https://a.test/x", "https://b.test/", "https://c.test/", "https://d.test/"],
+  );
+});
+
+test("lists and templates are added to, never replaced", { skip }, () => {
+  assert.deepEqual(call("merge_list", ["post_tag"], ["page", "post_tag"]), ["post_tag", "page"]);
+  const kept = { post: { title: "Mine", description: "" } };
+  const merged = call("merge_templates", kept, { post: { title: "Theirs", description: "" }, event: { title: "Event %title%", description: "" } });
+  assert.equal(merged.post.title, "Mine");
+  assert.equal(merged.event.title, "Event %title%");
+});
+
+test("content settings fill defaults only, switch on only, and add profile links", { skip }, () => {
+  const defaults = { schema_type: "organization", schema_name: "", breadcrumb_home: "Home", external_new_tab: false, schema_same_as: [] };
+  const current = { schema_type: "organization", schema_name: "Mine", breadcrumb_home: "Home", external_new_tab: false, schema_same_as: ["https://a.test/"] };
+  const [next, changed] = call("merge_content", current, defaults, {
+    schema_type: "person",
+    schema_name: "Theirs",
+    breadcrumb_home: "Start",
+    external_new_tab: true,
+    schema_same_as: ["https://a.test/", "https://b.test/"],
+    unknown_key: "x",
+  });
+  assert.equal(next.schema_type, "person");
+  assert.equal(next.schema_name, "Mine");
+  assert.equal(next.breadcrumb_home, "Start");
+  assert.equal(next.external_new_tab, true);
+  assert.deepEqual(next.schema_same_as, ["https://a.test/", "https://b.test/"]);
+  assert.deepEqual(changed.sort(), ["breadcrumb_home", "external_new_tab", "schema_same_as", "schema_type"]);
+  const [again, none] = call("merge_content", next, defaults, { schema_type: "organization", external_new_tab: false });
+  assert.equal(again.schema_type, "person");
+  assert.deepEqual(none, []);
+});
+
+test("found settings read back as text for the preview", { skip }, () => {
+  assert.equal(call("describe", true), "On");
+  assert.equal(call("describe", ["page", "event"]), "page, event");
+  assert.equal(call("describe", { event: { title: "x", description: "" } }), "event");
+  assert.equal(call("describe", "Home"), "Home");
+});
