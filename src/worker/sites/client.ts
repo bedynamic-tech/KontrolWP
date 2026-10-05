@@ -24,6 +24,11 @@ export const DATABASE_DOWN_CODE = "database_connection";
 const DATABASE_DOWN =
   "The site's database is not answering, so WordPress could not load. This usually means the host is overloaded or restarting. KontrolWP will try again at the next sync.";
 
+/** WordPress's own maintenance page, shown while it installs an update. */
+export const MAINTENANCE_CODE = "maintenance";
+const MAINTENANCE =
+  "The site is in maintenance mode, which WordPress uses while it installs an update. KontrolWP will try again at the next sync. If this stays, the update did not finish: delete the .maintenance file in the site's main folder.";
+
 const TIMEOUT_MS = 20_000;
 // Updates download and unpack a package on the site; core also upgrades the
 // database, so give actions longer than reads.
@@ -92,6 +97,9 @@ export async function callSite<T>(
     // WordPress's own page for a database it cannot reach comes back as the message, with its HTML.
     if (message && /error establishing a database connection/i.test(message)) {
       throw new SiteRequestError(DATABASE_DOWN, response.status, DATABASE_DOWN_CODE);
+    }
+    if (message && /briefly unavailable for scheduled maintenance/i.test(message)) {
+      throw new SiteRequestError(MAINTENANCE, response.status, MAINTENANCE_CODE);
     }
     throw new SiteRequestError(
       message

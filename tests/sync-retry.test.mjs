@@ -77,3 +77,16 @@ test("a site's home page is loaded for its icon once a week, not on every sync",
   await syncSite(env, 1);
   assert.equal(pages, 1);
 });
+
+test("WordPress's maintenance page is explained instead of shown as it came", async () => {
+  const { env, site } = await setup(0);
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({ code: "maintenance", message: "Briefly unavailable for scheduled maintenance. Check back in a minute." }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+  const result = await syncSite(env, 1, { retryDelayMs: 0 });
+  assert.equal(result.ok, false);
+  assert.match(site().last_error, /maintenance mode/);
+  assert.match(site().last_error, /\.maintenance/);
+});
