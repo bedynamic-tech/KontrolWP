@@ -19,7 +19,7 @@ export const URLS_PER_CHECK = 10;
 const CHECK_CONCURRENCY = 5;
 const CHECK_TIMEOUT_MS = 10_000;
 /** Addresses kept per site, so one huge site can't run an endless scan. */
-const MAX_URLS = 5000;
+const MAX_URLS = 10_000;
 /** A running scan with no progress for this long has stopped (its queue messages ran out of retries). */
 const STALE_AFTER = 15 * 60;
 /** Links listed in the tab: problems first, then ignored ones. */
@@ -37,6 +37,7 @@ interface ScanRow {
   started_at: number;
   updated_at: number;
   finished_at: number | null;
+  truncated: number;
 }
 
 interface ListedPost {
@@ -71,7 +72,7 @@ export async function startLinkScan(env: Env, siteId: number, now = nowSeconds()
      VALUES (?, 1, 'collecting', 0, 0, 0, ?, ?)
      ON CONFLICT (site_id) DO UPDATE SET
        scan_id = scan_id + 1, status = 'collecting', error = NULL, posts_scanned = 0, total_urls = 0,
-       checked_urls = 0, started_at = excluded.started_at, updated_at = excluded.updated_at, finished_at = NULL
+       checked_urls = 0, started_at = excluded.started_at, updated_at = excluded.updated_at, finished_at = NULL, truncated = 0
      RETURNING scan_id`,
   )
     .bind(siteId, now + delaySeconds, now + delaySeconds)
@@ -144,12 +145,16 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
     .first<{ n: number }>();
   let room = MAX_URLS - (known?.n ?? 0);
   const added = new Set<string>();
+  let dropped = false;
   for (const post of items) {
     for (const link of Array.isArray(post.links) ? post.links : []) {
       const url = cleanUrl(link.url);
       if (!url) continue;
       if (!added.has(url)) {
-        if (room <= 0) continue;
+        if (room <= 0) {
+          dropped = true;
+          continue;
+        }
         added.add(url);
         room--;
         statements.push(
@@ -161,6 +166,9 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
       }
       statements.push(refStatement(env.DB, siteId, url, post, link));
     }
+  }
+  if (dropped) {
+    statements.push(env.DB.prepare("UPDATE link_scans SET truncated = 1 WHERE site_id = ? AND scan_id = ?").bind(siteId, scanId));
   }
   for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100));
 
@@ -364,6 +372,7 @@ export async function listLinks(db: D1Database, siteId: number, now = nowSeconds
       checked_urls: scan.checked_urls,
       started_at: scan.started_at,
       finished_at: scan.finished_at,
+      truncated: !!scan.truncated,
     },
     counts,
     links: rows.map((row) => ({ ...row, ignored: !!row.ignored, refs: refs.get(row.url) ?? [] })),

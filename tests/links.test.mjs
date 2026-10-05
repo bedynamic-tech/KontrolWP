@@ -141,6 +141,21 @@ test("a scan reads every page of links, checks them, and lists the problems", as
   assert.deepEqual(after.links.map((link) => [link.url, link.ignored]), [["https://slow.test/", true]]);
 });
 
+test("a scan that reaches the address cap says so, and a smaller one does not", async () => {
+  const many = Array.from({ length: 10_050 }, (_, i) => ({ url: `https://l${i}.test/`, text: "", kind: "link" }));
+  const { env } = await setup([{ items: [post(1, "Big", many)], page: 1, total_pages: 1, total_posts: 1 }]);
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  const big = await listLinks(env.DB, 1);
+  assert.equal(big.scan.truncated, true);
+  assert.equal(big.scan.total_urls, 10_000);
+
+  const small = await setup([{ items: [post(1, "Small", [{ url: "https://a.test/", text: "", kind: "link" }])], page: 1, total_pages: 1, total_posts: 1 }]);
+  const smallId = await startLinkScan(small.env, 1);
+  await collectLinks(small.env, 1, smallId, 1);
+  assert.equal((await listLinks(small.env.DB, 1)).scan.truncated, false);
+});
+
 test("a rescan keeps old results until rechecked, drops removed links, and outdated messages do nothing", async () => {
   const pages = [{ items: [post(1, "Home", [{ url: "https://gone.test/", text: "", kind: "link" }])], page: 1, total_pages: 1, total_posts: 1 }];
   const { env, sent } = await setup(pages);
