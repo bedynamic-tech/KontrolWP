@@ -954,6 +954,8 @@ export interface SeoMigrationPreview {
     descriptions: number;
     noindex: number;
     images: number;
+    /** Focus keywords; absent from sites before 0.26.0. */
+    keywords?: number;
     /** Pages that already have KontrolWP SEO values, which are kept. */
     existing: number;
     /** More pages than could be read; run the import again for the rest. */

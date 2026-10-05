@@ -191,6 +191,37 @@ class KontrolWP_Connect_SEO_Tools {
 		return self::clean( is_array( $saved ) ? $saved : array() );
 	}
 
+	/**
+	 * Fill verification codes and a custom robots.txt from another SEO plugin.
+	 * A code is set only where there is none; robots.txt only while KontrolWP
+	 * still uses WordPress's default and has no text of its own, and only when
+	 * the text passes the same check as one typed here. Returns the names of
+	 * what changed ("verify.google", "robots_text").
+	 */
+	public static function import( $found ) {
+		$settings = self::settings();
+		$texts    = self::texts();
+		$changed  = array();
+		foreach ( array_keys( self::VERIFY ) as $service ) {
+			$code = isset( $found[ 'verify.' . $service ] ) ? self::clean_code( $found[ 'verify.' . $service ] ) : '';
+			if ( '' !== $code && '' === $settings['verify'][ $service ] ) {
+				$settings['verify'][ $service ] = $code;
+				$changed[]                      = 'verify.' . $service;
+			}
+		}
+		$robots = isset( $found['robots_text'] ) && is_string( $found['robots_text'] ) ? $found['robots_text'] : '';
+		if ( '' !== trim( $robots ) && 'default' === $settings['robots_mode'] && '' === trim( $texts['robots'] ) && '' === self::robots_error( $robots ) ) {
+			$settings['robots_mode'] = 'custom';
+			$texts['robots']         = str_replace( array( "\r\n", "\r" ), "\n", $robots );
+			$changed[]               = 'robots_text';
+		}
+		if ( $changed ) {
+			update_option( self::OPTION, self::clean( $settings ), true );
+			update_option( self::TEXTS_OPTION, $texts, false );
+		}
+		return $changed;
+	}
+
 	private static function texts() {
 		$saved = get_option( self::TEXTS_OPTION, array() );
 		$saved = is_array( $saved ) ? $saved : array();

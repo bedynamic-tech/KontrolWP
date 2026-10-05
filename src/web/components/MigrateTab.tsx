@@ -24,6 +24,26 @@ const SETTING_LABELS: Record<string, string> = {
   twitter_site: "Twitter or X handle",
   noindex_author: "Hide author pages",
   noindex_date: "Hide date archives",
+  twitter_card: "Twitter or X card",
+  hidden_types: "Content types hidden from search",
+  hidden_taxonomies: "Archives hidden from search",
+  type_templates: "Title templates by content type",
+  strip_category_base: "Remove category from addresses",
+  author_archives: "Author archives",
+  "content.schema_type": "Site is marked up as",
+  "content.schema_name": "Name in structured data",
+  "content.schema_logo": "Logo in structured data",
+  "content.schema_same_as": "Social profile links",
+  "content.breadcrumb_home": "Breadcrumb home label",
+  "content.breadcrumb_sep": "Breadcrumb separator",
+  "content.external_new_tab": "Open outside links in a new tab",
+  "content.external_nofollow": "Add nofollow to outside links",
+  "tools.verify.google": "Google verification code",
+  "tools.verify.bing": "Bing verification code",
+  "tools.verify.yandex": "Yandex verification code",
+  "tools.verify.baidu": "Baidu verification code",
+  "tools.verify.pinterest": "Pinterest verification code",
+  "tools.robots_text": "robots.txt rules",
 };
 
 function plural(count: number, one: string, many: string) {
@@ -176,11 +196,11 @@ function Review(props: { site: SiteSummary; source: string }) {
             checked={chosen.pages}
             disabled={data.pages.total === 0}
             onChange={(value) => set("pages", value)}
-            title="Page titles, descriptions and visibility"
+            title="Page titles, descriptions, keywords and visibility"
           >
             {data.pages.total === 0
               ? "Nothing found."
-              : `${plural(data.pages.total, "page", "pages")} with values: ${data.pages.titles} titles, ${data.pages.descriptions} descriptions, ${data.pages.noindex} hidden from search, ${data.pages.images} social images. Values KontrolWP already has are kept${data.pages.existing > 0 ? ` (${plural(data.pages.existing, "page has", "pages have")} some)` : ""}.${data.pages.truncated ? " This site has more than could be read at once, so import again afterwards to bring in the rest." : ""}`}
+              : `${plural(data.pages.total, "page", "pages")} with values: ${data.pages.titles} titles, ${data.pages.descriptions} descriptions, ${data.pages.noindex} hidden from search, ${data.pages.images} social images${data.pages.keywords ? `, ${data.pages.keywords} focus keywords` : ""}. Values KontrolWP already has are kept${data.pages.existing > 0 ? ` (${plural(data.pages.existing, "page has", "pages have")} some)` : ""}.${data.pages.truncated ? " This site has more than could be read at once, so import again afterwards to bring in the rest." : ""}`}
           </CheckLine>
           <CheckLine
             checked={chosen.redirects}

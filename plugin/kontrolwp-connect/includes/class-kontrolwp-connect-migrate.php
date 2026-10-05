@@ -222,6 +222,112 @@ class KontrolWP_Connect_Migrate {
 		return $rules;
 	}
 
+	/** One of KontrolWP's Twitter card types for another plugin's value, or an empty string. */
+	public static function card_type( $value ) {
+		$value = is_string( $value ) ? strtolower( trim( $value ) ) : '';
+		if ( 'summary_large_image' === $value ) {
+			return 'summary_large_image';
+		}
+		return in_array( $value, array( 'summary', 'summary_card' ), true ) ? 'summary' : '';
+	}
+
+	/** "organization" or "person" for what another plugin says the site is, or an empty string. */
+	public static function schema_kind( $value ) {
+		$value = is_string( $value ) ? strtolower( trim( $value ) ) : '';
+		if ( in_array( $value, array( 'company', 'organization', 'organisation' ), true ) ) {
+			return 'organization';
+		}
+		return 'person' === $value ? 'person' : '';
+	}
+
+	/** The first keyword of a comma-separated list (or a list), as a focus keyword; empty when none. */
+	public static function first_keyword( $value ) {
+		if ( is_string( $value ) ) {
+			$value = explode( ',', $value );
+		}
+		foreach ( is_array( $value ) ? $value : array() as $item ) {
+			$item = is_string( $item ) ? trim( $item ) : '';
+			if ( '' !== $item ) {
+				return $item;
+			}
+		}
+		return '';
+	}
+
+	/** Text another plugin saved with HTML entities (such as &raquo;), as plain text. */
+	public static function entity_text( $value ) {
+		return is_string( $value ) ? trim( html_entity_decode( $value, ENT_QUOTES, 'UTF-8' ) ) : '';
+	}
+
+	/** A profile address for a Twitter or X handle (with or without @), or an empty string. */
+	public static function handle_url( $handle ) {
+		$handle = ltrim( trim( (string) $handle ), '@' );
+		return preg_match( '/^[A-Za-z0-9_]{1,15}$/', $handle ) ? 'https://x.com/' . $handle : '';
+	}
+
+	/** Web addresses from a mix of values: lists, lines of text, or single addresses. Anything that is not an http(s) address is dropped. */
+	public static function web_addresses( $values ) {
+		$out = array();
+		foreach ( (array) $values as $value ) {
+			$parts = is_array( $value ) ? $value : preg_split( '/[\r\n]+/', (string) $value );
+			foreach ( $parts as $part ) {
+				$part = is_string( $part ) ? trim( $part ) : '';
+				if ( preg_match( '#^https?://[^\s<>"\']+$#i', $part ) ) {
+					$out[] = $part;
+				}
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
+	/** Two lists as one, keeping the order and each value once. */
+	public static function merge_list( $current, $found ) {
+		return array_values( array_unique( array_merge( (array) $current, (array) $found ) ) );
+	}
+
+	/** Title and description templates by content type: types KontrolWP has no template for are added, the others stay as they are. */
+	public static function merge_templates( $current, $found ) {
+		$out = (array) $current;
+		foreach ( (array) $found as $type => $item ) {
+			if ( ! isset( $out[ $type ] ) && is_array( $item ) ) {
+				$out[ $type ] = $item;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * KontrolWP's content settings after importing. Text and choices are set
+	 * only where KontrolWP still has its default, switches are only ever
+	 * switched on, and address lists gain what they lack. Returns
+	 * array( settings, names of the settings that changed ).
+	 */
+	public static function merge_content( $current, $defaults, $found ) {
+		$new     = $current;
+		$changed = array();
+		foreach ( $found as $key => $value ) {
+			if ( ! array_key_exists( $key, $defaults ) ) {
+				continue;
+			}
+			if ( is_bool( $value ) ) {
+				if ( $value && ! $current[ $key ] ) {
+					$new[ $key ] = true;
+					$changed[]   = $key;
+				}
+			} elseif ( is_array( $value ) ) {
+				$merged = self::merge_list( $current[ $key ], $value );
+				if ( $merged !== array_values( (array) $current[ $key ] ) ) {
+					$new[ $key ] = $merged;
+					$changed[]   = $key;
+				}
+			} elseif ( $current[ $key ] === $defaults[ $key ] && $value !== $current[ $key ] ) {
+				$new[ $key ] = $value;
+				$changed[]   = $key;
+			}
+		}
+		return array( $new, $changed );
+	}
+
 	/** A value from a nested array by a list of keys, or null. */
 	public static function dig( $data, $path ) {
 		foreach ( $path as $key ) {
@@ -319,6 +425,7 @@ class KontrolWP_Connect_Migrate {
 				if ( ! empty( $titles['noindex-archive-wpseo'] ) ) {
 					$found['noindex_date'] = true;
 				}
+				self::yoast_more( $found, $titles, $social );
 				break;
 			case 'rankmath':
 				$titles = self::option( 'rank-math-options-titles' );
@@ -333,6 +440,7 @@ class KontrolWP_Connect_Migrate {
 				if ( isset( $titles['date_archive_robots'] ) && self::is_noindex( $titles['date_archive_robots'] ) ) {
 					$found['noindex_date'] = true;
 				}
+				self::rankmath_more( $found, $titles, self::option( 'rank-math-options-general' ) );
 				break;
 			case 'aioseo':
 				$options = self::option( 'aioseo_options' );
@@ -340,6 +448,7 @@ class KontrolWP_Connect_Migrate {
 				$text( 'home_title', self::convert_tokens( (string) self::dig( $options, array( 'searchAppearance', 'global', 'siteTitle' ) ), $source ) );
 				$text( 'home_description', self::convert_tokens( (string) self::dig( $options, array( 'searchAppearance', 'global', 'metaDescription' ) ), $source ) );
 				$text( 'og_image', self::dig( $options, array( 'social', 'facebook', 'general', 'defaultImagePosts' ) ) );
+				self::aioseo_more( $found, $options );
 				break;
 			case 'seopress':
 				$titles = self::option( 'seopress_titles_option_name' );
@@ -353,6 +462,7 @@ class KontrolWP_Connect_Migrate {
 				if ( ! empty( $titles['seopress_titles_archives_date_noindex'] ) ) {
 					$found['noindex_date'] = true;
 				}
+				self::seopress_more( $found, self::option( 'seopress_advanced_option_name' ) );
 				break;
 			case 'slimseo':
 				$options = self::option( 'slim_seo' );
@@ -362,9 +472,251 @@ class KontrolWP_Connect_Migrate {
 		return $found;
 	}
 
+	/** Public post types (without media) and taxonomies, for settings another plugin keeps per type. */
+	private static function public_types() {
+		$types = array_keys( get_post_types( array( 'public' => true ) ) );
+		return array_values( array_diff( $types, array( 'attachment' ) ) );
+	}
+
+	private static function public_taxonomies() {
+		return array_keys( get_taxonomies( array( 'public' => true ) ) );
+	}
+
+	/** A text setting into $found under a dotted key, when it has a value. */
+	private static function put( &$found, $key, $value ) {
+		if ( is_string( $value ) && '' !== trim( $value ) ) {
+			$found[ $key ] = trim( $value );
+		}
+	}
+
+	/** Verification codes for the sites of the search engines KontrolWP has a field for. */
+	private static function put_codes( &$found, $codes ) {
+		foreach ( $codes as $service => $code ) {
+			$clean = KontrolWP_Connect_SEO_Tools::clean_code( is_string( $code ) ? $code : '' );
+			if ( '' !== $clean ) {
+				$found[ 'tools.verify.' . $service ] = $clean;
+			}
+		}
+	}
+
+	/** Type templates, but only those that say something the site-wide template does not. */
+	private static function put_templates( &$found, $templates, $global ) {
+		$out = array();
+		foreach ( $templates as $type => $item ) {
+			$title = isset( $item['title'] ) ? $item['title'] : '';
+			$desc  = isset( $item['description'] ) ? $item['description'] : '';
+			if ( $title === $global ) {
+				$title = '';
+			}
+			if ( '' !== $title || '' !== $desc ) {
+				$out[ $type ] = array(
+					'title'       => $title,
+					'description' => $desc,
+				);
+			}
+		}
+		if ( $out ) {
+			$found['type_templates'] = $out;
+		}
+	}
+
+	private static function yoast_more( &$found, $titles, $social ) {
+		$wpseo = self::option( 'wpseo' );
+		$card  = self::card_type( isset( $social['twitter_card_type'] ) ? $social['twitter_card_type'] : '' );
+		if ( '' !== $card ) {
+			$found['twitter_card'] = $card;
+		}
+		self::put_codes(
+			$found,
+			array(
+				'google'    => isset( $wpseo['googleverify'] ) ? $wpseo['googleverify'] : '',
+				'bing'      => isset( $wpseo['msverify'] ) ? $wpseo['msverify'] : '',
+				'yandex'    => isset( $wpseo['yandexverify'] ) ? $wpseo['yandexverify'] : '',
+				'baidu'     => isset( $wpseo['baiduverify'] ) ? $wpseo['baiduverify'] : '',
+				'pinterest' => isset( $social['pinterestverify'] ) ? $social['pinterestverify'] : '',
+			)
+		);
+		$hidden_types = array();
+		$templates    = array();
+		$global       = self::convert_tokens( isset( $titles['title-post'] ) ? $titles['title-post'] : '', 'yoast' );
+		foreach ( self::public_types() as $type ) {
+			if ( ! empty( $titles[ 'noindex-' . $type ] ) ) {
+				$hidden_types[] = $type;
+			}
+			$templates[ $type ] = array(
+				'title'       => self::convert_tokens( isset( $titles[ 'title-' . $type ] ) ? $titles[ 'title-' . $type ] : '', 'yoast' ),
+				'description' => self::convert_tokens( isset( $titles[ 'metadesc-' . $type ] ) ? $titles[ 'metadesc-' . $type ] : '', 'yoast' ),
+			);
+		}
+		$hidden_taxonomies = array();
+		foreach ( self::public_taxonomies() as $taxonomy ) {
+			if ( ! empty( $titles[ 'noindex-tax-' . $taxonomy ] ) ) {
+				$hidden_taxonomies[] = $taxonomy;
+			}
+		}
+		if ( $hidden_types ) {
+			$found['hidden_types'] = $hidden_types;
+		}
+		if ( $hidden_taxonomies ) {
+			$found['hidden_taxonomies'] = $hidden_taxonomies;
+		}
+		self::put_templates( $found, $templates, $global );
+		if ( ! empty( $titles['stripcategorybase'] ) ) {
+			$found['strip_category_base'] = true;
+		}
+		if ( ! empty( $titles['disable-author'] ) ) {
+			$found['author_archives'] = 'redirect';
+		}
+		$kind = self::schema_kind( isset( $titles['company_or_person'] ) ? $titles['company_or_person'] : '' );
+		if ( '' !== $kind ) {
+			$found['content.schema_type'] = $kind;
+			$prefix                       = 'person' === $kind ? 'person' : 'company';
+			self::put( $found, 'content.schema_name', isset( $titles[ $prefix . '_name' ] ) ? $titles[ $prefix . '_name' ] : '' );
+			self::put( $found, 'content.schema_logo', isset( $titles[ $prefix . '_logo' ] ) ? $titles[ $prefix . '_logo' ] : '' );
+		}
+		$profiles = array( self::handle_url( isset( $social['twitter_site'] ) ? $social['twitter_site'] : '' ) );
+		foreach ( array( 'facebook_site', 'instagram_url', 'linkedin_url', 'youtube_url', 'pinterest_url', 'wikipedia_url', 'mastodon_url', 'myspace_url' ) as $key ) {
+			$profiles[] = isset( $social[ $key ] ) ? $social[ $key ] : '';
+		}
+		$profiles[] = isset( $social['other_social_urls'] ) ? $social['other_social_urls'] : array();
+		$links      = self::web_addresses( $profiles );
+		if ( $links ) {
+			$found['content.schema_same_as'] = $links;
+		}
+		self::put( $found, 'content.breadcrumb_home', isset( $titles['breadcrumbs-home'] ) ? $titles['breadcrumbs-home'] : '' );
+		self::put( $found, 'content.breadcrumb_sep', isset( $titles['breadcrumbs-sep'] ) ? self::entity_text( $titles['breadcrumbs-sep'] ) : '' );
+	}
+
+	private static function rankmath_more( &$found, $titles, $general ) {
+		$card = self::card_type( isset( $titles['twitter_card_type'] ) ? $titles['twitter_card_type'] : '' );
+		if ( '' !== $card ) {
+			$found['twitter_card'] = $card;
+		}
+		self::put( $found, 'twitter_site', isset( $titles['twitter_author_names'] ) ? $titles['twitter_author_names'] : '' );
+		self::put_codes(
+			$found,
+			array(
+				'google'    => isset( $general['google_verify'] ) ? $general['google_verify'] : '',
+				'bing'      => isset( $general['bing_verify'] ) ? $general['bing_verify'] : '',
+				'yandex'    => isset( $general['yandex_verify'] ) ? $general['yandex_verify'] : '',
+				'baidu'     => isset( $general['baidu_verify'] ) ? $general['baidu_verify'] : '',
+				'pinterest' => isset( $general['pinterest_verify'] ) ? $general['pinterest_verify'] : '',
+			)
+		);
+		$hidden_types = array();
+		$templates    = array();
+		$global       = self::convert_tokens( isset( $titles['pt_post_title'] ) ? $titles['pt_post_title'] : '', 'rankmath' );
+		foreach ( self::public_types() as $type ) {
+			if ( isset( $titles[ 'pt_' . $type . '_robots' ] ) && self::is_noindex( $titles[ 'pt_' . $type . '_robots' ] ) ) {
+				$hidden_types[] = $type;
+			}
+			$templates[ $type ] = array(
+				'title'       => self::convert_tokens( isset( $titles[ 'pt_' . $type . '_title' ] ) ? $titles[ 'pt_' . $type . '_title' ] : '', 'rankmath' ),
+				'description' => self::convert_tokens( isset( $titles[ 'pt_' . $type . '_description' ] ) ? $titles[ 'pt_' . $type . '_description' ] : '', 'rankmath' ),
+			);
+		}
+		$hidden_taxonomies = array();
+		foreach ( self::public_taxonomies() as $taxonomy ) {
+			if ( isset( $titles[ 'tax_' . $taxonomy . '_robots' ] ) && self::is_noindex( $titles[ 'tax_' . $taxonomy . '_robots' ] ) ) {
+				$hidden_taxonomies[] = $taxonomy;
+			}
+		}
+		if ( $hidden_types ) {
+			$found['hidden_types'] = $hidden_types;
+		}
+		if ( $hidden_taxonomies ) {
+			$found['hidden_taxonomies'] = $hidden_taxonomies;
+		}
+		self::put_templates( $found, $templates, $global );
+		if ( isset( $general['strip_category_base'] ) && 'on' === $general['strip_category_base'] ) {
+			$found['strip_category_base'] = true;
+		}
+		if ( isset( $titles['disable_author_archives'] ) && 'on' === $titles['disable_author_archives'] ) {
+			$found['author_archives'] = 'redirect';
+		}
+		$kind = self::schema_kind( isset( $titles['knowledgegraph_type'] ) ? $titles['knowledgegraph_type'] : '' );
+		if ( '' !== $kind ) {
+			$found['content.schema_type'] = $kind;
+			self::put( $found, 'content.schema_name', isset( $titles['knowledgegraph_name'] ) ? $titles['knowledgegraph_name'] : '' );
+			self::put( $found, 'content.schema_logo', isset( $titles['knowledgegraph_logo'] ) ? $titles['knowledgegraph_logo'] : '' );
+		}
+		$links = self::web_addresses(
+			array(
+				isset( $titles['social_url_facebook'] ) ? $titles['social_url_facebook'] : '',
+				self::handle_url( isset( $titles['twitter_author_names'] ) ? $titles['twitter_author_names'] : '' ),
+				isset( $titles['social_additional_profiles'] ) ? $titles['social_additional_profiles'] : '',
+			)
+		);
+		if ( $links ) {
+			$found['content.schema_same_as'] = $links;
+		}
+		self::put( $found, 'content.breadcrumb_home', isset( $general['breadcrumbs_home_label'] ) ? $general['breadcrumbs_home_label'] : '' );
+		self::put( $found, 'content.breadcrumb_sep', isset( $general['breadcrumbs_separator'] ) ? self::entity_text( $general['breadcrumbs_separator'] ) : '' );
+		if ( isset( $general['new_window_external_links'] ) && 'on' === $general['new_window_external_links'] ) {
+			$found['content.external_new_tab'] = true;
+		}
+		if ( isset( $general['nofollow_external_links'] ) && 'on' === $general['nofollow_external_links'] ) {
+			$found['content.external_nofollow'] = true;
+		}
+		if ( isset( $general['robots_txt_content'] ) && is_string( $general['robots_txt_content'] ) && '' !== trim( $general['robots_txt_content'] ) ) {
+			$found['tools.robots_text'] = $general['robots_txt_content'];
+		}
+	}
+
+	private static function aioseo_more( &$found, $options ) {
+		$card = self::card_type( (string) self::dig( $options, array( 'social', 'twitter', 'general', 'defaultCardType' ) ) );
+		if ( '' !== $card ) {
+			$found['twitter_card'] = $card;
+		}
+		self::put_codes(
+			$found,
+			array(
+				'google'    => self::dig( $options, array( 'webmasterTools', 'google' ) ),
+				'bing'      => self::dig( $options, array( 'webmasterTools', 'bing' ) ),
+				'yandex'    => self::dig( $options, array( 'webmasterTools', 'yandex' ) ),
+				'baidu'     => self::dig( $options, array( 'webmasterTools', 'baidu' ) ),
+				'pinterest' => self::dig( $options, array( 'webmasterTools', 'pinterest' ) ),
+			)
+		);
+		if ( true === self::dig( $options, array( 'searchAppearance', 'advanced', 'removeCategoryBase' ) ) ) {
+			$found['strip_category_base'] = true;
+		}
+		$kind = self::schema_kind( (string) self::dig( $options, array( 'searchAppearance', 'global', 'schema', 'siteRepresents' ) ) );
+		if ( '' !== $kind ) {
+			$found['content.schema_type'] = $kind;
+			$prefix                       = 'person' === $kind ? 'person' : 'organization';
+			$name                         = self::dig( $options, array( 'searchAppearance', 'global', 'schema', $prefix . 'Name' ) );
+			// A value with a smart tag (#site_title) is a template, not a name.
+			if ( is_string( $name ) && false === strpos( $name, '#' ) ) {
+				self::put( $found, 'content.schema_name', $name );
+			}
+			self::put( $found, 'content.schema_logo', self::dig( $options, array( 'searchAppearance', 'global', 'schema', $prefix . 'Logo' ) ) );
+		}
+		$urls  = self::dig( $options, array( 'social', 'profiles', 'urls' ) );
+		$links = self::web_addresses( is_array( $urls ) ? array_values( $urls ) : array() );
+		if ( $links ) {
+			$found['content.schema_same_as'] = $links;
+		}
+		self::put( $found, 'content.breadcrumb_home', self::dig( $options, array( 'breadcrumbs', 'homepageLabel' ) ) );
+		self::put( $found, 'content.breadcrumb_sep', self::entity_text( (string) self::dig( $options, array( 'breadcrumbs', 'separator' ) ) ) );
+	}
+
+	/** SEOPress keeps its verification codes with its advanced settings. */
+	private static function seopress_more( &$found, $advanced ) {
+		self::put_codes(
+			$found,
+			array(
+				'google'    => isset( $advanced['seopress_advanced_advanced_google'] ) ? $advanced['seopress_advanced_advanced_google'] : '',
+				'bing'      => isset( $advanced['seopress_advanced_advanced_bing'] ) ? $advanced['seopress_advanced_advanced_bing'] : '',
+				'yandex'    => isset( $advanced['seopress_advanced_advanced_yandex'] ) ? $advanced['seopress_advanced_advanced_yandex'] : '',
+				'pinterest' => isset( $advanced['seopress_advanced_advanced_pinterest'] ) ? $advanced['seopress_advanced_advanced_pinterest'] : '',
+			)
+		);
+	}
+
 	/**
 	 * Per-page title, description, hidden-from-search flag and social image,
-	 * as rows of array( post_id, title, description, noindex, image ).
+	 * and focus keyword, as rows of array( post_id, title, description, noindex, image, keyword ).
 	 * Returns array( rows, truncated ).
 	 */
 	public static function read_pages( $source ) {
@@ -378,18 +730,21 @@ class KontrolWP_Connect_Migrate {
 				'description' => '_yoast_wpseo_metadesc',
 				'noindex'     => '_yoast_wpseo_meta-robots-noindex',
 				'image'       => '_yoast_wpseo_opengraph-image',
+				'keyword'     => '_yoast_wpseo_focuskw',
 			),
 			'rankmath' => array(
 				'title'       => 'rank_math_title',
 				'description' => 'rank_math_description',
 				'noindex'     => 'rank_math_robots',
 				'image'       => 'rank_math_facebook_image',
+				'keyword'     => 'rank_math_focus_keyword',
 			),
 			'seopress' => array(
 				'title'       => '_seopress_titles_title',
 				'description' => '_seopress_titles_desc',
 				'noindex'     => '_seopress_robots_index',
 				'image'       => '_seopress_social_fb_img',
+				'keyword'     => '_seopress_analysis_target_kw',
 			),
 			'slimseo'  => array( 'bundle' => 'slim_seo' ),
 		);
@@ -406,7 +761,7 @@ class KontrolWP_Connect_Migrate {
 		$pages        = array();
 		foreach ( array_slice( $rows, 0, self::MAX_META_ROWS ) as $row ) {
 			$id   = (int) $row['post_id'];
-			$page = isset( $pages[ $id ] ) ? $pages[ $id ] : array( $id, '', '', false, '' );
+			$page = isset( $pages[ $id ] ) ? $pages[ $id ] : array( $id, '', '', false, '', '' );
 			$raw  = maybe_unserialize( $row['meta_value'] );
 			if ( isset( $map['bundle'] ) ) {
 				if ( is_array( $raw ) ) {
@@ -423,6 +778,8 @@ class KontrolWP_Connect_Migrate {
 				$page[3] = self::is_noindex( $raw );
 			} elseif ( $row['meta_key'] === $map['image'] ) {
 				$page[4] = (string) $raw;
+			} elseif ( isset( $map['keyword'] ) && $row['meta_key'] === $map['keyword'] ) {
+				$page[5] = self::first_keyword( is_string( $raw ) ? $raw : '' );
 			}
 			$pages[ $id ] = $page;
 		}
@@ -435,7 +792,10 @@ class KontrolWP_Connect_Migrate {
 		if ( ! self::table_exists( $table ) ) {
 			return array( array(), false );
 		}
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT post_id, title, description, robots_default, robots_noindex, og_image_custom_url FROM {$table} LIMIT %d", self::MAX_META_ROWS + 1 ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		// Newer versions keep the focus keyword in its own column, older ones in the keyphrases JSON.
+		$has_focus = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", 'focus_keyword' ) ); // phpcs:ignore WordPress.DB
+		$keyword   = $has_focus ? 'focus_keyword AS focus, keyphrases' : "'' AS focus, keyphrases";
+		$rows      = $wpdb->get_results( $wpdb->prepare( "SELECT post_id, title, description, robots_default, robots_noindex, og_image_custom_url, {$keyword} FROM {$table} LIMIT %d", self::MAX_META_ROWS + 1 ), ARRAY_A ); // phpcs:ignore WordPress.DB
 		$rows = is_array( $rows ) ? $rows : array();
 		$out  = array();
 		foreach ( array_slice( $rows, 0, self::MAX_META_ROWS ) as $row ) {
@@ -445,9 +805,20 @@ class KontrolWP_Connect_Migrate {
 				(string) $row['description'],
 				empty( $row['robots_default'] ) && ! empty( $row['robots_noindex'] ),
 				(string) $row['og_image_custom_url'],
+				self::aioseo_keyword( $row ),
 			);
 		}
 		return array( self::convert_pages( $out, 'aioseo' ), count( $rows ) > self::MAX_META_ROWS );
+	}
+
+	/** An All in One SEO row's focus keyword: its own column, or the legacy keyphrases JSON. */
+	public static function aioseo_keyword( $row ) {
+		if ( ! empty( $row['focus'] ) && is_string( $row['focus'] ) ) {
+			return self::first_keyword( $row['focus'] );
+		}
+		$phrases = isset( $row['keyphrases'] ) && is_string( $row['keyphrases'] ) ? json_decode( $row['keyphrases'], true ) : null;
+		$focus   = self::dig( is_array( $phrases ) ? $phrases : array(), array( 'focus', 'keyphrase' ) );
+		return is_string( $focus ) ? self::first_keyword( $focus ) : '';
 	}
 
 	/** Titles and descriptions into KontrolWP's tokens, and rows with nothing to import left out. */
@@ -456,7 +827,7 @@ class KontrolWP_Connect_Migrate {
 		foreach ( $rows as $row ) {
 			$row[1] = self::convert_tokens( $row[1], $source );
 			$row[2] = self::convert_tokens( $row[2], $source );
-			if ( '' !== $row[1] || '' !== $row[2] || $row[3] || '' !== $row[4] ) {
+			if ( '' !== $row[1] || '' !== $row[2] || $row[3] || '' !== $row[4] || '' !== $row[5] ) {
 				$out[] = $row;
 			}
 		}
@@ -544,7 +915,7 @@ class KontrolWP_Connect_Migrate {
 		foreach ( self::read_settings( $source ) as $key => $value ) {
 			$settings[] = array(
 				'key'   => $key,
-				'value' => is_bool( $value ) ? 'Hide from search' : ( function_exists( 'mb_substr' ) ? mb_substr( (string) $value, 0, 120 ) : substr( (string) $value, 0, 120 ) ),
+				'value' => self::describe( $value ),
 			);
 		}
 
@@ -555,6 +926,7 @@ class KontrolWP_Connect_Migrate {
 			'descriptions' => 0,
 			'noindex'      => 0,
 			'images'       => 0,
+			'keywords'     => 0,
 			'existing'     => 0,
 		);
 		foreach ( $pages as $row ) {
@@ -562,6 +934,7 @@ class KontrolWP_Connect_Migrate {
 			$counts['descriptions'] += '' !== $row[2] ? 1 : 0;
 			$counts['noindex']      += $row[3] ? 1 : 0;
 			$counts['images']       += '' !== $row[4] ? 1 : 0;
+			$counts['keywords']     += '' !== $row[5] ? 1 : 0;
 			if ( self::has_kontrolwp_meta( $row[0] ) ) {
 				++$counts['existing'];
 			}
@@ -597,8 +970,24 @@ class KontrolWP_Connect_Migrate {
 		);
 	}
 
+	/** A found setting as the preview shows it. */
+	public static function describe( $value ) {
+		if ( is_bool( $value ) ) {
+			return 'On';
+		}
+		if ( is_array( $value ) ) {
+			$names = array();
+			foreach ( $value as $key => $item ) {
+				$names[] = is_array( $item ) ? (string) $key : (string) $item;
+			}
+			$value = implode( ', ', $names );
+		}
+		$value = (string) $value;
+		return function_exists( 'mb_substr' ) ? mb_substr( $value, 0, 120 ) : substr( $value, 0, 120 );
+	}
+
 	private static function has_kontrolwp_meta( $post_id ) {
-		foreach ( array( KontrolWP_Connect_SEO::META_TITLE, KontrolWP_Connect_SEO::META_DESCRIPTION, KontrolWP_Connect_SEO::META_NOINDEX, KontrolWP_Connect_SEO::META_IMAGE ) as $key ) {
+		foreach ( array( KontrolWP_Connect_SEO::META_TITLE, KontrolWP_Connect_SEO::META_DESCRIPTION, KontrolWP_Connect_SEO::META_NOINDEX, KontrolWP_Connect_SEO::META_IMAGE, KontrolWP_Connect_SEO_Score::META_KEYWORD ) as $key ) {
 			if ( '' !== (string) get_post_meta( $post_id, $key, true ) ) {
 				return true;
 			}
@@ -652,14 +1041,37 @@ class KontrolWP_Connect_Migrate {
 	 * settings changed.
 	 */
 	private static function apply_settings( $found ) {
+		$content = array();
+		$tools   = array();
+		$seo     = array();
+		foreach ( $found as $key => $value ) {
+			if ( 0 === strpos( $key, 'content.' ) ) {
+				$content[ substr( $key, 8 ) ] = $value;
+			} elseif ( 0 === strpos( $key, 'tools.' ) ) {
+				$tools[ substr( $key, 6 ) ] = $value;
+			} else {
+				$seo[ $key ] = $value;
+			}
+		}
+
 		$current = KontrolWP_Connect_SEO::settings();
 		$new     = $current;
 		$changed = array();
-		foreach ( $found as $key => $value ) {
+		foreach ( $seo as $key => $value ) {
 			if ( is_bool( $value ) ) {
 				if ( ! $current[ $key ] ) {
 					$new[ $key ] = true;
 					$changed[]   = $key;
+				}
+			} elseif ( 'type_templates' === $key ) {
+				$new[ $key ] = self::merge_templates( $current[ $key ], $value );
+				if ( $new[ $key ] !== $current[ $key ] ) {
+					$changed[] = $key;
+				}
+			} elseif ( is_array( $value ) ) {
+				$new[ $key ] = self::merge_list( $current[ $key ], $value );
+				if ( $new[ $key ] !== $current[ $key ] ) {
+					$changed[] = $key;
 				}
 			} elseif ( $current[ $key ] === KontrolWP_Connect_SEO::DEFAULTS[ $key ] ) {
 				$new[ $key ] = $value;
@@ -674,12 +1086,29 @@ class KontrolWP_Connect_Migrate {
 			}
 		}
 		update_option( KontrolWP_Connect_SEO::OPTION, $new, true );
+
+		if ( $content ) {
+			$before                 = KontrolWP_Connect_SEO_Content::settings();
+			list( $merged, $names ) = self::merge_content( $before, KontrolWP_Connect_SEO_Content::DEFAULTS, $content );
+			$merged                 = KontrolWP_Connect_SEO_Content::clean( $merged );
+			foreach ( $names as $name ) {
+				if ( $merged[ $name ] !== $before[ $name ] ) {
+					$changed[] = 'content.' . $name;
+				}
+			}
+			update_option( KontrolWP_Connect_SEO_Content::OPTION, $merged, true );
+		}
+		if ( $tools ) {
+			foreach ( KontrolWP_Connect_SEO_Tools::import( $tools ) as $name ) {
+				$changed[] = 'tools.' . $name;
+			}
+		}
 		return $changed;
 	}
 
 	/** Write one page's values where KontrolWP has none. True when anything was written. */
 	private static function apply_page( $row ) {
-		list( $id, $title, $description, $noindex, $image ) = $row;
+		list( $id, $title, $description, $noindex, $image, $keyword ) = $row;
 		if ( ! get_post( $id ) ) {
 			return false;
 		}
@@ -693,6 +1122,7 @@ class KontrolWP_Connect_Migrate {
 		$set( KontrolWP_Connect_SEO::META_TITLE, KontrolWP_Connect_SEO::line( $title, 200 ) );
 		$set( KontrolWP_Connect_SEO::META_DESCRIPTION, KontrolWP_Connect_SEO::line( $description, 320 ) );
 		$set( KontrolWP_Connect_SEO::META_IMAGE, KontrolWP_Connect_SEO::url( $image ) );
+		$set( KontrolWP_Connect_SEO_Score::META_KEYWORD, KontrolWP_Connect_SEO_Score::clean_keyword( $keyword ) );
 		if ( $noindex ) {
 			$set( KontrolWP_Connect_SEO::META_NOINDEX, '1' );
 		}
