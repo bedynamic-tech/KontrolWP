@@ -645,10 +645,19 @@ function RulesSection(props: {
 }
 
 const DELETE_LABELS: Record<RedirectDeleteAction, string> = {
-  none: "Do nothing",
+  none: "Show not found (404)",
   "410": "Show that the page is gone (410)",
   "301": "Redirect to another address",
 };
+
+/** The choices as the list shows them: sending visitors to the home page is a 301 to "/". */
+type DeleteChoice = RedirectDeleteAction | "home";
+const DELETE_CHOICES: { value: DeleteChoice; label: string }[] = [
+  { value: "none", label: DELETE_LABELS.none },
+  { value: "410", label: DELETE_LABELS["410"] },
+  { value: "home", label: "Redirect to the home page" },
+  { value: "301", label: DELETE_LABELS["301"] },
+];
 
 /** Redirects KontrolWP makes by itself when content is moved or removed. */
 function AutoSection(props: {
@@ -664,6 +673,18 @@ function AutoSection(props: {
     props.auto?.on_delete ?? "none",
   );
   const [target, setTarget] = useState(props.auto?.target ?? "");
+  const [custom, setCustom] = useState(false);
+  const choice: DeleteChoice =
+    action === "301" && target === "/" && !custom ? "home" : action;
+  function choose(next: DeleteChoice) {
+    setCustom(next === "301");
+    if (next === "home") {
+      setAction("301");
+      setTarget("/");
+    } else {
+      setAction(next);
+    }
+  }
   // Follow what the site reports once it arrives or changes.
   const reportedAction = props.auto?.on_delete;
   const reportedTarget = props.auto?.target;
@@ -737,14 +758,12 @@ function AutoSection(props: {
             <select
               aria-label="When content is deleted or trashed"
               className={`${SELECT_CLASS} sm:w-80!`}
-              value={action}
-              onChange={(event) =>
-                setAction(event.target.value as RedirectDeleteAction)
-              }
+              value={choice}
+              onChange={(event) => choose(event.target.value as DeleteChoice)}
             >
-              {REDIRECT_DELETE_ACTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {DELETE_LABELS[value]}
+              {DELETE_CHOICES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
