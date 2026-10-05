@@ -204,11 +204,13 @@ export function LinksTab(props: { site: SiteSummary }) {
             {scanButton}
           </div>
           <ScanCards scan={data.scan} counts={counts} />
+          {data.scan.truncated && <TruncatedNote className="mt-2" />}
           {scan.error && <p className="mt-2 text-sm text-destructive">{scan.error.message}</p>}
         </section>
       ) : (
         <Section title="Link check" action={scanButton}>
           <ScanSummary scan={data.scan} counts={counts} />
+          {data.scan.truncated && <TruncatedNote className="border-t px-4 py-2.5" />}
           {scan.error && <p className="border-t px-4 py-2.5 text-sm text-destructive">{scan.error.message}</p>}
         </Section>
       )}
@@ -380,6 +382,15 @@ function UnlinkNotice(props: { result: LinkUnlinkResult; onClose: () => void }) 
         Dismiss
       </button>
     </div>
+  );
+}
+
+/** Shown when a scan stopped at the most addresses it lists for one site. */
+function TruncatedNote(props: { className: string }) {
+  return (
+    <p className={`${props.className} text-sm text-yellow-900 dark:text-yellow-200`}>
+      This site has more links than one scan covers, so links in the newest content were left out.
+    </p>
   );
 }
 

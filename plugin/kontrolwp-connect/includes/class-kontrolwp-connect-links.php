@@ -14,6 +14,9 @@ class KontrolWP_Connect_Links {
 	/** Most posts one page of the listing covers. */
 	const MAX_PER_PAGE = 100;
 
+	/** Seconds one listing may spend rendering posts; once spent, the rest of the page is read from the saved content only. */
+	const RENDER_BUDGET = 12.0;
+
 	public static function register_routes( $auth ) {
 		register_rest_route(
 			KontrolWP_Connect_Rest::NAMESPACE_V1,
@@ -127,10 +130,19 @@ class KontrolWP_Connect_Links {
 			)
 		);
 
-		$items = array();
+		$items      = array();
+		$deadline   = microtime( true ) + self::RENDER_BUDGET;
+		$unrendered = 0;
 		foreach ( $query->posts as $post ) {
 			$permalink = get_permalink( $post );
-			$links     = self::extract( (string) $post->post_content, $permalink ? $permalink : home_url( '/' ) );
+			$base      = $permalink ? $permalink : home_url( '/' );
+			$links     = self::extract( (string) $post->post_content, $base );
+			if ( microtime( true ) < $deadline ) {
+				// What visitors see: shortcodes, dynamic blocks and page builders add links the saved content does not hold.
+				$links = self::merge( $links, self::extract( self::rendered( $post ), $base ) );
+			} else {
+				++$unrendered;
+			}
 			if ( ! $links ) {
 				continue;
 			}
@@ -148,7 +160,44 @@ class KontrolWP_Connect_Links {
 			'page'        => (int) $request['page'],
 			'total_pages' => (int) $query->max_num_pages,
 			'total_posts' => (int) $query->found_posts,
+			'unrendered'  => $unrendered,
 		);
+	}
+
+	/** The post's content as visitors get it, with every filter applied. A failure in another plugin leaves it empty. */
+	private static function rendered( $post ) {
+		$previous = isset( $GLOBALS['post'] ) ? $GLOBALS['post'] : null;
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$GLOBALS['post'] = $post;
+		setup_postdata( $post );
+		$level = ob_get_level();
+		ob_start();
+		try {
+			$html = (string) apply_filters( 'the_content', (string) $post->post_content );
+		} catch ( \Throwable $error ) {
+			$html = '';
+		}
+		while ( ob_get_level() > $level ) {
+			ob_end_clean();
+		}
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$GLOBALS['post'] = $previous;
+		if ( $previous ) {
+			setup_postdata( $previous );
+		}
+		return $html;
+	}
+
+	/** Two lists of links as one, each address once per kind, in the order first seen. */
+	public static function merge( $first, $second ) {
+		$found = array();
+		foreach ( array_merge( (array) $first, (array) $second ) as $link ) {
+			$key = $link['kind'] . ' ' . $link['url'];
+			if ( ! isset( $found[ $key ] ) ) {
+				$found[ $key ] = $link;
+			}
+		}
+		return array_values( $found );
 	}
 
 	/**

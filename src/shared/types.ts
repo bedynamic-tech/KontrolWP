@@ -504,6 +504,8 @@ export interface LinkScan {
   checked_urls: number;
   started_at: number;
   finished_at: number | null;
+  /** The site has more addresses than one scan lists, so the newest content was left out. */
+  truncated: boolean;
 }
 
 /** One place a link appears. */
