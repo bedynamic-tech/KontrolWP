@@ -27,6 +27,7 @@ import type {
   SeoScore,
   SeoTools,
   SiteAccessibility,
+  SiteSeoAudit,
   SiteSeo,
   SiteSummary,
   SiteSecurity,
@@ -119,6 +120,7 @@ import {
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
+import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import {
   cleanExcluded,
@@ -376,6 +378,8 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM update_runs WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM accessibility_scans WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM accessibility_history WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM seo_scans WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM seo_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -959,6 +963,30 @@ api.post("/sites/:id/accessibility/scan", async (c) => {
     return c.json({ error: error.message }, 502);
   }
   return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, await getCredentials(c.env, id)));
+});
+
+/** A static site's SEO health check: the latest result and its history. */
+api.get("/sites/:id/seo-audit", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (site.kind !== "static") return c.json({ error: "Only static sites have the SEO health check." }, 400);
+  return c.json<SiteSeoAudit>(await siteSeoAudit(c.env, site));
+});
+
+/** Run the SEO health check now. */
+api.post("/sites/:id/seo-audit/scan", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (site.kind !== "static") return c.json({ error: "Only static sites have the SEO health check." }, 400);
+  try {
+    await scanSeoNow(c.env, site);
+  } catch (error) {
+    if (!(error instanceof SeoAuditError)) throw error;
+    return c.json({ error: error.message }, 502);
+  }
+  return c.json<SiteSeoAudit>(await siteSeoAudit(c.env, site));
 });
 
 const accessibilityFixesBody = z.object({
