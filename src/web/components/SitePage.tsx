@@ -42,6 +42,7 @@ import {
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
+import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
@@ -90,6 +91,7 @@ const STATIC_TABS = [
   "overview",
   "analytics",
   "pages",
+  "seo",
   "accessibility",
   "domain",
 ];
@@ -99,6 +101,7 @@ const CLOUDFLARE_TABS = [
   "analytics",
   "pages",
   "deployments",
+  "seo",
   "accessibility",
   "domain",
 ];
@@ -223,6 +226,7 @@ export function SitePage() {
       ? [
           { value: "pages", label: "Pages" },
           ...(onCloudflare ? [{ value: "deployments", label: "Deployments" }] : []),
+          { value: "seo", label: "SEO" },
         ]
       : [
           { value: "content", label: "Posts and pages" },
@@ -407,7 +411,7 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="seo" className={TAB_CLASS}>
           <ErrorBoundary label="The SEO tab">
-            <SeoTab site={site} />
+            {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
           </ErrorBoundary>
         </TabsContent>
         <TabsContent value="accessibility" className={TAB_CLASS}>

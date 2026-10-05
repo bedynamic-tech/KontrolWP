@@ -29,6 +29,7 @@ import type {
   SeoScore,
   SeoSettings,
   SiteAccessibility,
+  SiteSeoAudit,
   SiteRedirects,
   SiteSeo,
   SiteUpdatePolicy,
@@ -401,3 +402,7 @@ export const fetchSeoScore = (
   pageId: number,
   draft: { seo_title: string; description: string; keyword: string },
 ) => request<SeoScore>(`/sites/${siteId}/seo/pages/${pageId}/score`, { method: "POST", json: draft });
+
+export const fetchSeoAudit = (siteId: number) => request<SiteSeoAudit>(`/sites/${siteId}/seo-audit`);
+export const scanSeoAudit = (siteId: number) =>
+  request<SiteSeoAudit>(`/sites/${siteId}/seo-audit/scan`, { method: "POST" });

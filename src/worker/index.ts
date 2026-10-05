@@ -8,6 +8,7 @@ import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate } from "./sites/updates.ts";
 import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
+import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -26,6 +27,7 @@ export default {
           runScheduledFeedRefresh(env),
           runScheduledUpdates(env),
           synced ? 0 : runScheduledScans(env),
+          synced ? 0 : runScheduledSeoScans(env),
         ]);
       }),
     );

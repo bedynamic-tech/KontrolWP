@@ -1113,3 +1113,33 @@ export interface SiteUpdatePolicyView {
   next_run_at: number | null;
   runs: UpdateRun[];
 }
+
+/** One kind of SEO problem found on a static site. */
+export interface SeoAuditIssue {
+  rule: string;
+  title: string;
+  impact: import("./seo-audit.ts").SeoImpact;
+  /** What to change on the site. */
+  help: string;
+  /** How many times it was found across the checked pages. */
+  count: number;
+  /** The checked pages it appears on; empty for a site-wide finding. */
+  pages: string[];
+  /** A few of the values found, as written in the page. */
+  examples: string[];
+}
+
+export interface SeoAuditScan {
+  scanned_at: number;
+  score: number;
+  pages: string[];
+  issues: SeoAuditIssue[];
+}
+
+/** The SEO health check of a static site: the latest result and its score history. */
+export interface SiteSeoAudit {
+  scan: SeoAuditScan | null;
+  /** The reason the latest attempt failed, when it did. */
+  error: string | null;
+  history: { scanned_at: number; score: number }[];
+}
