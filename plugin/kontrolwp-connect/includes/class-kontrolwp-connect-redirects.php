@@ -196,6 +196,17 @@ class KontrolWP_Connect_Redirects {
 		return null;
 	}
 
+	/** The logged paths a rule now answers, so they no longer count as pages that are not found. Pure. */
+	public static function covered_paths( $rule, $paths ) {
+		$out = array();
+		foreach ( $paths as $path ) {
+			if ( null !== self::match_rule( $rule, $path ) ) {
+				$out[] = $path;
+			}
+		}
+		return $out;
+	}
+
 	/* ---- Storage ---- */
 
 	private static function table() {
@@ -713,7 +724,27 @@ class KontrolWP_Connect_Redirects {
 				'created'     => time(),
 			)
 		);
+		self::forget_404s( $rule );
 		return (int) $wpdb->insert_id;
+	}
+
+	/** Take the entries of the 404 log that an active rule now answers out of it. */
+	private static function forget_404s( $rule ) {
+		global $wpdb;
+		if ( empty( $rule['enabled'] ) ) {
+			return;
+		}
+		$rows = $wpdb->get_results( 'SELECT path_key, path FROM ' . self::table_404() . ' LIMIT ' . (int) self::MAX_404, ARRAY_A ); // phpcs:ignore WordPress.DB
+		$keys = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			if ( null !== self::match_rule( $rule, $row['path'] ) ) {
+				$keys[] = $row['path_key'];
+			}
+		}
+		if ( $keys ) {
+			$marks = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+			$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table_404() . " WHERE path_key IN ($marks)", $keys ) ); // phpcs:ignore WordPress.DB
+		}
 	}
 
 	/** Create a rule, or change the one with `id`. */
@@ -743,6 +774,7 @@ class KontrolWP_Connect_Redirects {
 				),
 				array( 'id' => $id )
 			);
+			self::forget_404s( $rule );
 		} else {
 			if ( (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . self::table() ) >= self::MAX_RULES ) { // phpcs:ignore WordPress.DB
 				return new WP_Error( 'kontrolwp_too_many_redirects', 'This site has reached the limit of ' . self::MAX_RULES . ' redirects.', array( 'status' => 400 ) );
@@ -770,6 +802,12 @@ class KontrolWP_Connect_Redirects {
 			$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table() . " WHERE id IN ($placeholders)", $ids ) ); // phpcs:ignore WordPress.DB
 		} else {
 			$wpdb->query( $wpdb->prepare( 'UPDATE ' . self::table() . " SET enabled = %d WHERE id IN ($placeholders)", array_merge( array( 'enable' === $action ? 1 : 0 ), $ids ) ) ); // phpcs:ignore WordPress.DB
+			if ( 'enable' === $action ) {
+				$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT source, match_type, target, status_code FROM ' . self::table() . " WHERE id IN ($placeholders)", $ids ), ARRAY_A ); // phpcs:ignore WordPress.DB
+				foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+					self::forget_404s( $row + array( 'enabled' => true ) );
+				}
+			}
 		}
 		self::refresh_state();
 		return array( 'ok' => true );

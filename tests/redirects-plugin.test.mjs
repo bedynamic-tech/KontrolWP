@@ -78,3 +78,14 @@ test("a redirect target is a full address or a path on the site", { skip }, () =
   assert.equal(call("target_ok", "javascript:alert(1)"), false);
   assert.equal(call("target_ok", "new"), false);
 });
+
+test("a new rule covers the logged paths it answers, whatever its kind", { skip }, () => {
+  const logged = ["/old-page", "/Blog/2020/post", "/blog", "/other"];
+  const exact = { source: "/old-page/", match_type: "exact", target: "/new", status_code: 301, enabled: true };
+  assert.deepEqual(call("covered_paths", exact, logged), ["/old-page"]);
+  const prefix = { source: "/blog", match_type: "prefix", target: "/news", status_code: 301, enabled: true };
+  assert.deepEqual(call("covered_paths", prefix, logged), ["/Blog/2020/post", "/blog"]);
+  const regex = { source: "^/o(ld|ther)", match_type: "regex", target: "/x", status_code: 301, enabled: true };
+  assert.deepEqual(call("covered_paths", regex, logged), ["/old-page", "/other"]);
+  assert.deepEqual(call("covered_paths", exact, []), []);
+});

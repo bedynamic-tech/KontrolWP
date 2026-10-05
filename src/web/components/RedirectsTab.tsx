@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { IconButton } from "./IconButton";
+import { PageSuggestInput } from "./PageSuggestInput";
 import {
   compareVersions,
   SEO_AUTO_REDIRECTS_SINCE,
@@ -246,12 +247,13 @@ function RuleDialog(props: {
             <Field
               label="To address"
               htmlFor="redirect-target"
-              hint="A path on this site, or a full address starting with https://. Any query string on the visitor's address is kept."
+              hint="Start typing to pick one of this site's pages or posts, or enter a path or a full address starting with https://. Any query string on the visitor's address is kept."
             >
-              <Input
+              <PageSuggestInput
+                site={site}
                 id="redirect-target"
                 value={draft.target}
-                onChange={(event) => set("target", event.target.value)}
+                onChange={(value) => set("target", value)}
                 placeholder="/new-page"
               />
             </Field>
