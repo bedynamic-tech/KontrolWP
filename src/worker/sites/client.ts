@@ -34,6 +34,34 @@ const TIMEOUT_MS = 20_000;
 // database, so give actions longer than reads.
 const ACTION_TIMEOUT_MS = 180_000;
 
+/** What the common Cloudflare error codes mean for the site's owner. */
+const CLOUDFLARE_ERRORS: Record<string, string> = {
+  "1000": "its DNS record points at an address Cloudflare does not allow",
+  "1001": "Cloudflare could not resolve the DNS record for the site's origin server",
+  "1014": "its DNS record points at a host owned by another Cloudflare account",
+  "1016": "Cloudflare cannot find the origin server: the site's DNS record points at a name that does not resolve",
+  "1033": "its Cloudflare Tunnel is not connected, so the tunnel service on the server may be stopped",
+};
+
+/**
+ * A readable message for an HTML or plain-text error from Cloudflare (HTTP
+ * 52x, 530), or null when the response does not come from Cloudflare's edge.
+ * The page names a Cloudflare error code such as "Error 1016".
+ */
+export function cloudflareErrorMessage(status: number, body: string): string | null {
+  const edge = status === 530 || (status >= 520 && status <= 527);
+  const code = /error code:?\s*(\d{4})/i.exec(body)?.[1] ?? /\bError\s+(1\d{3})\b/.exec(body)?.[1];
+  if (!edge && !(code && /cloudflare/i.test(body))) return null;
+  const reason = code ? CLOUDFLARE_ERRORS[code] : undefined;
+  if (reason) {
+    return `Cloudflare answered HTTP ${status} (error ${code}): ${reason}. The site's server is not reachable, so check the site's DNS and hosting in Cloudflare.`;
+  }
+  const detail = code ? ` (error ${code})` : "";
+  return status === 530
+    ? `Cloudflare answered HTTP 530${detail} instead of the site: it could not reach the site's server. Check that the site's DNS record in Cloudflare is correct and that the server is running.`
+    : `Cloudflare answered HTTP ${status}${detail} instead of the site: it could not get a working reply from the site's server. Check that the server is running.`;
+}
+
 /** Send one signed request to KontrolWP Connect and return its JSON body. */
 export async function callSite<T>(
   site: SiteCredentials,
@@ -78,13 +106,15 @@ export async function callSite<T>(
     );
   }
   let json: unknown;
+  let raw = "";
   try {
-    json = await response.json();
+    raw = await response.text();
+    json = JSON.parse(raw);
   } catch {
     throw new SiteRequestError(
       response.ok
         ? "The site did not return JSON. Is KontrolWP Connect active?"
-        : `The site returned HTTP ${response.status}`,
+        : (cloudflareErrorMessage(response.status, raw) ?? `The site returned HTTP ${response.status}`),
       response.status,
     );
   }
