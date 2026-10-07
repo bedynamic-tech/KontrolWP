@@ -1049,7 +1049,6 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
               placeholder={`${data.site_name} ${draft.separator} ${data.tagline}`}
             />
             <Counter value={homeTitle} limit={TITLE_LENGTH} />
-            <TitlePreview label="The home page looks like" title={homeTitle} url={data.home_url} />
           </Row>
           <Row
             title="Home page description"
