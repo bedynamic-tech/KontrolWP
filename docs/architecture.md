@@ -80,6 +80,10 @@ the second fail. **Update** in the dashboard therefore only adds a row to
 statement that also checks nothing else is running for that site, so two
 consumers never update one site at once. After each job it sends another
 message if more are queued, and syncs the site once the queue is empty.
+A site is often still restarting or in maintenance right after an update, and a
+sync that fails leaves the finished updates listed (a successful sync is what
+removes them), so a failed sync after updates sends a `resync` message, tried
+again after 45 seconds, then 45 seconds longer each time, up to five syncs.
 
 A 503 puts the job back in the queue for 30 seconds, up to five attempts. Any
 other error marks it failed with the site's message, shown on the update with

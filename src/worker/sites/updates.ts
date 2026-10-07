@@ -24,10 +24,15 @@ const MAX_ATTEMPTS = 5;
 /** Longer than a site action may take (client.ts), so only a lost job is this old. */
 const STALE_AFTER_SECONDS = 15 * 60;
 
+/** A sync that fails right after an update (the site is still restarting) is tried again, a few times. */
+export const RESYNC_SECONDS = 45;
+export const MAX_RESYNCS = 5;
+
 export type UpdateStep =
   | { next: "idle" }
   | { next: "continue" }
-  | { next: "retry"; delaySeconds: number };
+  | { next: "retry"; delaySeconds: number }
+  | { next: "resync"; delaySeconds: number };
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -137,8 +142,19 @@ async function afterJob(env: Env, siteId: number): Promise<UpdateStep> {
     .bind(siteId)
     .first();
   if (more) return { next: "continue" };
-  // The queue is empty: re-read versions and the remaining updates once.
-  await syncSite(env, siteId);
-  return { next: "idle" };
+  // The queue is empty: re-read versions and the remaining updates. A site is
+  // often still restarting or in maintenance just after an update, and a failed
+  // sync leaves the finished updates listed, so it is tried again shortly.
+  const synced = await syncSite(env, siteId);
+  return synced.ok ? { next: "idle" } : { next: "resync", delaySeconds: RESYNC_SECONDS };
+}
+
+/**
+ * One of those later syncs. Returns when to try again, or null once the sync
+ * worked or the tries are used up (the site's error then stays on its page).
+ */
+export async function runResync(env: Env, siteId: number, attempt: number): Promise<number | null> {
+  const synced = await syncSite(env, siteId);
+  return synced.ok || attempt >= MAX_RESYNCS ? null : RESYNC_SECONDS * attempt;
 }
 

@@ -5,6 +5,7 @@
  */
 type SyncMessage =
   | { type?: "sync" | "update"; siteId: number }
+  | { type: "resync"; siteId: number; attempt: number }
   | { type: "links-collect"; siteId: number; scanId: number; page: number }
   | { type: "links-check"; siteId: number; scanId: number };
 

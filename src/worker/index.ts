@@ -5,7 +5,7 @@ import { ensureSchema } from "./db/schema.ts";
 import { runScheduledLinkScans } from "./sites/link-schedule.ts";
 import { checkLinks, collectLinks } from "./sites/links.ts";
 import { runScheduledSync, syncSite } from "./sites/sync.ts";
-import { runNextUpdate } from "./sites/updates.ts";
+import { runNextUpdate, runResync } from "./sites/updates.ts";
 import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledSeoScans } from "./sites/seo-audit.ts";
@@ -52,6 +52,14 @@ export default {
             if (step.next === "continue") await env.SYNC_QUEUE.send({ type: "update", siteId });
             if (step.next === "retry") {
               await env.SYNC_QUEUE.send({ type: "update", siteId }, { delaySeconds: step.delaySeconds });
+            }
+            if (step.next === "resync") {
+              await env.SYNC_QUEUE.send({ type: "resync", siteId, attempt: 1 }, { delaySeconds: step.delaySeconds });
+            }
+          } else if (body.type === "resync") {
+            const again = await runResync(env, siteId, body.attempt);
+            if (again !== null) {
+              await env.SYNC_QUEUE.send({ type: "resync", siteId, attempt: body.attempt + 1 }, { delaySeconds: again });
             }
           } else {
             await syncSite(env, siteId);
