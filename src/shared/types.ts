@@ -307,12 +307,6 @@ export interface SiteAnalyticsDetails extends SiteAnalytics {
   active: number | null;
 }
 
-/** Dashboard layout choices from Settings. */
-export interface LayoutSettings {
-  /** The site page below its summary: one column, or Updates and the rest left of Analytics. */
-  site_columns: 1 | 2;
-}
-
 /** How often every site is synced in the background, in minutes. */
 export const SYNC_INTERVALS = [15, 30, 60, 180, 360] as const;
 export type SyncInterval = (typeof SYNC_INTERVALS)[number];

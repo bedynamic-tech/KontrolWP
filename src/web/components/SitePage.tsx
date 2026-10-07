@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   deleteSite,
-  fetchLayoutSettings,
   fetchSite,
   fetchUmamiSettings,
   replaceConnectionKey,
@@ -181,11 +180,6 @@ export function SitePage() {
     },
   });
 
-  const layout = useQuery({
-    queryKey: ["settings", "layout"],
-    queryFn: fetchLayoutSettings,
-    refetchInterval: false,
-  });
   const umami = useQuery({
     queryKey: ["settings", "umami"],
     queryFn: fetchUmamiSettings,
@@ -193,7 +187,7 @@ export function SitePage() {
   });
   const analyticsOn =
     !!umami.data?.configured && !data?.site.analytics_excluded;
-  const twoColumns = layout.data?.site_columns === 2 && analyticsOn;
+  const twoColumns = analyticsOn;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
   const tabs =
