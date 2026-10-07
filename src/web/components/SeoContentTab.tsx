@@ -13,6 +13,7 @@ import {
 import { fetchSeoContent, saveSeoContent } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
+import { TwoColumns } from "./TwoColumns";
 import { Spinner } from "./Spinner";
 import { CheckRow, Row, Warning } from "./ToolsTab";
 
@@ -88,6 +89,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
           </Warning>
         </div>
       )}
+      <TwoColumns>
       <Section
         title="Schema"
         hint="Structured data that tells search engines who is behind the site and what each post is. It appears in the page head as JSON-LD."
@@ -260,6 +262,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
           />
         </Row>
       </Section>
+      </TwoColumns>
     </>
   );
 }

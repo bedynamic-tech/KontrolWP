@@ -16,6 +16,7 @@ import { fetchSeoTools, saveSeoTools } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
+import { TwoColumns } from "./TwoColumns";
 import { Spinner } from "./Spinner";
 
 const VERIFY_LABELS: Record<SeoVerifyService, string> = {
@@ -154,6 +155,7 @@ export function ToolsTab(props: { site: SiteSummary }) {
           </p>
         </div>
       )}
+      <TwoColumns>
       <Section
         title="Verification and files"
         action={
@@ -305,6 +307,7 @@ export function ToolsTab(props: { site: SiteSummary }) {
           />
         </label>
       </Section>
+      </TwoColumns>
     </>
   );
 }

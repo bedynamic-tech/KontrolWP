@@ -35,6 +35,7 @@ import { ToolsTab } from "./ToolsTab";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
+import { TwoColumns } from "./TwoColumns";
 
 const SELECT_CLASS =
   "h-8 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -992,6 +993,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
 
       {draft.enabled ? (
         <>
+      <TwoColumns>
       <Section title="Titles and descriptions">
         <div className="divide-y">
           <Row title="Separator" detail="Goes between the parts of a title.">
@@ -1282,6 +1284,8 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
         }
         onChange={(local) => set("local", local)}
       />
+
+      </TwoColumns>
 
       <PagesSection site={site} seo={data} />
         </>
