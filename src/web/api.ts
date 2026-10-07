@@ -42,7 +42,6 @@ import type {
   CoreAutoUpdate,
   AnalyticsRange,
   FleetPlugins,
-  LayoutSettings,
   SyncSettings,
   SiteAnalytics,
   SiteAnalyticsDetails,
@@ -270,11 +269,6 @@ export const saveLinkScanSettings = (settings: Partial<LinkScanSettings>) =>
 export const fetchSyncSettings = () => request<SyncSettings>("/settings/sync");
 export const saveSyncSettings = (settings: SyncSettings) =>
   request<SyncSettings>("/settings/sync", { method: "PUT", json: settings });
-
-export const fetchLayoutSettings = () => request<LayoutSettings>("/settings/layout");
-
-export const saveLayoutSettings = (layout: LayoutSettings) =>
-  request<LayoutSettings>("/settings/layout", { method: "PUT", json: layout });
 
 export const fetchDomain = (siteId: number, refresh = false) =>
   request<SiteDomain>(`/sites/${siteId}/domain${refresh ? "?refresh=1" : ""}`);

@@ -20,11 +20,9 @@ import {
   saveWordfenceKey,
   fetchCloudflareSettings,
   saveCloudflareSettings,
-  fetchLayoutSettings,
   fetchLinkScanSettings,
   fetchSyncSettings,
   fetchUmamiSettings,
-  saveLayoutSettings,
   saveLinkScanSettings,
   saveSyncSettings,
   saveUmamiSettings,
@@ -70,7 +68,6 @@ export function SettingsPage() {
         />
         <TabsContent value="general">
           <SyncSettingsSection />
-          <LayoutSettingsSection />
         </TabsContent>
         <TabsContent value="updates">
           <UpdatePolicySettingsSection />
@@ -262,53 +259,6 @@ function LinkScanSettingsSection() {
       </div>
       {(settings.error || save.error) && (
         <p className="px-4 pb-3 text-sm text-destructive">{(settings.error ?? save.error)!.message}</p>
-      )}
-    </Section>
-  );
-}
-
-function LayoutSettingsSection() {
-  const queryClient = useQueryClient();
-  const layout = useQuery({ queryKey: ["settings", "layout"], queryFn: fetchLayoutSettings, refetchInterval: false });
-  const save = useMutation({
-    mutationFn: saveLayoutSettings,
-    onMutate: (next) => queryClient.setQueryData(["settings", "layout"], next),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings", "layout"] }),
-  });
-  const columns = layout.data?.site_columns ?? 1;
-  const option = (value: 1 | 2, title: string, detail: string) => (
-    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/40">
-      <input
-        type="radio"
-        name="site-columns"
-        className="mt-1 accent-primary"
-        checked={columns === value}
-        disabled={layout.isPending}
-        onChange={() => save.mutate({ ...layout.data, site_columns: value })}
-      />
-      <span>
-        <span className="flex items-center gap-1.5 text-sm font-medium">
-          {title}
-          <HelpTip>{detail}</HelpTip>
-        </span>
-      </span>
-    </label>
-  );
-  return (
-    <Section
-      title="Site page layout"
-      action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}
-    >
-      <div className="divide-y">
-        {option(1, "One column", "On a site's Overview tab, Analytics, Updates and Comments one below the other.")}
-        {option(
-          2,
-          "Two columns",
-          "On a site's Overview tab, Updates and Comments on the left, Analytics on the right. Needs Umami connected below, and a wide enough window; narrow screens keep one column.",
-        )}
-      </div>
-      {(layout.error || save.error) && (
-        <p className="px-4 pb-3 text-sm text-destructive">{(layout.error ?? save.error)!.message}</p>
       )}
     </Section>
   );

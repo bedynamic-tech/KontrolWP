@@ -6,7 +6,6 @@ import type {
   BulkUserResult,
   FleetPlugins,
   FleetUsers,
-  LayoutSettings,
   Overview,
   PluginStatus,
   SiteAdmin,
@@ -1895,17 +1894,6 @@ function validTimeZone(value: string | undefined): string {
   }
 }
 
-const DEFAULT_LAYOUT: LayoutSettings = { site_columns: 1 };
-
-async function loadLayout(env: Env): Promise<LayoutSettings> {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = 'layout'").first<{ value: string }>();
-  try {
-    return { ...DEFAULT_LAYOUT, ...(row ? (JSON.parse(row.value) as Partial<LayoutSettings>) : {}) };
-  } catch {
-    return DEFAULT_LAYOUT;
-  }
-}
-
 api.get("/settings/sync", async (c) => c.json(await loadSyncSettings(c.env)));
 
 api.put("/settings/sync", async (c) => {
@@ -1980,18 +1968,4 @@ api.put("/sites/:id/update-policy", async (c) => {
   if (!(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
   await saveSitePolicy(c.env, id, { ...parsed.data, excluded_plugins: cleanExcluded(parsed.data.excluded_plugins) });
   return c.json(await sitePolicyView(c.env, id));
-});
-
-api.get("/settings/layout", async (c) => c.json(await loadLayout(c.env)));
-
-api.put("/settings/layout", async (c) => {
-  const parsed = z
-    .object({ site_columns: z.union([z.literal(1), z.literal(2)]) })
-    .safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Choose one or two columns" }, 400);
-  const layout = { ...(await loadLayout(c.env)), ...parsed.data };
-  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('layout', ?)")
-    .bind(JSON.stringify(layout))
-    .run();
-  return c.json(layout);
 });
