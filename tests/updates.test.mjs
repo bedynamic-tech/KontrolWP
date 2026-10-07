@@ -6,7 +6,7 @@ import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
 import { getSite, listFleetPlugins, listFleetUsers, listUpdates } from "../src/worker/sites/store.ts";
-import { enqueueUpdate, runNextUpdate } from "../src/worker/sites/updates.ts";
+import { enqueueUpdate, runNextUpdate, runResync } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 const SITE = "https://example.com";
@@ -374,4 +374,29 @@ test("a site whose KontrolWP Connect cannot manage users is reported, not asked"
   const fleet = await listFleetUsers(t.env.DB);
   assert.deepEqual(fleet.users, []);
   assert.deepEqual(fleet.unsupported_sites.map((site) => site.id), [1]);
+});
+
+test("a sync that fails right after an update is tried again until it works", async () => {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const real = globalThis.fetch;
+  let down = true;
+  globalThis.fetch = async (url, init) =>
+    down && new URL(url).searchParams.get("rest_route") === "/kontrolwp/v1/status"
+      ? new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404, headers: { "Content-Type": "application/json" } })
+      : real(url, init);
+  t.env.DB.sqlite
+    .prepare("INSERT INTO site_updates (site_id, kind, slug, name, current_version, new_version) VALUES (1, 'plugin', 'a/a.php', 'A', '1', '2')")
+    .run();
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "a/a.php" });
+
+  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "resync", delaySeconds: 45 });
+  assert.equal(t.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM site_updates").get().n, 1, "the old list stays until a sync works");
+  assert.equal(await runResync(t.env, 1, 1), 45, "still down: asked to try again, a little later");
+  assert.equal(await runResync(t.env, 1, 4), 180);
+  assert.equal(await runResync(t.env, 1, 5), null, "the tries are used up");
+
+  down = false;
+  assert.equal(await runResync(t.env, 1, 2), null);
+  assert.equal(t.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM site_updates").get().n, 0, "the finished update leaves the list");
+  assert.deepEqual(t.jobs(), []);
 });
