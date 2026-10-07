@@ -128,6 +128,17 @@ function Preview(props: { title: string; url: string; description: string }) {
   );
 }
 
+/** Just the title line of a search result, updating as the template or title is edited. */
+function TitlePreview(props: { label: string; title: string; url: string }) {
+  return (
+    <div className="mt-2 rounded-lg border bg-muted/30 px-3 py-2" aria-live="polite">
+      <p className="text-xs text-muted-foreground">{props.label}</p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{props.url}</p>
+      <p className="truncate text-base text-blue-700 dark:text-blue-300">{props.title || "Untitled"}</p>
+    </div>
+  );
+}
+
 const SCORE_HELP: Record<string, string> = {
   keyword_title: "Search engines and readers use the title to judge what a page is about. Works only when a focus keyword is set.",
   description_length: "The description is the text under the title in search results. Around 70 to 160 characters shows in full and says enough.",
@@ -1021,6 +1032,11 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
               value={draft.title_template}
               onChange={(event) => set("title_template", event.target.value)}
             />
+            <TitlePreview
+              label="A page titled Sample page title looks like"
+              title={fillTemplate(draft.title_template, { ...vars, title: "Sample page title" })}
+              url={`${data.home_url.replace(/\/$/, "")}/sample-page/`}
+            />
           </Row>
           <Row
             title="Home page title"
@@ -1033,6 +1049,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
               placeholder={`${data.site_name} ${draft.separator} ${data.tagline}`}
             />
             <Counter value={homeTitle} limit={TITLE_LENGTH} />
+            <TitlePreview label="The home page looks like" title={homeTitle} url={data.home_url} />
           </Row>
           <Row
             title="Home page description"
@@ -1084,7 +1101,11 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
                     onChange={(event) => setTypeTemplate(item.name, "description", event.target.value)}
                     placeholder="Empty uses the excerpt"
                   />
-                  <p className="text-xs text-muted-foreground">Title looks like: {sample}</p>
+                  <TitlePreview
+                    label="A page titled Sample title looks like"
+                    title={sample}
+                    url={`${data.home_url.replace(/\/$/, "")}/sample-page/`}
+                  />
                 </div>
               );
             })}
