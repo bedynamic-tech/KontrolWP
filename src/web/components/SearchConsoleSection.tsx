@@ -169,7 +169,9 @@ export function SearchConsoleSection(props: {
               : `Search Console has no property for ${hostname(site.url)} that ${google.data.account} can read. Make sure that account is a user of the property in Search Console, or choose one.`}
           </p>
         )}
-        <PropertyPicker site={site} current={null} chosen={data.data.chosen} />
+        {!(seoOff && !data.data.chosen) && (
+          <PropertyPicker site={site} current={null} chosen={data.data.chosen} />
+        )}
         {!data.data.chosen && !seoOff && site.kind !== "static" && (
           <SetUpSearchConsole site={site} canSetUp={google.data.can_setup} />
         )}
