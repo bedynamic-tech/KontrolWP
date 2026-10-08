@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
@@ -9,6 +10,7 @@ import {
   AnalyticsFooter,
   count,
   RangeSelect,
+  SELECT_CLASS,
   StatsRow,
   TopList,
   TrendChart,
@@ -61,37 +63,77 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: Search Console above the site's analytics in full. */
+const VIEWS = [
+  { id: "overview", label: "Overview" },
+  { id: "search-console", label: "Search Console" },
+  { id: "analytics", label: "Analytics" },
+] as const;
+type View = (typeof VIEWS)[number]["id"];
+
+/** The shortcut links on the site Overview point at these. */
+const HASH_VIEWS: Record<string, View> = { "site-search-console": "search-console", "site-analytics": "analytics" };
+
+/** The Analytics tab: a view menu, with the correlation report as its Overview. */
 export function AnalyticsTab(props: { site: SiteSummary }) {
   const { site } = props;
   const source = useAnalyticsProvider(site);
+  const { hash } = useLocation();
+  const [view, setView] = useState<View>(HASH_VIEWS[hash.slice(1)] ?? "overview");
+  const [range, chooseRange] = useAnalyticsRange();
+  useEffect(() => {
+    const requested = HASH_VIEWS[hash.slice(1)];
+    if (requested) setView(requested);
+  }, [hash]);
   return (
     <>
-      <div id="site-search-console">
-        <ErrorBoundary label="Search Console">
-          <SearchConsoleSection site={site} linked={source.configured} />
-        </ErrorBoundary>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <select
+          aria-label="View"
+          value={view}
+          onChange={(event) => setView(event.target.value as View)}
+          className={`${SELECT_CLASS} w-auto!`}
+        >
+          {VIEWS.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        <RangeSelect range={range} onChange={chooseRange} />
       </div>
-      <ErrorBoundary label="Correlation">
-        <CorrelationSection site={site} />
-      </ErrorBoundary>
-      <div id="site-analytics">
-        {source.configured ? (
-          <AnalyticsContent site={site} />
-        ) : (
-          source.loaded && (
-            <Section title="Analytics">
-              <EmptyRow>
-                Connect {source.label} in{" "}
-                <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-                  Settings
-                </Link>{" "}
-                to show this site's analytics.
-              </EmptyRow>
-            </Section>
-          )
-        )}
-      </div>
+      {view === "overview" && (
+        <div className="mt-3">
+          <ErrorBoundary label="Correlation">
+            <CorrelationSection site={site} />
+          </ErrorBoundary>
+        </div>
+      )}
+      {view === "search-console" && (
+        <div id="site-search-console" className="mt-3">
+          <ErrorBoundary label="Search Console">
+            <SearchConsoleSection site={site} linked />
+          </ErrorBoundary>
+        </div>
+      )}
+      {view === "analytics" && (
+        <div id="site-analytics">
+          {source.configured ? (
+            <AnalyticsContent site={site} />
+          ) : (
+            source.loaded && (
+              <Section title="Analytics">
+                <EmptyRow>
+                  Connect {source.label} in{" "}
+                  <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+                    Settings
+                  </Link>{" "}
+                  to show this site's analytics.
+                </EmptyRow>
+              </Section>
+            )
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -99,7 +141,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
 function AnalyticsContent(props: { site: SiteSummary }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
-  const [range, chooseRange] = useAnalyticsRange();
+  const [range] = useAnalyticsRange();
   const details = useQuery({
     queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
@@ -110,7 +152,6 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   const header = (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <ActiveNow data={details.data} />
-      <RangeSelect range={range} onChange={chooseRange} />
     </div>
   );
 
