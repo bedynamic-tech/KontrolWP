@@ -143,6 +143,8 @@ export function RuleDialog(props: {
   rule: Redirect | null;
   initial: RedirectInput;
   onClose: () => void;
+  /** Called after the rule is saved, before the dialog closes. */
+  onSaved?: () => void;
 }) {
   const { site, rule } = props;
   const queryClient = useQueryClient();
@@ -166,6 +168,7 @@ export function RuleDialog(props: {
       queryClient.invalidateQueries({
         queryKey: ["site", site.id, "seo", "404s"],
       });
+      props.onSaved?.();
       props.onClose();
     },
   });
