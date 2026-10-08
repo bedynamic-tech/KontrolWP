@@ -621,6 +621,15 @@ function CloudflareSettingsSection() {
   );
 }
 
+/** The Google Cloud pages the one-time setup needs, in order. */
+const GOOGLE_CLOUD_LINKS = [
+  { label: "1. Create the OAuth client (Credentials)", href: "https://console.cloud.google.com/apis/credentials" },
+  { label: "2. Enable the Google Analytics Data API", href: "https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" },
+  { label: "3. Enable the Google Analytics Admin API", href: "https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" },
+  { label: "4. Enable the Google Search Console API", href: "https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" },
+  { label: "5. Publish the consent screen (In production)", href: "https://console.cloud.google.com/apis/credentials/consent" },
+];
+
 /** The Google account KontrolWP reads Google Analytics and Search Console with, signed in through "Connect to Google". */
 function GoogleSettingsSection() {
   const queryClient = useQueryClient();
@@ -719,6 +728,23 @@ function GoogleSettingsSection() {
           )}
           {needsClient && (
             <>
+              <div className="space-y-1.5">
+                <span className="text-sm font-medium">Open in Google Cloud</span>
+                <ul className="space-y-1 text-sm">
+                  {GOOGLE_CLOUD_LINKS.map((link) => (
+                    <li key={link.href}>
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline underline-offset-4"
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <div className="space-y-1.5">
                 <span className="flex items-center gap-1.5 text-sm font-medium">
                   Authorized redirect URI
