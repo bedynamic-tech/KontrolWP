@@ -9,7 +9,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "./HelpTip";
-import type { SiteSummary } from "../../shared/types";
+import { ANALYTICS_PROVIDERS, type AnalyticsProvider, type SiteSummary } from "../../shared/types";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,8 +23,8 @@ import {
 import {
   deleteSite,
   fetchSite,
-  fetchUmamiSettings,
   replaceConnectionKey,
+  setSiteAnalyticsProvider,
   setSiteCloudflare,
   setLinksExcluded,
   setUpdatesExcluded,
@@ -44,7 +44,13 @@ import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
 import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
-import { AnalyticsSection, WebsitePicker } from "./AnalyticsSection";
+import {
+  AnalyticsSection,
+  PROVIDER_LABELS,
+  SELECT_CLASS,
+  useAnalyticsProvider,
+  WebsitePicker,
+} from "./AnalyticsSection";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
@@ -181,13 +187,11 @@ export function SitePage() {
     },
   });
 
-  const umami = useQuery({
-    queryKey: ["settings", "umami"],
-    queryFn: fetchUmamiSettings,
-    refetchInterval: false,
-  });
+  const analyticsSource = useAnalyticsProvider(
+    data?.site ?? ({ analytics_provider: "umami" } as SiteSummary),
+  );
   const analyticsOn =
-    !!umami.data?.configured && !data?.site.analytics_excluded;
+    analyticsSource.configured && !data?.site.analytics_excluded;
   const twoColumns = analyticsOn;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
@@ -198,7 +202,7 @@ export function SitePage() {
         : STATIC_TABS
       : WORDPRESS_TABS;
   const switchedOff =
-    (requestedTab === "analytics" && umami.data && !analyticsOn) ||
+    (requestedTab === "analytics" && analyticsSource.loaded && !analyticsOn) ||
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded);
@@ -503,7 +507,7 @@ export function SitePage() {
                 />
               </label>
             )}
-            {umami.data?.configured && (
+            {analyticsSource.configured && (
               <FeatureSwitchRow
                 site={site}
                 feature="analytics"
@@ -537,20 +541,7 @@ export function SitePage() {
               </SettingRow>
             )}
             {isStatic && <CloudflareRow site={site} />}
-            {umami.data?.configured && (
-              <SettingRow
-                title="Umami website"
-                detail="Where this site's analytics come from."
-              >
-                <div className="[&_select]:max-w-52">
-                  <WebsitePicker
-                    site={site}
-                    current={site.umami_website_id}
-                    chosen={!!site.umami_website_id}
-                  />
-                </div>
-              </SettingRow>
-            )}
+            <AnalyticsSourceRows site={site} source={analyticsSource} />
             {!isStatic && (
               <SettingRow
                 title="Connection key"
@@ -749,6 +740,64 @@ function CloudflareRow(props: { site: SiteSummary }) {
             }
             disabled={save.isPending}
           />
+        </SettingRow>
+      )}
+    </>
+  );
+}
+
+/** Which service a site's analytics come from, and which of its sources, when any provider is connected. */
+function AnalyticsSourceRows(props: {
+  site: SiteSummary;
+  source: ReturnType<typeof useAnalyticsProvider>;
+}) {
+  const { site, source } = props;
+  const queryClient = useQueryClient();
+  const choose = useMutation({
+    mutationFn: (provider: AnalyticsProvider) =>
+      setSiteAnalyticsProvider(site.id, provider),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", site.id] }),
+  });
+  const providers = ANALYTICS_PROVIDERS.filter(
+    (provider) => source.connected[provider] || provider === source.provider,
+  );
+  // Nothing to choose between until a second provider is connected.
+  if (providers.length < 2 && !source.configured) return null;
+  return (
+    <>
+      {providers.length > 1 && (
+        <SettingRow
+          title="Analytics provider"
+          detail="Where this site's analytics come from. Connect more providers in Settings."
+          error={choose.error?.message}
+        >
+          <select
+            aria-label="Analytics provider"
+            value={choose.isPending ? choose.variables : source.provider}
+            disabled={choose.isPending}
+            onChange={(event) => choose.mutate(event.target.value as AnalyticsProvider)}
+            className={`${SELECT_CLASS} max-w-52`}
+          >
+            {providers.map((provider) => (
+              <option key={provider} value={provider}>
+                {PROVIDER_LABELS[provider]}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+      )}
+      {source.configured && (
+        <SettingRow
+          title={`${source.label} ${source.provider === "umami" ? "website" : "source"}`}
+          detail="Where this site's analytics come from."
+        >
+          <div className="[&_select]:max-w-52">
+            <WebsitePicker
+              site={site}
+              current={source.provider === "umami" ? site.umami_website_id : site.analytics_ref}
+              chosen={!!(source.provider === "umami" ? site.umami_website_id : site.analytics_ref)}
+            />
+          </div>
         </SettingRow>
       )}
     </>

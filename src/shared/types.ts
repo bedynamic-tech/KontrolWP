@@ -46,6 +46,10 @@ export interface SiteSummary {
   plugin_auto_updates: boolean;
   /** The Umami website the owner chose for this site; null matches by domain. */
   umami_website_id: string | null;
+  /** Where this site's analytics come from. */
+  analytics_provider: AnalyticsProvider;
+  /** The Web Analytics site or GA4 property the owner chose, for providers other than Umami; null matches by domain. */
+  analytics_ref: string | null;
   /** Static sites: hosted on Cloudflare Workers, so Deployments and the Worker below apply. */
   cf_hosted: boolean;
   /** Static sites hosted there: the Worker they deploy from, and why reading it last failed. */
@@ -239,6 +243,10 @@ export interface BulkPluginResult {
   error?: string;
 }
 
+/** The services a site's analytics can be read from. */
+export const ANALYTICS_PROVIDERS = ["umami", "cloudflare", "ga4"] as const;
+export type AnalyticsProvider = (typeof ANALYTICS_PROVIDERS)[number];
+
 export type UmamiMode = "cloud" | "self-hosted";
 
 /** The Umami connection as Settings shows it; the API key or password never leaves the Worker. */
@@ -265,18 +273,21 @@ export interface AnalyticsStat {
 }
 
 export interface SiteAnalytics {
-  /** The Umami website shown, or null when none matches the site. */
+  /** Where the numbers come from; an answer saved before providers existed has none, and is Umami's. */
+  provider?: AnalyticsProvider;
+  /** The source shown (an Umami website, a Web Analytics site or a GA4 property), or null when none matches the site. */
   website: UmamiWebsite | null;
   /** True when the owner chose the website rather than KontrolWP matching it by domain. */
   chosen: boolean;
   range: AnalyticsRange;
   stats: {
-    visitors: AnalyticsStat;
+    /** A provider that does not count visitors (Cloudflare) has none. */
+    visitors: AnalyticsStat | null;
     visits: AnalyticsStat;
     pageviews: AnalyticsStat;
-    bounces: AnalyticsStat;
+    bounces: AnalyticsStat | null;
     /** Total visit time in seconds. */
-    totaltime: AnalyticsStat;
+    totaltime: AnalyticsStat | null;
   } | null;
   /** One point per hour (24h) or day, in the browser's time zone. */
   series: { label: string; pageviews: number; visitors: number }[];

@@ -5,8 +5,16 @@ import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
-import { fetchSiteAnalytics, fetchUmamiSettings, fetchUmamiWebsites, setSiteUmamiWebsite } from "../api";
+import type { AnalyticsProvider, AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
+import {
+  fetchCloudflareSettings,
+  fetchSiteAnalytics,
+  fetchUmamiSettings,
+  fetchUmamiWebsites,
+  fetchWebAnalyticsSites,
+  setSiteAnalyticsSource,
+  setSiteUmamiWebsite,
+} from "../api";
 import { hostname } from "../format";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
@@ -17,6 +25,31 @@ export const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
 };
+
+export const PROVIDER_LABELS: Record<AnalyticsProvider, string> = {
+  umami: "Umami",
+  cloudflare: "Cloudflare Web Analytics",
+  ga4: "Google Analytics",
+};
+
+/** Whether the provider this site reads its analytics from is connected in Settings; `loaded` is false until that is known. */
+export function useAnalyticsProvider(site: SiteSummary) {
+  const provider = site.analytics_provider ?? "umami";
+  const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
+  const cloudflare = useQuery({ queryKey: ["settings", "cloudflare"], queryFn: fetchCloudflareSettings, refetchInterval: false });
+  const connected: Record<AnalyticsProvider, boolean | undefined> = {
+    umami: umami.data?.configured,
+    cloudflare: cloudflare.data?.configured,
+    ga4: false,
+  };
+  return {
+    provider,
+    label: PROVIDER_LABELS[provider],
+    configured: !!connected[provider],
+    loaded: connected[provider] !== undefined,
+    connected,
+  };
+}
 
 export const SELECT_CLASS =
   "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -63,16 +96,16 @@ export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: Ana
 export function AnalyticsSection(props: { site: SiteSummary }) {
   const { site } = props;
   const [range, chooseRange] = useAnalyticsRange();
-  const settings = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
+  const source = useAnalyticsProvider(site);
   const analytics = useQuery({
-    queryKey: ["site", site.id, "analytics", range],
+    queryKey: ["site", site.id, "analytics", range, source.provider],
     queryFn: () => fetchSiteAnalytics(site.id, range),
-    enabled: !!settings.data?.configured,
+    enabled: source.configured,
     refetchInterval: 5 * 60_000,
     placeholderData: (previous) => previous,
   });
 
-  if (!settings.data?.configured) return null;
+  if (!source.configured) return null;
 
   let body;
   if (analytics.isPending) {
@@ -89,8 +122,8 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
       <div className="space-y-3 px-4 py-6 text-center">
         <p className="text-sm text-muted-foreground">
           {analytics.data.chosen
-            ? "The Umami website chosen for this site is no longer in Umami."
-            : `No Umami website has the domain ${hostname(site.url)}.`}{" "}
+            ? `The ${source.label} source chosen for this site is no longer there.`
+            : `${source.label} has nothing for the domain ${hostname(site.url)}.`}{" "}
           Choose the one to show.
         </p>
         <WebsitePicker site={site} current={null} chosen={analytics.data.chosen} />
@@ -119,9 +152,10 @@ function AnalyticsBody(props: { data: SiteAnalytics }) {
   );
 }
 
-/** Which Umami website is shown, with the pencil to change it and a link to Settings. */
+/** Which source is shown, with the pencil to change it and a link to Settings. */
 export function AnalyticsFooter(props: { site: SiteSummary; data: SiteAnalytics; children?: ReactNode }) {
   const { data } = props;
+  const { label } = useAnalyticsProvider(props.site);
   return (
     <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
       <span>Connected to {data.website!.name || data.website!.domain}</span>
@@ -129,7 +163,7 @@ export function AnalyticsFooter(props: { site: SiteSummary; data: SiteAnalytics;
       <span className="ml-auto flex items-center gap-3">
         {props.children}
         <Link to="/settings" className="hover:text-foreground hover:underline">
-          Umami settings
+          {label} settings
         </Link>
       </span>
     </div>
@@ -143,16 +177,28 @@ export function StatsRow(props: { data: SiteAnalytics }) {
     value: of.value ? stat.value / of.value : 0,
     previous: stat.previous !== null && of.previous ? stat.previous / of.previous : null,
   });
-  const bounceRate = rate(stats.bounces, stats.visits);
-  const visitTime = rate(stats.totaltime, stats.visits);
+  const bounceRate = stats.bounces ? rate(stats.bounces, stats.visits) : null;
+  const visitTime = stats.totaltime ? rate(stats.totaltime, stats.visits) : null;
+  // A provider that does not report a figure (Cloudflare has no visitors, bounces or duration) leaves it out.
+  const cards = [
+    stats.visitors && { label: "Visitors", stat: stats.visitors, format: count },
+    { label: "Visits", stat: stats.visits, format: count },
+    { label: "Pageviews", stat: stats.pageviews, format: count },
+    bounceRate && { label: "Bounce rate", stat: bounceRate, format: percent, lowerIsBetter: true },
+    visitTime && { label: "Visit duration", stat: visitTime, format: duration },
+  ].filter((card): card is NonNullable<typeof card> => !!card);
 
   return (
-    <dl className="grid grid-cols-2 gap-px border-b bg-border @2xl:grid-cols-5 [&>*:last-child]:col-span-2 @2xl:[&>*:last-child]:col-span-1">
-      <Stat label="Visitors" stat={stats.visitors} format={count} />
-      <Stat label="Visits" stat={stats.visits} format={count} />
-      <Stat label="Pageviews" stat={stats.pageviews} format={count} />
-      <Stat label="Bounce rate" stat={bounceRate} format={percent} lowerIsBetter />
-      <Stat label="Visit duration" stat={visitTime} format={duration} />
+    <dl
+      className={cn(
+        "grid grid-cols-2 gap-px border-b bg-border [&>*:last-child]:col-span-2 @2xl:[&>*:last-child]:col-span-1",
+        cards.length === 5 ? "@2xl:grid-cols-5" : cards.length === 4 ? "@2xl:grid-cols-4" : "@2xl:grid-cols-3",
+        cards.length % 2 === 0 && "[&>*:last-child]:col-span-1",
+      )}
+    >
+      {cards.map((card) => (
+        <Stat key={card.label} {...card} />
+      ))}
     </dl>
   );
 }
@@ -195,6 +241,8 @@ function Stat(props: { label: string; stat: AnalyticsStat; format: (value: numbe
 /** Pageviews as bars, with the visitors share drawn darker inside each one. */
 export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
   const { series, range } = props.data;
+  // Cloudflare counts visits, not visitors.
+  const visitorsLabel = props.data.provider === "cloudflare" ? "visits" : "visitors";
   const max = Math.max(1, ...series.map((point) => point.pageviews));
   const hourly = range === "24h";
   const label = (key: string) => {
@@ -211,7 +259,7 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
           <span className="size-2.5 rounded-sm bg-primary/25" /> Pageviews
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-primary" /> Visitors
+          <span className="size-2.5 rounded-sm bg-primary" /> {visitorsLabel === "visits" ? "Visits" : "Visitors"}
         </span>
       </div>
       <div className={cn("mt-3 flex items-end gap-[2px]", props.tall ? "h-64" : "h-40")} role="img" aria-label="Pageviews and visitors over time">
@@ -219,7 +267,7 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
           <div
             key={point.label}
             className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
-            title={`${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} visitors`}
+            title={`${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} ${visitorsLabel}`}
           >
             <div
               className="relative w-full rounded-t-sm bg-primary/25 group-hover:bg-primary/35"
@@ -275,15 +323,24 @@ export function TopList(props: {
   );
 }
 
-/** Choose the site's Umami website, or go back to matching by domain. */
+/** Choose the site's analytics source (an Umami website or a Web Analytics site), or go back to matching by domain. */
 export function WebsitePicker(props: { site: SiteSummary; current: string | null; chosen: boolean; compact?: boolean }) {
   const queryClient = useQueryClient();
+  const provider = props.site.analytics_provider ?? "umami";
+  const noun = provider === "umami" ? "website" : "site";
+  const label = PROVIDER_LABELS[provider];
   const [open, setOpen] = useState(!props.compact);
-  const websites = useQuery({ queryKey: ["umami", "websites"], queryFn: fetchUmamiWebsites, enabled: open, refetchInterval: false });
+  const websites = useQuery({
+    queryKey: [provider, "websites"],
+    queryFn: provider === "umami" ? fetchUmamiWebsites : fetchWebAnalyticsSites,
+    enabled: open,
+    refetchInterval: false,
+  });
   const save = useMutation({
-    mutationFn: (websiteId: string | null) => setSiteUmamiWebsite(props.site.id, websiteId),
+    mutationFn: (ref: string | null) =>
+      provider === "umami" ? setSiteUmamiWebsite(props.site.id, ref) : setSiteAnalyticsSource(props.site.id, ref),
     onSuccess: () => props.compact && setOpen(false),
-    // The site (its chosen website) and every analytics query under it.
+    // The site (its chosen source) and every analytics query under it.
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["site", props.site.id] }),
   });
 
@@ -292,8 +349,8 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label="Change the Umami website"
-        title="Change the Umami website"
+        aria-label={`Change the ${label} ${noun}`}
+        title={`Change the ${label} ${noun}`}
         className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
         onClick={() => setOpen(true)}
       >
@@ -305,13 +362,13 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
     <span className="inline-flex flex-wrap items-center gap-2">
       {(save.isPending || (websites.isPending && open)) && <Spinner className="size-3.5" label="Loading" />}
       <select
-        aria-label="Umami website"
+        aria-label={`${label} ${noun}`}
         value={props.chosen ? (props.current ?? "") : ""}
         disabled={websites.isPending || save.isPending}
         onChange={(event) => save.mutate(event.target.value || null)}
         className={SELECT_CLASS}
       >
-        <option value="">{websites.isPending ? "Loading websites..." : "Match by domain"}</option>
+        <option value="">{websites.isPending ? `Loading ${noun}s...` : "Match by domain"}</option>
         {websites.data?.websites.map((website) => (
           <option key={website.id} value={website.id}>
             {website.name}

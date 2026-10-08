@@ -157,7 +157,7 @@ function zoneOffset(ms: number, timeZone: string): number {
 }
 
 /** "YYYY-MM-DD HH" in timeZone, the key each chart bucket is matched on. */
-function bucketKey(ms: number, timeZone: string, unit: "hour" | "day"): string {
+export function bucketKey(ms: number, timeZone: string, unit: "hour" | "day"): string {
   const local = new Date(ms + zoneOffset(ms, timeZone)).toISOString();
   return unit === "hour" ? `${local.slice(0, 10)} ${local.slice(11, 13)}` : local.slice(0, 10);
 }

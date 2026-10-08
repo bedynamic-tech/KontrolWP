@@ -553,7 +553,7 @@ function CloudflareSettingsSection() {
       title="Cloudflare"
       hint={
         settings.data?.configured
-          ? "Connected. A static site on Cloudflare Workers shows its deployments and build logs once you choose its Worker."
+          ? "Connected. A static site on Cloudflare Workers shows its deployments and build logs once you choose its Worker, and any site can read its analytics from Cloudflare Web Analytics."
           : "Connect Cloudflare to show a static site's deployments and build logs. KontrolWP only reads from Cloudflare."
       }
     >
@@ -570,8 +570,8 @@ function CloudflareSettingsSection() {
               API token
               <HelpTip>
                 Create a user API token in Cloudflare under My Profile, API Tokens, with read access to Account
-                Settings, Workers Scripts and Workers Builds Configuration. It is stored encrypted and never shown
-                again.
+                Settings, Workers Scripts and Workers Builds Configuration, plus Account Analytics: Read to show Cloudflare Web
+                Analytics. It is stored encrypted and never shown again.
               </HelpTip>
             </span>
             <Input

@@ -525,3 +525,9 @@ Switching a module off hides it. With SEO Management off (plugin 0.24.0), the SE
 ## Overview health cards
 
 Every site's Overview starts with a Health section of up to four cards: Links and Security (WordPress only), SEO, and Accessibility. Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
+
+## Analytics providers
+
+A site reads its analytics from one provider, `sites.analytics_provider` (`umami` by default, `cloudflare`, later `ga4`), chosen in the site's settings. `GET /sites/:id/analytics` and `/analytics/details` pick the provider and return the same `SiteAnalytics` shape, so the Overview card, the Analytics tab and the export do not care where the numbers came from; `provider` says which. A figure a provider does not have (Cloudflare has no unique visitors, bounce rate or visit duration) is `null` and the card leaves it out. `analytics_ref` is the owner's chosen source within a non-Umami provider; null matches by domain.
+
+Cloudflare Web Analytics (`src/worker/web-analytics.ts`) uses the Cloudflare API token already saved in Settings. It lists Web Analytics sites with `GET /accounts/:id/rum/site_info/list` and reads page loads and visits from the GraphQL Analytics API (`rumPageloadEventsAdaptiveGroups`, filtered by site tag), which needs the token to have Account Analytics: Read. A source id is `<account id>:<site tag>`.

@@ -11,6 +11,7 @@ import {
   StatsRow,
   TopList,
   TrendChart,
+  useAnalyticsProvider,
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
@@ -56,12 +57,13 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: the site's Umami data in full. */
+/** The Analytics tab: the site's analytics in full. */
 export function AnalyticsTab(props: { site: SiteSummary }) {
   const { site } = props;
+  const { label } = useAnalyticsProvider(site);
   const [range, chooseRange] = useAnalyticsRange();
   const details = useQuery({
-    queryKey: ["site", site.id, "analytics-details", range],
+    queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
     refetchInterval: 5 * 60_000,
     placeholderData: (previous) => previous,
@@ -107,8 +109,8 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
         <div className="space-y-3 px-4 py-6 text-center">
           <p className="text-sm text-muted-foreground">
             {data.chosen
-              ? "The Umami website chosen for this site is no longer in Umami."
-              : `No Umami website has the domain ${hostname(site.url)}.`}{" "}
+              ? `The ${label} source chosen for this site is no longer there.`
+              : `${label} has nothing for the domain ${hostname(site.url)}.`}{" "}
             Choose the one to show.
           </p>
           <WebsitePicker site={site} current={null} chosen={data.chosen} />
@@ -131,7 +133,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
           <div key={card.key} className="overflow-hidden rounded-xl border bg-background">
             <TopList
               title={card.title}
-              unit={card.unit}
+              unit={data.provider === "cloudflare" ? "Views" : card.unit}
               rows={breakdowns[card.key]!}
               empty={card.empty}
               format={card.format}
