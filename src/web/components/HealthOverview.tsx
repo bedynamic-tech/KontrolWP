@@ -368,7 +368,7 @@ function SearchConsoleCard(props: {
     <HealthCard
       icon={<TrendingUpIcon />}
       title="Search Console"
-      tab="seo"
+      tab="analytics"
       summary={summary}
       onOpen={props.onOpen}
     />
@@ -397,7 +397,7 @@ export function HealthOverview(props: {
         {security && <SecurityCard site={site} onOpen={onOpen} />}
         <SeoCard site={site} onOpen={onOpen} />
         {accessibility && <AccessibilityCard site={site} onOpen={onOpen} />}
-        <SearchConsoleCard site={site} onOpen={onOpen} />
+        {!site.analytics_excluded && <SearchConsoleCard site={site} onOpen={onOpen} />}
       </div>
     </section>
   );

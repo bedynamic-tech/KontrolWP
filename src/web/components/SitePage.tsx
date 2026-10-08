@@ -42,7 +42,6 @@ import {
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
-import { SearchConsoleSection } from "./SearchConsoleSection";
 import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
@@ -196,6 +195,10 @@ export function SitePage() {
   const analyticsOn =
     analyticsSource.configured && !data?.site.analytics_excluded;
   const twoColumns = analyticsOn;
+  // The Analytics tab also carries Search Console, so a connected Google account is enough to show it.
+  const analyticsTabOn =
+    (analyticsSource.configured || !!analyticsSource.connected.ga4) &&
+    !data?.site.analytics_excluded;
   // The Analytics tab needs Umami connected in Settings.
   const kind = data?.site.kind;
   const tabs =
@@ -205,7 +208,7 @@ export function SitePage() {
         : STATIC_TABS
       : WORDPRESS_TABS;
   const switchedOff =
-    (requestedTab === "analytics" && analyticsSource.loaded && !analyticsOn) ||
+    (requestedTab === "analytics" && analyticsSource.loaded && !analyticsTabOn) ||
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded);
@@ -223,7 +226,7 @@ export function SitePage() {
   const onCloudflare = isStatic && site.cf_hosted;
   const tabItems: TabItem[] = [
     { value: "overview", label: "Overview" },
-    ...(analyticsOn ? [{ value: "analytics", label: "Analytics" }] : []),
+    ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics" }] : []),
     ...(isStatic
       ? [
           { value: "pages", label: "Pages" },
@@ -417,9 +420,6 @@ export function SitePage() {
           <SecurityTab site={site} />
         </TabsContent>
         <TabsContent value="seo" className={TAB_CLASS}>
-          <ErrorBoundary label="Search Console">
-            <SearchConsoleSection site={site} />
-          </ErrorBoundary>
           <ErrorBoundary label="The SEO tab">
             {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
           </ErrorBoundary>
