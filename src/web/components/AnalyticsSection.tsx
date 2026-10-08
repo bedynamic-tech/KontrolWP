@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import type { AnalyticsProvider, AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
 import {
   fetchCloudflareSettings,
+  fetchGa4Properties,
+  fetchGoogleSettings,
   fetchSiteAnalytics,
   fetchUmamiSettings,
   fetchUmamiWebsites,
@@ -37,10 +39,11 @@ export function useAnalyticsProvider(site: SiteSummary) {
   const provider = site.analytics_provider ?? "umami";
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
   const cloudflare = useQuery({ queryKey: ["settings", "cloudflare"], queryFn: fetchCloudflareSettings, refetchInterval: false });
+  const google = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
   const connected: Record<AnalyticsProvider, boolean | undefined> = {
     umami: umami.data?.configured,
     cloudflare: cloudflare.data?.configured,
-    ga4: false,
+    ga4: google.data?.configured,
   };
   return {
     provider,
@@ -327,12 +330,12 @@ export function TopList(props: {
 export function WebsitePicker(props: { site: SiteSummary; current: string | null; chosen: boolean; compact?: boolean }) {
   const queryClient = useQueryClient();
   const provider = props.site.analytics_provider ?? "umami";
-  const noun = provider === "umami" ? "website" : "site";
+  const noun = provider === "umami" ? "website" : provider === "ga4" ? "property" : "site";
   const label = PROVIDER_LABELS[provider];
   const [open, setOpen] = useState(!props.compact);
   const websites = useQuery({
     queryKey: [provider, "websites"],
-    queryFn: provider === "umami" ? fetchUmamiWebsites : fetchWebAnalyticsSites,
+    queryFn: provider === "umami" ? fetchUmamiWebsites : provider === "ga4" ? fetchGa4Properties : fetchWebAnalyticsSites,
     enabled: open,
     refetchInterval: false,
   });

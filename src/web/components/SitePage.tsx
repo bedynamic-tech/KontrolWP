@@ -788,7 +788,7 @@ function AnalyticsSourceRows(props: {
       )}
       {source.configured && (
         <SettingRow
-          title={`${source.label} ${source.provider === "umami" ? "website" : "source"}`}
+          title={`${source.label} ${source.provider === "umami" ? "website" : source.provider === "ga4" ? "property" : "source"}`}
           detail="Where this site's analytics come from."
         >
           <div className="[&_select]:max-w-52">

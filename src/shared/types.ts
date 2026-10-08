@@ -556,6 +556,13 @@ export interface CloudflareSettings {
   configured: boolean;
 }
 
+/** The Google service account as Settings shows it; the private key never leaves the Worker. */
+export interface GoogleSettings {
+  configured: boolean;
+  /** The service account's email address, which Analytics and Search Console must give access to. */
+  client_email: string;
+}
+
 /** A Worker the Cloudflare token can see, for choosing a static site's deployments. */
 export interface CloudflareWorker {
   account_id: string;
