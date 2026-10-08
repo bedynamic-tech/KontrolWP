@@ -17,6 +17,7 @@ import {
   WebsitePicker,
 } from "./AnalyticsSection";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { CorrelationSection } from "./CorrelationSection";
 import { SearchConsoleSection } from "./SearchConsoleSection";
 import { EmptyRow, Section } from "./Section";
 
@@ -71,6 +72,9 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
           <SearchConsoleSection site={site} linked={source.configured} />
         </ErrorBoundary>
       </div>
+      <ErrorBoundary label="Correlation">
+        <CorrelationSection site={site} />
+      </ErrorBoundary>
       <div id="site-analytics">
         {source.configured ? (
           <AnalyticsContent site={site} />
