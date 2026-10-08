@@ -14,7 +14,7 @@ export interface SeoPageReport {
   findings: SeoFinding[];
 }
 
-function decode(value: string): string {
+export function decode(value: string): string {
   return value
     .replace(/&nbsp;|&#160;|&#xa0;/gi, " ")
     .replace(/&quot;/g, '"')
@@ -39,7 +39,7 @@ function shorten(value: string): string {
 }
 
 /** The content of the first <meta> tag whose name or property is `key`. */
-function meta(html: string, key: string): string | null {
+export function meta(html: string, key: string): string | null {
   for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = match[0];
     const name = (
