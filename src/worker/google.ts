@@ -29,8 +29,6 @@ export const GOOGLE_SCOPES = {
   manage: "https://www.googleapis.com/auth/webmasters",
   /** Prove ownership of a site, without being able to list or change anything else. */
   verify: "https://www.googleapis.com/auth/siteverification.verify_only",
-  /** Read a Google Ads account's campaign figures. */
-  ads: "https://www.googleapis.com/auth/adwords",
 } as const;
 
 /** A service account's key, from before "Connect to Google". */
@@ -64,10 +62,6 @@ export const googleCanSetUpSites = (credential: GoogleCredential): boolean =>
   credential.kind === "oauth" &&
   !!credential.scopes?.includes(GOOGLE_SCOPES.manage) &&
   !!credential.scopes.includes(GOOGLE_SCOPES.verify);
-
-/** Whether the sign-in allows reading Google Ads; connections made before Ads support need to reconnect. */
-export const googleCanUseAds = (credential: GoogleCredential): boolean =>
-  credential.kind === "oauth" && !!credential.scopes?.includes(GOOGLE_SCOPES.ads);
 
 /** The email address behind a credential, for Settings. */
 export const googleAccount = (credential: GoogleCredential): string =>
@@ -155,7 +149,6 @@ export async function startGoogleSignIn(
       "openid",
       "email",
       GOOGLE_SCOPES.analytics,
-      GOOGLE_SCOPES.ads,
       ...(options.setup ? [GOOGLE_SCOPES.manage, GOOGLE_SCOPES.verify] : [GOOGLE_SCOPES.searchConsole]),
     ].join(" "),
     // Offline access gives the refresh token; consent makes Google send it again on a reconnect.
@@ -326,7 +319,7 @@ async function oauthAccessToken(account: GoogleOAuthAccount, client: GoogleClien
 export async function googleCall<T>(
   token: string,
   url: string,
-  init: { method?: "GET" | "POST" | "PUT"; body?: unknown; headers?: Record<string, string>; refusal?: string } = {},
+  init: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {},
 ): Promise<T> {
   let res: Response;
   try {
@@ -336,7 +329,6 @@ export async function googleCall<T>(
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
         ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...init.headers,
       },
       body: init.body ? JSON.stringify(init.body) : undefined,
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -360,7 +352,7 @@ export async function googleCall<T>(
     if (res.status === 403 || res.status === 401) {
       const reason = detail ? ` Google said: ${detail}` : "";
       throw new GoogleError(
-        `Google refused this request (${res.status}) for the connected account. ${init.refusal ?? "It needs access to the property in Google Analytics or Search Console, and to have allowed it when signing in."}${reason}`,
+        `Google refused this request (${res.status}) for the connected account. It needs access to the property in Google Analytics or Search Console, and to have allowed it when signing in.${reason}`,
         400,
       );
     }

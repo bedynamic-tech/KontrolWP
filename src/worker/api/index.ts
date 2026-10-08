@@ -17,7 +17,6 @@ import type {
   GoogleSettings,
   SiteAnalytics,
   SearchConsoleSetup,
-  SiteGoogleAds,
   SiteSearchConsole,
   SiteAnalyticsDetails,
   SiteDeployments,
@@ -115,7 +114,6 @@ import {
   GoogleError,
   googleAccount,
   googleCanSetUpSites,
-  googleCanUseAds,
   googleRedirectUri,
   loadGoogleClient,
   loadGoogleCredential,
@@ -124,7 +122,6 @@ import {
   startGoogleSignIn,
   type GoogleCredential,
 } from "../google.ts";
-import { deleteAdsToken, googleAds, listAdsAccounts, loadAdsToken, saveAdsToken } from "../google-ads.ts";
 import { listSearchConsoleProperties, matchSearchConsoleProperty, searchConsole } from "../search-console.ts";
 import { addProperty, propertyUrl, submitSitemap, verificationCode, verifyProperty } from "../search-console-setup.ts";
 import { MigrationError } from "../db/migrate.ts";
@@ -2007,8 +2004,6 @@ async function googleSettings(c: AppContext): Promise<GoogleSettings> {
     client_id: client?.client_id ?? "",
     client_configured: !!client,
     can_setup: !!credential && googleCanSetUpSites(credential),
-    can_use_ads: !!credential && googleCanUseAds(credential),
-    ads_token_configured: !!(await loadAdsToken(c.env)),
     redirect_uri: googleRedirectUri(new URL(c.req.url).origin),
   };
 }
@@ -2207,81 +2202,6 @@ api.put("/sites/:id/search-console", async (c) => {
   const id = siteId(c);
   if (!parsed.success || !id) return c.json({ error: "Invalid property" }, 400);
   const result = await c.env.DB.prepare("UPDATE sites SET gsc_property = ? WHERE id = ?").bind(parsed.data.property, id).run();
-  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
-  await clearContentCache(c.env.DB, id);
-  return c.json({ ok: true });
-});
-
-/** Run a Google Ads request: needs the Ads permission from the sign-in and the developer token saved in Settings. */
-function adsRequest(c: AppContext, request: (token: string, developerToken: string) => Promise<Response>) {
-  return googleRequest(c, async (access, credential) => {
-    if (!googleCanUseAds(credential)) {
-      return c.json({ error: "Reconnect to Google in Settings to allow Google Ads.", code: "ads_scope" }, 409);
-    }
-    const developerToken = await loadAdsToken(c.env);
-    if (!developerToken) return c.json({ error: "Add a Google Ads developer token in Settings first.", code: "ads_not_configured" }, 409);
-    return request(await access(GOOGLE_SCOPES.ads), developerToken);
-  });
-}
-
-/** Save the Google Ads developer token (encrypted); it is never sent back. */
-api.put("/settings/google/ads", async (c) => {
-  const parsed = z.object({ developer_token: z.string().trim().min(8).max(100) }).safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Paste the developer token from the Google Ads API Center." }, 400);
-  try {
-    await saveAdsToken(c.env, parsed.data.developer_token);
-  } catch (error) {
-    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
-    throw error;
-  }
-  await clearContentCacheKind(c.env.DB, "analytics");
-  return c.json<GoogleSettings>(await googleSettings(c));
-});
-
-api.delete("/settings/google/ads", async (c) => {
-  await deleteAdsToken(c.env);
-  await clearContentCacheKind(c.env.DB, "analytics");
-  return c.json<GoogleSettings>(await googleSettings(c));
-});
-
-/** The Google Ads accounts the connected Google account can read. */
-api.get("/google/ads/accounts", (c) =>
-  adsRequest(c, async (token, developerToken) => c.json({ accounts: await listAdsAccounts(token, developerToken) })),
-);
-
-const adsRange = z.enum(["24h", "7d", "30d", "90d"]);
-
-/** The site's Google Ads clicks, impressions, cost and conversions. */
-api.get("/sites/:id/google-ads", (c) =>
-  adsRequest(c, async (token, developerToken) => {
-    const id = siteId(c);
-    const site = id && (await c.env.DB.prepare("SELECT ads_customer FROM sites WHERE id = ?").bind(id).first<{ ads_customer: string | null }>());
-    if (!site) return c.json({ error: "Site not found" }, 404);
-    const range = adsRange.catch("7d").parse(c.req.query("range"));
-    const accounts = await listAdsAccounts(token, developerToken);
-    const chosen = site.ads_customer ? (accounts.find((account) => account.id === site.ads_customer) ?? null) : null;
-    const account = chosen ?? (site.ads_customer || accounts.length !== 1 ? null : accounts[0]);
-    if (!account) {
-      return c.json<SiteGoogleAds>({ account: null, chosen: !!site.ads_customer, accounts: accounts.length, range, currency: "", totals: null, series: [] });
-    }
-    const data = await cachedRead(
-      c.env.DB,
-      id,
-      "analytics",
-      `google-ads|${account.id}|${range}`,
-      async () => ({ chosen: !!chosen, accounts: accounts.length, ...(await googleAds(token, developerToken, account, range)) }),
-      { maxAge: 600, staleOnError: false },
-    );
-    return c.json<SiteGoogleAds>(data);
-  }),
-);
-
-/** Choose the Google Ads account for a site, or null to use the only one available. */
-api.put("/sites/:id/google-ads", async (c) => {
-  const parsed = z.object({ account: z.string().trim().regex(/^\d{6,}(\/\d{6,})?$/).nullable() }).safeParse(await c.req.json().catch(() => null));
-  const id = siteId(c);
-  if (!parsed.success || !id) return c.json({ error: "Invalid Google Ads account" }, 400);
-  const result = await c.env.DB.prepare("UPDATE sites SET ads_customer = ? WHERE id = ?").bind(parsed.data.account, id).run();
   if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
   await clearContentCache(c.env.DB, id);
   return c.json({ ok: true });

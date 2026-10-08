@@ -60,7 +60,6 @@ test("signing in asks for read-only scopes with offline access and checks the st
   const scopes = url.searchParams.get("scope").split(" ");
   assert.deepEqual(scopes.sort(), [
     "email",
-    "https://www.googleapis.com/auth/adwords",
     "https://www.googleapis.com/auth/analytics.readonly",
     "https://www.googleapis.com/auth/webmasters.readonly",
     "openid",

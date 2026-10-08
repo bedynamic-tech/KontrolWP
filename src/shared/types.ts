@@ -48,8 +48,6 @@ export interface SiteSummary {
   umami_website_id: string | null;
   /** The Search Console property the owner chose for this site; null matches by domain. */
   gsc_property: string | null;
-  /** The Google Ads account the owner chose for this site ("customer" or "manager/customer"); null uses the only one available. */
-  ads_customer: string | null;
   /** Where this site's analytics come from. */
   analytics_provider: AnalyticsProvider;
   /** The GA4 property the owner chose, for providers other than Umami; null matches by domain. */
@@ -612,34 +610,6 @@ export interface GoogleSettings {
   can_setup: boolean;
   /** The address to list as an authorized redirect URI on the OAuth client. */
   redirect_uri: string;
-  /** The sign-in allows reading Google Ads; one made before Ads support has to be repeated. */
-  can_use_ads: boolean;
-  /** A Google Ads developer token is saved; it is never returned. */
-  ads_token_configured: boolean;
-}
-
-/** A Google Ads account the connected Google account can read. */
-export interface GoogleAdsAccount {
-  /** "customer", or "manager/customer" when reached through a manager account. */
-  id: string;
-  name: string;
-  /** The customer ID alone. */
-  customer: string;
-}
-
-/** A site's Google Ads figures for a period, against the one before it. */
-export interface SiteGoogleAds {
-  /** The account shown, or null when none is chosen yet. */
-  account: GoogleAdsAccount | null;
-  /** True when the owner chose the account rather than it being the only one. */
-  chosen: boolean;
-  /** How many accounts the connection can see, so "none" and "pick one" can be told apart. */
-  accounts: number;
-  range: AnalyticsRange;
-  currency: string;
-  totals: { clicks: AnalyticsStat; impressions: AnalyticsStat; cost: AnalyticsStat; conversions: AnalyticsStat } | null;
-  /** One point per day. */
-  series: { label: string; clicks: number; impressions: number; cost: number; conversions: number }[];
 }
 
 /** A Worker the Cloudflare token can see, for choosing a static site's deployments. */

@@ -49,9 +49,7 @@ import type {
   GoogleSettings,
   SearchConsoleRange,
   SearchConsoleSetup,
-  SiteGoogleAds,
   SiteSearchConsole,
-  GoogleAdsAccount,
   UmamiSettings,
   UmamiWebsite,
   Overview,
@@ -268,14 +266,6 @@ export const startGoogleConnect = (options: { setup?: boolean; return_to?: strin
 export const setUpSearchConsole = (siteId: number) =>
   request<SearchConsoleSetup>(`/sites/${siteId}/search-console/setup`, { method: "POST" });
 export const deleteGoogleSettings = () => request<GoogleSettings>("/settings/google", { method: "DELETE" });
-export const saveGoogleAdsToken = (developer_token: string) =>
-  request<GoogleSettings>("/settings/google/ads", { method: "PUT", json: { developer_token } });
-export const deleteGoogleAdsToken = () => request<GoogleSettings>("/settings/google/ads", { method: "DELETE" });
-export const fetchGoogleAdsAccounts = () => request<{ accounts: GoogleAdsAccount[] }>("/google/ads/accounts");
-export const fetchGoogleAds = (siteId: number, range: AnalyticsRange) =>
-  request<SiteGoogleAds>(`/sites/${siteId}/google-ads?range=${range}`);
-export const setSiteGoogleAdsAccount = (siteId: number, account: string | null) =>
-  request<{ ok: true }>(`/sites/${siteId}/google-ads`, { method: "PUT", json: { account } });
 export const fetchGa4Properties = () => request<{ websites: UmamiWebsite[] }>("/google/analytics/properties");
 
 export const fetchSearchConsole = (siteId: number, range: SearchConsoleRange) =>
