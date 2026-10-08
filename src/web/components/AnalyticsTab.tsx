@@ -68,7 +68,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
     <>
       <div id="site-search-console">
         <ErrorBoundary label="Search Console">
-          <SearchConsoleSection site={site} />
+          <SearchConsoleSection site={site} linked={source.configured} />
         </ErrorBoundary>
       </div>
       <div id="site-analytics">

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, PencilIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -54,24 +54,40 @@ export const SELECT_CLASS =
 
 /** The site's Umami analytics; shows nothing until Umami is connected in Settings. */
 /** The chosen date range, remembered in this browser and shared by the Overview card and the Analytics tab. */
-export function useAnalyticsRange(): [AnalyticsRange, (next: AnalyticsRange) => void] {
-  const [range, setRange] = useState<AnalyticsRange>(() => {
-    try {
-      const saved = localStorage.getItem("kontrolwp:analytics-range");
-      return saved && saved in RANGE_LABELS ? (saved as AnalyticsRange) : "7d";
-    } catch {
-      return "7d";
-    }
-  });
-  const choose = (next: AnalyticsRange) => {
-    setRange(next);
-    try {
-      localStorage.setItem("kontrolwp:analytics-range", next);
-    } catch {
-      // Remembering the range is only a convenience.
-    }
+const RANGE_KEY = "kontrolwp:analytics-range";
+const rangeListeners = new Set<() => void>();
+
+function readRange(): AnalyticsRange {
+  try {
+    const saved = localStorage.getItem(RANGE_KEY);
+    return saved && saved in RANGE_LABELS ? (saved as AnalyticsRange) : "7d";
+  } catch {
+    return "7d";
+  }
+}
+
+let currentRange: AnalyticsRange = readRange();
+
+function setRange(next: AnalyticsRange) {
+  currentRange = next;
+  try {
+    localStorage.setItem(RANGE_KEY, next);
+  } catch {
+    // Remembering the range is only a convenience.
+  }
+  for (const listener of rangeListeners) listener();
+}
+
+function subscribeRange(listener: () => void) {
+  rangeListeners.add(listener);
+  return () => {
+    rangeListeners.delete(listener);
   };
-  return [range, choose];
+}
+
+export function useAnalyticsRange(): [AnalyticsRange, (next: AnalyticsRange) => void] {
+  const range = useSyncExternalStore(subscribeRange, () => currentRange);
+  return [range, setRange];
 }
 
 export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: AnalyticsRange) => void }) {
