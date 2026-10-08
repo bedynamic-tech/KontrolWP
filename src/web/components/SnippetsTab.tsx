@@ -183,19 +183,6 @@ function Snippets(props: { site: SiteSummary }) {
                       checked={snippet.enabled}
                       onCheckedChange={(value) => update(index, { enabled: value })}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Delete ${snippet.name || "snippet"}`}
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => {
-                        setDraft({ ...draft, snippets: draft.snippets.filter((_, i) => i !== index) });
-                        setOpen(new Set());
-                      }}
-                    >
-                      <Trash2Icon />
-                    </Button>
                   </div>
                   {isOpen && (
                     <div className="divide-y border-t bg-muted/20">
@@ -267,6 +254,20 @@ function Snippets(props: { site: SiteSummary }) {
                         <p className="mt-1 text-right text-xs text-muted-foreground">
                           {snippet.code.length} / {limits.code}
                         </p>
+                      </div>
+                      <div className="flex justify-end px-4 py-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setDraft({ ...draft, snippets: draft.snippets.filter((_, i) => i !== index) });
+                            setOpen(new Set());
+                          }}
+                        >
+                          <Trash2Icon /> Delete snippet
+                        </Button>
                       </div>
                     </div>
                   )}
