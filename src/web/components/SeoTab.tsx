@@ -1032,11 +1032,6 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
               value={draft.title_template}
               onChange={(event) => set("title_template", event.target.value)}
             />
-            <TitlePreview
-              label="A page titled Sample page title looks like"
-              title={fillTemplate(draft.title_template, { ...vars, title: "Sample page title" })}
-              url={`${data.home_url.replace(/\/$/, "")}/sample-page/`}
-            />
           </Row>
           <Row
             title="Home page title"
