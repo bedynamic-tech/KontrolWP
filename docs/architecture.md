@@ -297,6 +297,8 @@ text stays, buttons are left alone since unwrapping breaks the block, and
 images are not touched. Posts are saved with `wp_update_post`, so WordPress
 keeps a revision to restore, then re-read so the list matches. A site keeps at most 10,000 addresses; a scan that reaches that says so in the Links tab (`scan.truncated`).
 From 0.25.0 the listing reads each post's content as visitors get it (`the_content` filters applied, so shortcodes, dynamic blocks and page builders such as Kadence add their links) as well as the saved content, merged. Rendering has a 12 second budget per listing page; posts after it are read from the saved content only, and the response reports how many (`unrendered`). Remove link works on the saved content, so a link that exists only in rendered output cannot be unwrapped.
+
+Broken links on the site itself also get a Redirect button (sites with the redirects feature). It opens the redirect dialog from the Redirects tab with the link's path and query as the From address, so the To address has the same page suggestions. Links to other sites have no button.
 The Enable broken link checks setting in Site settings (`PUT /api/sites/:id/links-excluded`)
 excludes a site: its scan and every link it found are deleted, scheduled
 checks skip it, Scan now answers 409, and its Links tab says detection is off.
