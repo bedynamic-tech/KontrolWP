@@ -16,10 +16,12 @@ import {
   fetchGoogleSettings,
   fetchSearchConsole,
   fetchSearchConsoleProperties,
+  fetchSeo,
   setSiteSearchConsoleProperty,
   setUpSearchConsole,
   startGoogleConnect,
 } from "../api";
+import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import { hostname } from "../format";
 import { count, JumpButton, SELECT_CLASS, Stat } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
@@ -79,6 +81,17 @@ export function SearchConsoleSection(props: {
     refetchInterval: false,
     placeholderData: (previous) => previous,
   });
+
+  // Setting a WordPress site up needs SEO Management, which prints the verification tag. The same read the SEO tab makes.
+  const seo = useQuery({
+    queryKey: ["site", site.id, "seo"],
+    queryFn: () => fetchSeo(site.id),
+    enabled:
+      site.kind !== "static" &&
+      !!google.data?.configured &&
+      compareVersions(site.plugin_version ?? "0", SEO_SINCE) >= 0,
+  });
+  const seoOff = seo.data ? !seo.data.settings.enabled : false;
 
   if (google.isPending || google.error) return null;
   if (!google.data.configured) {
@@ -141,13 +154,23 @@ export function SearchConsoleSection(props: {
   } else if (!data.data.property || !data.data.totals) {
     body = (
       <div className="space-y-3 px-4 py-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          {data.data.chosen
-            ? "The Search Console property chosen for this site is no longer available."
-            : `Search Console has no property for ${hostname(site.url)} that ${google.data.account} can read. Make sure that account is a user of the property in Search Console, or choose one.`}
-        </p>
+        {seoOff && !data.data.chosen ? (
+          <p className="text-sm text-muted-foreground">
+            SEO Management is required to set up Google Search Console, because it prints the tag that proves you own
+            the site.{" "}
+            <Link to="?tab=seo" className="underline underline-offset-4">
+              Open SEO settings
+            </Link>
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {data.data.chosen
+              ? "The Search Console property chosen for this site is no longer available."
+              : `Search Console has no property for ${hostname(site.url)} that ${google.data.account} can read. Make sure that account is a user of the property in Search Console, or choose one.`}
+          </p>
+        )}
         <PropertyPicker site={site} current={null} chosen={data.data.chosen} />
-        {!data.data.chosen && site.kind !== "static" && (
+        {!data.data.chosen && !seoOff && site.kind !== "static" && (
           <SetUpSearchConsole site={site} canSetUp={google.data.can_setup} />
         )}
       </div>
