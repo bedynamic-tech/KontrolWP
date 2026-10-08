@@ -115,7 +115,6 @@ import {
   type GoogleKey,
 } from "../google.ts";
 import { listSearchConsoleProperties, matchSearchConsoleProperty, searchConsole } from "../search-console.ts";
-import { listWebAnalyticsSites, matchWebAnalyticsSite, webAnalytics, webAnalyticsDetails } from "../web-analytics.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
@@ -1714,11 +1713,11 @@ async function cloudflareRequest(c: AppContext, request: (token: string) => Prom
   try {
     const token = await loadCloudflareToken(c.env);
     if (!token)
-      return c.json({ error: "Connect Cloudflare in Settings first", code: "cloudflare_not_configured" }, 409);
+      return c.json({ error: "Connect Cloudflare in Settings first" }, 409);
     return await request(token);
   } catch (error) {
     if (error instanceof CloudflareError) {
-      return c.json({ error: error.message, code: error.code }, error.status === 400 ? 400 : 502);
+      return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
     }
     if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
     throw error;
@@ -1741,7 +1740,6 @@ api.put("/settings/cloudflare", async (c) => {
   try {
     const workers = await listWorkers(parsed.data.token);
     await saveCloudflareToken(c.env, parsed.data.token);
-    await clearContentCacheKind(c.env.DB, "analytics");
     return c.json({ configured: true, workers: workers.length });
   } catch (error) {
     if (error instanceof CloudflareError) return c.json({ error: error.message }, 400);
@@ -1751,7 +1749,6 @@ api.put("/settings/cloudflare", async (c) => {
 
 api.delete("/settings/cloudflare", async (c) => {
   await deleteCloudflareToken(c.env);
-  await clearContentCacheKind(c.env.DB, "analytics");
   return c.json<CloudflareSettings>({ configured: false });
 });
 
@@ -1918,51 +1915,6 @@ async function analyticsProvider(c: AppContext): Promise<AnalyticsProvider> {
     : "umami";
 }
 
-/** Cloudflare Web Analytics for the site: the owner's chosen Web Analytics site, or the one with the site's domain. */
-function cloudflareAnalytics(c: AppContext, detailed: boolean) {
-  return cloudflareRequest(c, async (token) => {
-    const id = siteId(c);
-    const site =
-      id &&
-      (await c.env.DB.prepare("SELECT url, analytics_ref FROM sites WHERE id = ?")
-        .bind(id)
-        .first<{ url: string; analytics_ref: string | null }>());
-    if (!site) return c.json({ error: "Site not found" }, 404);
-    const range = analyticsRange.catch("7d").parse(c.req.query("range"));
-    const tz = validTimeZone(c.req.query("tz"));
-    const sources = await listWebAnalyticsSites(token);
-    const chosen = site.analytics_ref ? (sources.find((source) => source.id === site.analytics_ref) ?? null) : null;
-    const source = chosen ?? (site.analytics_ref ? null : matchWebAnalyticsSite(sources, site.url));
-    if (!source) {
-      return c.json<SiteAnalyticsDetails>({
-        provider: "cloudflare",
-        website: null,
-        sources: sources.length,
-        chosen: !!site.analytics_ref,
-        range,
-        stats: null,
-        series: [],
-        pages: [],
-        referrers: [],
-        breakdowns: null,
-        active: null,
-      });
-    }
-    const data = await cachedRead(
-      c.env.DB,
-      id,
-      "analytics",
-      `cf-${detailed ? "details" : "summary"}|${source.id}|${range}|${tz}`,
-      async () => ({
-        chosen: !!chosen,
-        ...(await (detailed ? webAnalyticsDetails : webAnalytics)(token, source, range, tz)),
-      }),
-      ANALYTICS_CACHE,
-    );
-    return c.json(data);
-  });
-}
-
 /** Run a Google request with the saved service account, turning its failures into messages for the page. */
 async function googleRequest(c: AppContext, request: (key: GoogleKey) => Promise<Response>) {
   try {
@@ -2021,12 +1973,12 @@ function ga4Analytics_(c: AppContext, detailed: boolean) {
 
 api.get("/sites/:id/analytics", async (c) => {
   const provider = await analyticsProvider(c);
-  return provider === "cloudflare" ? cloudflareAnalytics(c, false) : provider === "ga4" ? ga4Analytics_(c, false) : umamiSummary(c);
+  return provider === "ga4" ? ga4Analytics_(c, false) : umamiSummary(c);
 });
 
 api.get("/sites/:id/analytics/details", async (c) => {
   const provider = await analyticsProvider(c);
-  return provider === "cloudflare" ? cloudflareAnalytics(c, true) : provider === "ga4" ? ga4Analytics_(c, true) : umamiDetails(c);
+  return provider === "ga4" ? ga4Analytics_(c, true) : umamiDetails(c);
 });
 
 api.get("/settings/google", async (c) => {
@@ -2129,11 +2081,6 @@ api.get("/google/analytics/properties", (c) =>
   ),
 );
 
-/** The Web Analytics sites the Cloudflare token can see. */
-api.get("/cloudflare/web-analytics/sites", (c) =>
-  cloudflareRequest(c, async (token) => c.json({ websites: await listWebAnalyticsSites(token) })),
-);
-
 /** Choose where a site's analytics come from. */
 api.put("/sites/:id/analytics-provider", async (c) => {
   const parsed = z.object({ provider: z.enum(ANALYTICS_PROVIDERS) }).safeParse(await c.req.json().catch(() => null));
@@ -2147,7 +2094,7 @@ api.put("/sites/:id/analytics-provider", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Choose the Web Analytics site or GA4 property for a site, or null to match by domain again. */
+/** Choose the GA4 property for a site, or null to match by domain again. */
 api.put("/sites/:id/analytics-source", async (c) => {
   const parsed = z.object({ ref: z.string().trim().min(1).max(200).nullable() }).safeParse(await c.req.json().catch(() => null));
   const id = siteId(c);

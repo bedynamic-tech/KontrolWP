@@ -7,18 +7,15 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AnalyticsProvider, AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
 import {
-  fetchCloudflareSettings,
   fetchGa4Properties,
   fetchGoogleSettings,
   fetchSiteAnalytics,
   fetchUmamiSettings,
   fetchUmamiWebsites,
-  fetchWebAnalyticsSites,
   setSiteAnalyticsSource,
   setSiteUmamiWebsite,
 } from "../api";
 import { hostname } from "../format";
-import { CloudflareSetup, cloudflareSetupState } from "./AnalyticsSetup";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 
@@ -31,7 +28,6 @@ export const RANGE_LABELS: Record<AnalyticsRange, string> = {
 
 export const PROVIDER_LABELS: Record<AnalyticsProvider, string> = {
   umami: "Umami",
-  cloudflare: "Cloudflare Web Analytics",
   ga4: "Google Analytics",
 };
 
@@ -39,11 +35,9 @@ export const PROVIDER_LABELS: Record<AnalyticsProvider, string> = {
 export function useAnalyticsProvider(site: SiteSummary) {
   const provider = site.analytics_provider ?? "umami";
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
-  const cloudflare = useQuery({ queryKey: ["settings", "cloudflare"], queryFn: fetchCloudflareSettings, refetchInterval: false });
   const google = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
   const connected: Record<AnalyticsProvider, boolean | undefined> = {
     umami: umami.data?.configured,
-    cloudflare: cloudflare.data?.configured,
     ga4: google.data?.configured,
   };
   return {
@@ -112,19 +106,8 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   // Umami is the default and stays hidden until connected; a site that chose another provider shows how to set it up.
   if (!source.configured && (source.provider === "umami" || !source.loaded)) return null;
 
-  const setup =
-    source.provider !== "cloudflare"
-      ? null
-      : !source.configured
-        ? "not-connected"
-        : cloudflareSetupState({
-            error: analytics.error,
-            website: analytics.data?.website,
-            sources: analytics.data?.sources,
-            chosen: analytics.data?.chosen,
-          });
   let body;
-  if (!source.configured && !setup) {
+  if (!source.configured) {
     body = (
       <EmptyRow>
         Connect {source.label} in{" "}
@@ -133,14 +116,6 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
         </Link>{" "}
         to show this site's analytics.
       </EmptyRow>
-    );
-  } else if (setup) {
-    body = (
-      <CloudflareSetup site={site} state={setup} sources={analytics.data?.sources}>
-        {setup === "no-match" && (
-          <WebsitePicker site={site} current={null} chosen={analytics.data?.chosen ?? false} />
-        )}
-      </CloudflareSetup>
     );
   } else if (analytics.isPending) {
     body = (
@@ -213,9 +188,9 @@ export function StatsRow(props: { data: SiteAnalytics }) {
   });
   const bounceRate = stats.bounces ? rate(stats.bounces, stats.visits) : null;
   const visitTime = stats.totaltime ? rate(stats.totaltime, stats.visits) : null;
-  // A provider that does not report a figure (Cloudflare has no visitors, bounces or duration) leaves it out.
+  // A provider that does not report a figure leaves it out.
   const cards = [
-    stats.visitors && { label: "Visitors", stat: stats.visitors, format: count },
+    { label: "Visitors", stat: stats.visitors, format: count },
     { label: "Visits", stat: stats.visits, format: count },
     { label: "Pageviews", stat: stats.pageviews, format: count },
     bounceRate && { label: "Bounce rate", stat: bounceRate, format: percent, lowerIsBetter: true },
@@ -275,8 +250,6 @@ export function Stat(props: { label: string; stat: AnalyticsStat; format: (value
 /** Pageviews as bars, with the visitors share drawn darker inside each one. */
 export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
   const { series, range } = props.data;
-  // Cloudflare counts visits, not visitors.
-  const visitorsLabel = props.data.provider === "cloudflare" ? "visits" : "visitors";
   const max = Math.max(1, ...series.map((point) => point.pageviews));
   const hourly = range === "24h";
   const label = (key: string) => {
@@ -293,7 +266,7 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
           <span className="size-2.5 rounded-sm bg-primary/25" /> Pageviews
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-primary" /> {visitorsLabel === "visits" ? "Visits" : "Visitors"}
+          <span className="size-2.5 rounded-sm bg-primary" /> Visitors
         </span>
       </div>
       <div className={cn("mt-3 flex items-end gap-[2px]", props.tall ? "h-64" : "h-40")} role="img" aria-label="Pageviews and visitors over time">
@@ -301,7 +274,7 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
           <div
             key={point.label}
             className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
-            title={`${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} ${visitorsLabel}`}
+            title={`${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} visitors`}
           >
             <div
               className="relative w-full rounded-t-sm bg-primary/25 group-hover:bg-primary/35"
@@ -357,16 +330,16 @@ export function TopList(props: {
   );
 }
 
-/** Choose the site's analytics source (an Umami website or a Web Analytics site), or go back to matching by domain. */
+/** Choose the site's analytics source (an Umami website or a Google Analytics property), or go back to matching by domain. */
 export function WebsitePicker(props: { site: SiteSummary; current: string | null; chosen: boolean; compact?: boolean }) {
   const queryClient = useQueryClient();
   const provider = props.site.analytics_provider ?? "umami";
-  const noun = provider === "umami" ? "website" : provider === "ga4" ? "property" : "site";
+  const noun = provider === "umami" ? "website" : "property";
   const label = PROVIDER_LABELS[provider];
   const [open, setOpen] = useState(!props.compact);
   const websites = useQuery({
     queryKey: [provider, "websites"],
-    queryFn: provider === "umami" ? fetchUmamiWebsites : provider === "ga4" ? fetchGa4Properties : fetchWebAnalyticsSites,
+    queryFn: provider === "umami" ? fetchUmamiWebsites : fetchGa4Properties,
     enabled: open,
     refetchInterval: false,
   });

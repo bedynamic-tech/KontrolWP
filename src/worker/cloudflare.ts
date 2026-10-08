@@ -17,12 +17,9 @@ export const HISTORY_LIMIT = 20;
 
 export class CloudflareError extends Error {
   readonly status: number;
-  /** A machine-readable reason the dashboard shows instructions for. */
-  readonly code?: string;
-  constructor(message: string, status = 502, code?: string) {
+  constructor(message: string, status = 502) {
     super(message);
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -51,7 +48,7 @@ interface Envelope<T> {
   errors?: { code?: number; message?: string }[];
 }
 
-export async function call<T>(token: string, path: string, params: Record<string, string | number> = {}): Promise<T> {
+async function call<T>(token: string, path: string, params: Record<string, string | number> = {}): Promise<T> {
   const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
   const url = `${API}${path}${query.size ? `?${query}` : ""}`;
   let res: Response;

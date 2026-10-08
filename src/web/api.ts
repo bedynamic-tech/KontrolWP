@@ -268,7 +268,6 @@ export const fetchSearchConsoleProperties = () =>
 export const setSiteSearchConsoleProperty = (siteId: number, property: string | null) =>
   request<{ ok: true }>(`/sites/${siteId}/search-console`, { method: "PUT", json: { property } });
 
-export const fetchWebAnalyticsSites = () => request<{ websites: UmamiWebsite[] }>("/cloudflare/web-analytics/sites");
 
 export const setSiteAnalyticsProvider = (siteId: number, provider: AnalyticsProvider) =>
   request<{ ok: true }>(`/sites/${siteId}/analytics-provider`, { method: "PUT", json: { provider } });

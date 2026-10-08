@@ -15,7 +15,6 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
-import { CloudflareSetup, cloudflareSetupState } from "./AnalyticsSetup";
 import { Section } from "./Section";
 
 const regionNames = (() => {
@@ -92,21 +91,6 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
       </>
     );
   }
-  const setup = cloudflareSetupState({
-    error: details.error,
-    website: details.data?.website,
-    sources: details.data?.sources,
-    chosen: details.data?.chosen,
-  });
-  if (setup && site.analytics_provider === "cloudflare") {
-    return (
-      <Section title="Analytics">
-        <CloudflareSetup site={site} state={setup} sources={details.data?.sources}>
-          {setup === "no-match" && <WebsitePicker site={site} current={null} chosen={details.data?.chosen ?? false} />}
-        </CloudflareSetup>
-      </Section>
-    );
-  }
   if (details.error) {
     return (
       <>
@@ -149,7 +133,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
           <div key={card.key} className="overflow-hidden rounded-xl border bg-background">
             <TopList
               title={card.title}
-              unit={data.provider === "cloudflare" ? "Views" : card.unit}
+              unit={card.unit}
               rows={breakdowns[card.key]!}
               empty={card.empty}
               format={card.format}

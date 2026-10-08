@@ -50,7 +50,7 @@ export interface SiteSummary {
   gsc_property: string | null;
   /** Where this site's analytics come from. */
   analytics_provider: AnalyticsProvider;
-  /** The Web Analytics site or GA4 property the owner chose, for providers other than Umami; null matches by domain. */
+  /** The GA4 property the owner chose, for providers other than Umami; null matches by domain. */
   analytics_ref: string | null;
   /** Static sites: hosted on Cloudflare Workers, so Deployments and the Worker below apply. */
   cf_hosted: boolean;
@@ -246,7 +246,7 @@ export interface BulkPluginResult {
 }
 
 /** The services a site's analytics can be read from. */
-export const ANALYTICS_PROVIDERS = ["umami", "cloudflare", "ga4"] as const;
+export const ANALYTICS_PROVIDERS = ["umami", "ga4"] as const;
 export type AnalyticsProvider = (typeof ANALYTICS_PROVIDERS)[number];
 
 export type UmamiMode = "cloud" | "self-hosted";
@@ -277,7 +277,7 @@ export interface AnalyticsStat {
 export interface SiteAnalytics {
   /** Where the numbers come from; an answer saved before providers existed has none, and is Umami's. */
   provider?: AnalyticsProvider;
-  /** The source shown (an Umami website, a Web Analytics site or a GA4 property), or null when none matches the site. */
+  /** The source shown (an Umami website or a GA4 property), or null when none matches the site. */
   website: UmamiWebsite | null;
   /** How many sources the provider offers, so "none" and "none for this domain" can be told apart. */
   sources?: number;
@@ -285,13 +285,12 @@ export interface SiteAnalytics {
   chosen: boolean;
   range: AnalyticsRange;
   stats: {
-    /** A provider that does not count visitors (Cloudflare) has none. */
-    visitors: AnalyticsStat | null;
+    visitors: AnalyticsStat;
     visits: AnalyticsStat;
     pageviews: AnalyticsStat;
-    bounces: AnalyticsStat | null;
+    bounces: AnalyticsStat;
     /** Total visit time in seconds. */
-    totaltime: AnalyticsStat | null;
+    totaltime: AnalyticsStat;
   } | null;
   /** One point per hour (24h) or day, in the browser's time zone. */
   series: { label: string; pageviews: number; visitors: number }[];
