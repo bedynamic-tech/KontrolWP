@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -91,12 +92,7 @@ export function CheckRow(props: {
         {props.title}
         <HelpTip>{props.hint}</HelpTip>
       </p>
-      <input
-        type="checkbox"
-        className="size-4 shrink-0 accent-primary"
-        checked={props.checked}
-        onChange={(event) => props.onChange(event.target.checked)}
-      />
+      <Switch checked={props.checked} onCheckedChange={props.onChange} />
     </label>
   );
 }
@@ -299,12 +295,7 @@ export function ToolsTab(props: { site: SiteSummary }) {
       >
         <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
           <p className="min-w-0 flex-1 text-sm font-medium">Notify search engines when content changes</p>
-          <input
-            type="checkbox"
-            className="size-4 shrink-0 accent-primary"
-            checked={draft.indexnow}
-            onChange={(event) => set("indexnow", event.target.checked)}
-          />
+          <Switch checked={draft.indexnow} onCheckedChange={(value) => set("indexnow", value)} />
         </label>
       </Section>
       </TwoColumns>

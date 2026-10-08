@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckIcon,
@@ -262,12 +263,7 @@ export function RuleDialog(props: {
             </Field>
           )}
           <label className="flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              className="size-4 shrink-0 accent-primary"
-              checked={draft.enabled}
-              onChange={(event) => set("enabled", event.target.checked)}
-            />
+            <Switch checked={draft.enabled} onCheckedChange={(value) => set("enabled", value)} />
             <span className="text-sm">Active</span>
           </label>
         </div>
@@ -602,11 +598,10 @@ function RulesSection(props: {
                   }
                   aria-label={`Select ${item.source}`}
                 />
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={`truncate font-medium ${item.enabled ? "" : "text-muted-foreground line-through"}`}
-                  >
+                <div className={`min-w-0 flex-1 ${item.enabled ? "" : "opacity-60"}`}>
+                  <p className="truncate font-medium">
                     {item.source}
+                    {!item.enabled && <span className="sr-only"> (off)</span>}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {item.target ? `to ${item.target}` : "No destination"} ·{" "}
@@ -616,7 +611,6 @@ function RulesSection(props: {
                       : ""}{" "}
                     · {item.hits} {item.hits === 1 ? "hit" : "hits"}
                     {item.last_hit ? `, last ${timeAgo(item.last_hit)}` : ""}
-                    {item.enabled ? "" : " · Off"}
                     {item.auto ? " · Automatic" : ""}
                   </p>
                 </div>
@@ -738,14 +732,10 @@ function AutoSection(props: {
             </HelpTip>
           </p>
         </div>
-        <input
-          type="checkbox"
-          className="size-4 shrink-0 accent-primary"
+        <Switch
           checked={props.auto.enabled}
           disabled={save.isPending}
-          onChange={(event) =>
-            save.mutate({ auto_enabled: event.target.checked })
-          }
+          onCheckedChange={(value) => save.mutate({ auto_enabled: value })}
         />
       </label>
       {props.auto.enabled && (
@@ -883,13 +873,7 @@ function NotFoundSection(props: {
             </HelpTip>
           </p>
         </div>
-        <input
-          type="checkbox"
-          className="size-4 shrink-0 accent-primary"
-          checked={props.logging}
-          disabled={toggle.isPending}
-          onChange={(event) => toggle.mutate(event.target.checked)}
-        />
+        <Switch checked={props.logging} disabled={toggle.isPending} onCheckedChange={(value) => toggle.mutate(value)} />
       </label>
       {toggle.error && (
         <p className="border-t px-4 py-3 text-sm text-destructive">

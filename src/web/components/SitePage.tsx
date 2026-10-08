@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeftIcon,
   ExternalLinkIcon,
@@ -488,18 +489,14 @@ export function SitePage() {
                 {excludeUpdates.isPending && (
                   <Spinner className="size-4 text-muted-foreground" />
                 )}
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
+                <Switch
                   checked={
                     excludeUpdates.isPending
                       ? excludeUpdates.variables === false
                       : !site.updates_excluded
                   }
                   disabled={excludeUpdates.isPending}
-                  onChange={(event) =>
-                    excludeUpdates.mutate(!event.target.checked)
-                  }
+                  onCheckedChange={(value) => excludeUpdates.mutate(!value)}
                 />
               </label>
             )}
@@ -526,18 +523,14 @@ export function SitePage() {
                 {excludeLinks.isPending && (
                   <Spinner className="size-4 text-muted-foreground" />
                 )}
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
+                <Switch
                   checked={
                     excludeLinks.isPending
                       ? excludeLinks.variables === false
                       : !site.links_excluded
                   }
                   disabled={excludeLinks.isPending}
-                  onChange={(event) =>
-                    excludeLinks.mutate(!event.target.checked)
-                  }
+                  onCheckedChange={(value) => excludeLinks.mutate(!value)}
                 />
               </label>
             )}
@@ -742,14 +735,12 @@ function CloudflareRow(props: { site: SiteSummary }) {
           )}
         </div>
         {save.isPending && <Spinner className="size-4 text-muted-foreground" />}
-        <input
-          type="checkbox"
-          className="size-4 shrink-0 accent-primary"
+        <Switch
           checked={
             save.isPending ? save.variables?.hosted === true : site.cf_hosted
           }
           disabled={save.isPending}
-          onChange={(event) => save.mutate({ hosted: event.target.checked })}
+          onCheckedChange={(value) => save.mutate({ hosted: value })}
         />
       </label>
       {site.cf_hosted && (

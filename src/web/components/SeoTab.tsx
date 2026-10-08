@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, CircleAlertIcon, MinusIcon, PlusIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,12 +76,7 @@ function CheckRow(props: {
           <HelpTip>{props.detail}</HelpTip>
         </p>
       </div>
-      <input
-        type="checkbox"
-        className="size-4 shrink-0 accent-primary"
-        checked={props.checked}
-        onChange={(event) => props.onChange(event.target.checked)}
-      />
+      <Switch checked={props.checked} onCheckedChange={props.onChange} />
     </label>
   );
 }
@@ -322,12 +318,7 @@ function PageDialog(props: {
             </div>
           )}
           <label className="flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              className="size-4 shrink-0 accent-primary"
-              checked={noindex}
-              onChange={(event) => setNoindex(event.target.checked)}
-            />
+            <Switch checked={noindex} onCheckedChange={setNoindex} />
             <span className="text-sm">
               Ask search engines not to list this page
             </span>
