@@ -174,3 +174,22 @@ test("a token without analytics access says which permission to add", async () =
       /Account Analytics: Read/.test(error.message),
   );
 });
+
+test("a token that cannot list Web Analytics sites answers with the permission code", async () => {
+  stubFetch({
+    "/client/v4/accounts": () => [200, { success: true, result: [{ id: "acct1", name: "Main" }] }],
+    "/client/v4/accounts/acct1/rum/site_info/list": () => [403, { success: false, errors: [{ message: "forbidden" }] }],
+  });
+  await assert.rejects(
+    listWebAnalyticsSites("token"),
+    (error) => error instanceof CloudflareError && error.code === "cloudflare_permission" && /Account Analytics: Read/.test(error.message),
+  );
+});
+
+test("a token that cannot run the analytics query answers with the permission code too", async () => {
+  stubFetch({ "/client/v4/graphql": () => [200, { data: null, errors: [{ message: "does not have access to the path" }] }] });
+  await assert.rejects(
+    webAnalytics("token", source, "7d", "UTC", NOW),
+    (error) => error instanceof CloudflareError && error.code === "cloudflare_permission",
+  );
+});

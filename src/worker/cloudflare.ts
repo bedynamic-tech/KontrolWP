@@ -17,9 +17,12 @@ export const HISTORY_LIMIT = 20;
 
 export class CloudflareError extends Error {
   readonly status: number;
-  constructor(message: string, status = 502) {
+  /** A machine-readable reason the dashboard shows instructions for. */
+  readonly code?: string;
+  constructor(message: string, status = 502, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 

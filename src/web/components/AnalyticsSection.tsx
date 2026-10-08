@@ -18,6 +18,7 @@ import {
   setSiteUmamiWebsite,
 } from "../api";
 import { hostname } from "../format";
+import { CloudflareSetup, cloudflareSetupState } from "./AnalyticsSetup";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 
@@ -108,10 +109,40 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
     placeholderData: (previous) => previous,
   });
 
-  if (!source.configured) return null;
+  // Umami is the default and stays hidden until connected; a site that chose another provider shows how to set it up.
+  if (!source.configured && (source.provider === "umami" || !source.loaded)) return null;
 
+  const setup =
+    source.provider !== "cloudflare"
+      ? null
+      : !source.configured
+        ? "not-connected"
+        : cloudflareSetupState({
+            error: analytics.error,
+            website: analytics.data?.website,
+            sources: analytics.data?.sources,
+            chosen: analytics.data?.chosen,
+          });
   let body;
-  if (analytics.isPending) {
+  if (!source.configured && !setup) {
+    body = (
+      <EmptyRow>
+        Connect {source.label} in{" "}
+        <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+          Settings
+        </Link>{" "}
+        to show this site's analytics.
+      </EmptyRow>
+    );
+  } else if (setup) {
+    body = (
+      <CloudflareSetup site={site} state={setup} sources={analytics.data?.sources}>
+        {setup === "no-match" && (
+          <WebsitePicker site={site} current={null} chosen={analytics.data?.chosen ?? false} />
+        )}
+      </CloudflareSetup>
+    );
+  } else if (analytics.isPending) {
     body = (
       <div className="space-y-3 p-4">
         <Skeleton className="h-16 w-full" />
