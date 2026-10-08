@@ -524,7 +524,7 @@ Switching a module off hides it. With SEO Management off (plugin 0.24.0), the SE
 
 ## Overview health cards
 
-Every site's Overview starts with a Health section of up to five cards: Links and Security (WordPress only), SEO, Accessibility, and Search Console (clicks and impressions for 28 days, or a prompt to connect Google; it opens the Analytics tab). Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
+Every site's Overview starts with a Health section of up to four cards: Links and Security (WordPress only), SEO, Accessibility. Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
 
 ## Analytics providers
 
@@ -535,5 +535,5 @@ Google Analytics 4 (`src/worker/ga4.ts`, `src/worker/google.ts`) is read through
 
 ## Search Console
 
-The Analytics tab of every site starts with a Search Console section (above the analytics; the tab shows when either Google or an analytics provider is connected) (`src/worker/search-console.ts`, `SearchConsoleSection.tsx`) once Google is connected; without it the section says how to connect. It uses the same Google connection as Analytics with the read-only Search Console scope, so the signed-in account must be a user of the property in Search Console. A site is matched to a property by domain, preferring a domain property (`sc-domain:`) over a URL-prefix one, or the owner chooses one (`sites.gsc_property`). It reads totals for the period and the one before, a daily series, and the top ten queries and pages. Search Console data is two days late, so a period ends two days ago; answers are cached for an hour.
+The Analytics tab of every site starts with a Search Console section (above the analytics; the tab shows when either Google or an analytics provider is connected) (`src/worker/search-console.ts`, `SearchConsoleSection.tsx`) once Google is connected; without it the section says how to connect. It uses the same Google connection as Analytics with the read-only Search Console scope, so the signed-in account must be a user of the property in Search Console. A site is matched to a property by domain, preferring a domain property (`sc-domain:`) over a URL-prefix one, or the owner chooses one (`sites.gsc_property`). On the Overview it is a compact module under the analytics (stat tiles and a clicks trend, linking to the Analytics tab). It reads totals for the period and the one before, a daily series, and the top ten queries and pages. Search Console data is two days late, so a period ends two days ago; answers are cached for an hour.
 

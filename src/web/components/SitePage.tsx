@@ -41,6 +41,7 @@ import {
   MagicLoginUserSelect,
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { SearchConsoleSection } from "./SearchConsoleSection";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
 import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
@@ -194,7 +195,9 @@ export function SitePage() {
   );
   const analyticsOn =
     analyticsSource.configured && !data?.site.analytics_excluded;
-  const twoColumns = analyticsOn;
+  // Search Console sits beside the analytics, and has its own prompt while Google is not connected.
+  const searchConsoleOn = !data?.site.analytics_excluded;
+  const twoColumns = analyticsOn || (searchConsoleOn && !!analyticsSource.connected.ga4);
   // The Analytics tab also carries Search Console, so a connected Google account is enough to show it.
   const analyticsTabOn =
     (analyticsSource.configured || !!analyticsSource.connected.ga4) &&
@@ -351,6 +354,11 @@ export function SitePage() {
         <ResponsiveTabsList tabs={tabItems} value={tab} onChange={setTab} label="Section" />
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
+            const searchConsole = searchConsoleOn && (
+              <ErrorBoundary label="Search Console">
+                <SearchConsoleSection site={site} onOpen={() => setTab("analytics")} />
+              </ErrorBoundary>
+            );
             const health = <HealthOverview site={site} onOpen={setTab} />;
             const main = isStatic ? (
               <>
@@ -380,11 +388,13 @@ export function SitePage() {
                 <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                 <div className={`min-w-0 ${TAB_CLASS}`}>
                   {analyticsOn && <AnalyticsSection site={site} />}
+                  {searchConsole}
                 </div>
               </div>
             ) : (
               <>
                 {analyticsOn && <AnalyticsSection site={site} />}
+                {searchConsole}
                 {main}
               </>
             );
