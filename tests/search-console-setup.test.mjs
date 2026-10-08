@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { GoogleError } from "../src/worker/google.ts";
+import { addProperty, propertyUrl, submitSitemap, verificationCode, verifyProperty } from "../src/worker/search-console-setup.ts";
+
+function stubFetch(handlers) {
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    const key = `${init.method ?? "GET"} ${u.host}${u.pathname}`;
+    calls.push({ key, init, url: u });
+    const handler = handlers[key];
+    if (!handler) return new Response(JSON.stringify({ error: { message: `no stub for ${key}` } }), { status: 404 });
+    const [status, body] = handler(init, u, calls.length);
+    return new Response(body === null ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  };
+  return calls;
+}
+
+test("the property for a site is its address with a trailing slash", () => {
+  assert.equal(propertyUrl("https://example.com"), "https://example.com/");
+  assert.equal(propertyUrl("https://example.com/blog?x=1"), "https://example.com/blog/");
+});
+
+test("the verification code is read from Google's meta tag", async () => {
+  const calls = stubFetch({
+    "POST www.googleapis.com/siteVerification/v1/token": (init) => {
+      const body = JSON.parse(init.body);
+      assert.equal(body.verificationMethod, "META");
+      assert.deepEqual(body.site, { type: "SITE", identifier: "https://example.com/" });
+      return [200, { token: '<meta name="google-site-verification" content="abc-123" />', method: "META" }];
+    },
+  });
+  assert.equal(await verificationCode("tok", "https://example.com/"), "abc-123");
+  assert.equal(calls[0].init.headers.Authorization, "Bearer tok");
+  stubFetch({ "POST www.googleapis.com/siteVerification/v1/token": () => [200, { token: "nothing" }] });
+  await assert.rejects(verificationCode("tok", "https://example.com/"), GoogleError);
+});
+
+test("verification is retried while Google cannot see the tag, then explained", async () => {
+  let tries = 0;
+  stubFetch({
+    "POST www.googleapis.com/siteVerification/v1/webResource": () => {
+      tries++;
+      return tries < 3 ? [400, { error: { message: "token not found" } }] : [200, { id: "x" }];
+    },
+  });
+  await verifyProperty("tok", "https://example.com/", 3, 1);
+  assert.equal(tries, 3);
+
+  stubFetch({ "POST www.googleapis.com/siteVerification/v1/webResource": () => [400, { error: { message: "token not found" } }] });
+  await assert.rejects(verifyProperty("tok", "https://example.com/", 2, 1), /could not find the verification tag/);
+});
+
+test("the site is added and its sitemap submitted with encoded addresses", async () => {
+  const calls = stubFetch({
+    "PUT www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F": () => [204, null],
+    "PUT www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/sitemaps/https%3A%2F%2Fexample.com%2Fwp-sitemap.xml": () => [204, null],
+  });
+  await addProperty("tok", "https://example.com/");
+  await submitSitemap("tok", "https://example.com/", "https://example.com/wp-sitemap.xml");
+  assert.equal(calls.length, 2);
+});

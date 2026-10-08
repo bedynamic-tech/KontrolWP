@@ -25,6 +25,10 @@ const TIMEOUT_MS = 15_000;
 export const GOOGLE_SCOPES = {
   analytics: "https://www.googleapis.com/auth/analytics.readonly",
   searchConsole: "https://www.googleapis.com/auth/webmasters.readonly",
+  /** Add a site to Search Console and submit its sitemap; asked for only when the owner sets a site up. */
+  manage: "https://www.googleapis.com/auth/webmasters",
+  /** Prove ownership of a site, without being able to list or change anything else. */
+  verify: "https://www.googleapis.com/auth/siteverification.verify_only",
 } as const;
 
 /** A service account's key, from before "Connect to Google". */
@@ -38,6 +42,8 @@ export interface GoogleOAuthAccount {
   kind: "oauth";
   email: string;
   refresh_token: string;
+  /** The scopes the owner allowed; absent on sign-ins made before they were recorded. */
+  scopes?: string[];
 }
 
 export type GoogleCredential = (GoogleKey & { kind?: "service_account" }) | GoogleOAuthAccount;
@@ -50,6 +56,12 @@ export interface GoogleClient {
 
 /** The address Google sends the owner back to; it has to be listed on the OAuth client. */
 export const googleRedirectUri = (origin: string) => `${origin}/api/google/callback`;
+
+/** Whether the sign-in allows adding a site to Search Console and verifying it. */
+export const googleCanSetUpSites = (credential: GoogleCredential): boolean =>
+  credential.kind === "oauth" &&
+  !!credential.scopes?.includes(GOOGLE_SCOPES.manage) &&
+  !!credential.scopes.includes(GOOGLE_SCOPES.verify);
 
 /** The email address behind a credential, for Settings. */
 export const googleAccount = (credential: GoogleCredential): string =>
@@ -117,16 +129,28 @@ export async function deleteGoogleClient(env: Env): Promise<void> {
 }
 
 /** Start a sign-in: remember a one-time state for ten minutes and return the Google page to send the owner to. */
-export async function startGoogleSignIn(env: Env, client: GoogleClient, redirectUri: string, now = Date.now()): Promise<string> {
+export async function startGoogleSignIn(
+  env: Env,
+  client: GoogleClient,
+  redirectUri: string,
+  options: { setup?: boolean; returnTo?: string } = {},
+  now = Date.now(),
+): Promise<string> {
   const state = b64url(crypto.getRandomValues(new Uint8Array(24)));
   await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)")
-    .bind(STATE_SETTING, JSON.stringify({ state, expires: now + STATE_TTL_MS }))
+    .bind(STATE_SETTING, JSON.stringify({ state, expires: now + STATE_TTL_MS, returnTo: options.returnTo ?? "" }))
     .run();
   const params = new URLSearchParams({
     client_id: client.client_id,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: ["openid", "email", GOOGLE_SCOPES.analytics, GOOGLE_SCOPES.searchConsole].join(" "),
+    // Setting a site up needs to write to Search Console, which replaces the read-only scope.
+    scope: [
+      "openid",
+      "email",
+      GOOGLE_SCOPES.analytics,
+      ...(options.setup ? [GOOGLE_SCOPES.manage, GOOGLE_SCOPES.verify] : [GOOGLE_SCOPES.searchConsole]),
+    ].join(" "),
     // Offline access gives the refresh token; consent makes Google send it again on a reconnect.
     access_type: "offline",
     prompt: "consent",
@@ -135,16 +159,16 @@ export async function startGoogleSignIn(env: Env, client: GoogleClient, redirect
   return `${AUTH_URL}?${params}`;
 }
 
-/** Whether the state Google sent back is the one just issued and still fresh; it is used up either way. */
-async function takeGoogleState(env: Env, state: string, now: number): Promise<boolean> {
+/** The page to return to if the state Google sent back is the one just issued and still fresh; it is used up either way. */
+async function takeGoogleState(env: Env, state: string, now: number): Promise<{ returnTo: string } | null> {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(STATE_SETTING).first<{ value: string }>();
   await env.DB.prepare("DELETE FROM settings WHERE name = ?").bind(STATE_SETTING).run();
-  if (!row || !state) return false;
-  const saved = JSON.parse(row.value) as { state: string; expires: number };
-  return saved.state === state && saved.expires > now;
+  if (!row || !state) return null;
+  const saved = JSON.parse(row.value) as { state: string; expires: number; returnTo?: string };
+  return saved.state === state && saved.expires > now ? { returnTo: saved.returnTo ?? "" } : null;
 }
 
-async function tokenRequest(params: Record<string, string>): Promise<{ access_token?: string; refresh_token?: string; error?: string; error_description?: string }> {
+async function tokenRequest(params: Record<string, string>): Promise<{ access_token?: string; refresh_token?: string; scope?: string; error?: string; error_description?: string }> {
   let res: Response;
   try {
     res = await fetch(TOKEN_URL, {
@@ -156,7 +180,7 @@ async function tokenRequest(params: Record<string, string>): Promise<{ access_to
   } catch {
     throw new GoogleError("Google could not be reached.");
   }
-  return (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; error?: string; error_description?: string };
+  return (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; scope?: string; error?: string; error_description?: string };
 }
 
 /**
@@ -170,8 +194,9 @@ export async function finishGoogleSignIn(
   code: string,
   state: string,
   now = Date.now(),
-): Promise<GoogleOAuthAccount> {
-  if (!(await takeGoogleState(env, state, now))) {
+): Promise<{ account: GoogleOAuthAccount; returnTo: string }> {
+  const taken = await takeGoogleState(env, state, now);
+  if (!taken) {
     throw new GoogleError("That sign-in expired or did not start here. Choose Connect to Google again.", 400);
   }
   const body = await tokenRequest({
@@ -198,7 +223,15 @@ export async function finishGoogleSignIn(
   } catch {
     // The email is only a label; the connection works without it.
   }
-  return { kind: "oauth", email: email || "Google account", refresh_token: body.refresh_token };
+  return {
+    account: {
+      kind: "oauth",
+      email: email || "Google account",
+      refresh_token: body.refresh_token,
+      scopes: body.scope?.split(" ").filter(Boolean),
+    },
+    returnTo: taken.returnTo,
+  };
 }
 
 const b64url = (bytes: ArrayBuffer | Uint8Array | string): string => {
@@ -286,7 +319,7 @@ async function oauthAccessToken(account: GoogleOAuthAccount, client: GoogleClien
 export async function googleCall<T>(
   token: string,
   url: string,
-  init: { method?: "GET" | "POST"; body?: unknown } = {},
+  init: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {},
 ): Promise<T> {
   let res: Response;
   try {

@@ -5,7 +5,9 @@ import {
   deleteGoogleCredential,
   finishGoogleSignIn,
   forgetGoogleTokens,
+  GOOGLE_SCOPES,
   googleAccessToken,
+  googleCanSetUpSites,
   googleAccount,
   GoogleError,
   loadGoogleClient,
@@ -51,7 +53,7 @@ test("the OAuth client is stored encrypted and read back", async () => {
 
 test("signing in asks for read-only scopes with offline access and checks the state", async () => {
   const env = setup();
-  const url = new URL(await startGoogleSignIn(env, client, REDIRECT, NOW));
+  const url = new URL(await startGoogleSignIn(env, client, REDIRECT, {}, NOW));
   assert.equal(url.host, "accounts.google.com");
   assert.equal(url.searchParams.get("access_type"), "offline");
   assert.equal(url.searchParams.get("redirect_uri"), REDIRECT);
@@ -70,15 +72,16 @@ test("signing in asks for read-only scopes with offline access and checks the st
       assert.equal(body.get("grant_type"), "authorization_code");
       assert.equal(body.get("code"), "the-code");
       assert.equal(body.get("redirect_uri"), REDIRECT);
-      return [200, { access_token: "at", refresh_token: "rt" }];
+      return [200, { access_token: "at", refresh_token: "rt", scope: "openid email" }];
     },
     "GET openidconnect.googleapis.com/v1/userinfo": (init) => {
       assert.equal(init.headers.Authorization, "Bearer at");
       return [200, { email: "owner@example.com" }];
     },
   });
-  const account = await finishGoogleSignIn(env, client, REDIRECT, "the-code", state, NOW + 1000);
-  assert.deepEqual(account, { kind: "oauth", email: "owner@example.com", refresh_token: "rt" });
+  const { account, returnTo } = await finishGoogleSignIn(env, client, REDIRECT, "the-code", state, NOW + 1000);
+  assert.deepEqual(account, { kind: "oauth", email: "owner@example.com", refresh_token: "rt", scopes: ["openid", "email"] });
+  assert.equal(returnTo, "");
   assert.equal(calls.length, 2);
 
   await saveGoogleCredential(env, account);
@@ -91,18 +94,18 @@ test("signing in asks for read-only scopes with offline access and checks the st
 test("a wrong, reused or expired state is refused before Google is asked", async () => {
   const env = setup();
   const calls = stubFetch({});
-  const state = new URL(await startGoogleSignIn(env, client, REDIRECT, NOW)).searchParams.get("state");
+  const state = new URL(await startGoogleSignIn(env, client, REDIRECT, {}, NOW)).searchParams.get("state");
   await assert.rejects(finishGoogleSignIn(env, client, REDIRECT, "c", "other", NOW), GoogleError);
   // The state is used up by the failed attempt.
   await assert.rejects(finishGoogleSignIn(env, client, REDIRECT, "c", state, NOW), /expired/);
-  const late = new URL(await startGoogleSignIn(env, client, REDIRECT, NOW)).searchParams.get("state");
+  const late = new URL(await startGoogleSignIn(env, client, REDIRECT, {}, NOW)).searchParams.get("state");
   await assert.rejects(finishGoogleSignIn(env, client, REDIRECT, "c", late, NOW + 11 * 60_000), /expired/);
   assert.equal(calls.length, 0);
 });
 
 test("a sign-in without a refresh token explains what to do", async () => {
   const env = setup();
-  const state = new URL(await startGoogleSignIn(env, client, REDIRECT, NOW)).searchParams.get("state");
+  const state = new URL(await startGoogleSignIn(env, client, REDIRECT, {}, NOW)).searchParams.get("state");
   stubFetch({ "POST oauth2.googleapis.com/token": () => [200, { access_token: "at" }] });
   await assert.rejects(finishGoogleSignIn(env, client, REDIRECT, "c", state, NOW), /third-party access/);
 });
@@ -136,4 +139,21 @@ test("a service account saved before Connect to Google is still loaded", async (
   const loaded = await loadGoogleCredential(env);
   assert.equal(googleAccount(loaded), key.client_email);
   assert.notEqual(loaded.kind, "oauth");
+});
+
+test("setting a site up asks for write access only when asked and remembers where to return", async () => {
+  const env = setup();
+  const url = new URL(await startGoogleSignIn(env, client, REDIRECT, { setup: true, returnTo: "/sites/3?tab=analytics" }, NOW));
+  const scopes = url.searchParams.get("scope").split(" ");
+  assert.ok(scopes.includes(GOOGLE_SCOPES.manage) && scopes.includes(GOOGLE_SCOPES.verify));
+  assert.ok(!scopes.includes(GOOGLE_SCOPES.searchConsole), "the read-only scope is replaced by the write one");
+  stubFetch({
+    "POST oauth2.googleapis.com/token": () => [200, { access_token: "at", refresh_token: "rt", scope: `openid email ${GOOGLE_SCOPES.analytics} ${GOOGLE_SCOPES.manage} ${GOOGLE_SCOPES.verify}` }],
+    "GET openidconnect.googleapis.com/v1/userinfo": () => [200, { email: "o@example.com" }],
+  });
+  const { account, returnTo } = await finishGoogleSignIn(env, client, REDIRECT, "c", url.searchParams.get("state"), NOW);
+  assert.equal(returnTo, "/sites/3?tab=analytics");
+  assert.equal(googleCanSetUpSites(account), true);
+  assert.equal(googleCanSetUpSites({ ...account, scopes: [GOOGLE_SCOPES.analytics] }), false);
+  assert.equal(googleCanSetUpSites({ ...account, scopes: undefined }), false);
 });

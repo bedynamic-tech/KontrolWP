@@ -16,6 +16,7 @@ import type {
   AnalyticsProvider,
   GoogleSettings,
   SiteAnalytics,
+  SearchConsoleSetup,
   SiteSearchConsole,
   SiteAnalyticsDetails,
   SiteDeployments,
@@ -112,14 +113,17 @@ import {
   googleAccessToken,
   GoogleError,
   googleAccount,
+  googleCanSetUpSites,
   googleRedirectUri,
   loadGoogleClient,
   loadGoogleCredential,
   saveGoogleClient,
   saveGoogleCredential,
   startGoogleSignIn,
+  type GoogleCredential,
 } from "../google.ts";
 import { listSearchConsoleProperties, matchSearchConsoleProperty, searchConsole } from "../search-console.ts";
+import { addProperty, propertyUrl, submitSitemap, verificationCode, verifyProperty } from "../search-console-setup.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
@@ -1924,12 +1928,12 @@ async function analyticsProvider(c: AppContext): Promise<AnalyticsProvider> {
 type GoogleAccess = (scope: string) => Promise<string>;
 
 /** Run a Google request with the saved connection, turning its failures into messages for the page. */
-async function googleRequest(c: AppContext, request: (access: GoogleAccess) => Promise<Response>) {
+async function googleRequest(c: AppContext, request: (access: GoogleAccess, credential: GoogleCredential) => Promise<Response>) {
   try {
     const credential = await loadGoogleCredential(c.env);
     if (!credential) return c.json({ error: "Connect Google in Settings first", code: "google_not_configured" }, 409);
     const client = credential.kind === "oauth" ? await loadGoogleClient(c.env) : null;
-    return await request((scope) => googleAccessToken(credential, scope, Date.now(), client));
+    return await request((scope) => googleAccessToken(credential, scope, Date.now(), client), credential);
   } catch (error) {
     if (error instanceof GoogleError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
     if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
@@ -1999,6 +2003,7 @@ async function googleSettings(c: AppContext): Promise<GoogleSettings> {
     account: credential ? googleAccount(credential) : "",
     client_id: client?.client_id ?? "",
     client_configured: !!client,
+    can_setup: !!credential && googleCanSetUpSites(credential),
     redirect_uri: googleRedirectUri(new URL(c.req.url).origin),
   };
 }
@@ -2035,14 +2040,28 @@ api.put("/settings/google/client", async (c) => {
 api.post("/google/connect", async (c) => {
   const client = await loadGoogleClient(c.env);
   if (!client) return c.json({ error: "Save the OAuth client ID and secret first" }, 400);
-  const url = await startGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin));
+  const parsed = z
+    .object({ setup: z.boolean().catch(false), return_to: z.string().max(300).catch("") })
+    .parse((await c.req.json().catch(() => null)) ?? {});
+  // Only a path on this app, so the callback cannot be used to send the owner elsewhere.
+  const returnTo = /^\/(?!\/)/.test(parsed.return_to) ? parsed.return_to : "";
+  const url = await startGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin), {
+    setup: parsed.setup,
+    returnTo,
+  });
   return c.json({ url });
 });
 
 /** Google sends the owner back here; the Worker finishes the sign-in and returns them to Settings. */
 api.get("/google/callback", async (c) => {
-  const back = (result: Record<string, string>) =>
-    c.redirect(`/settings?${new URLSearchParams({ tab: "integrations", ...result })}`, 302);
+  const back = (result: Record<string, string>, returnTo = "") => {
+    if (returnTo) {
+      const target = new URL(returnTo, "https://app.invalid");
+      for (const [key, value] of Object.entries(result)) target.searchParams.set(key, value);
+      return c.redirect(`${target.pathname}${target.search}${target.hash}`, 302);
+    }
+    return c.redirect(`/settings?${new URLSearchParams({ tab: "integrations", ...result })}`, 302);
+  };
   const code = c.req.query("code");
   const state = c.req.query("state") ?? "";
   const denied = c.req.query("error");
@@ -2052,12 +2071,12 @@ api.get("/google/callback", async (c) => {
   try {
     const client = await loadGoogleClient(c.env);
     if (!client) return back({ google: "error", message: "Save the OAuth client ID and secret first." });
-    const account = await finishGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin), code, state);
+    const { account, returnTo } = await finishGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin), code, state);
     await saveGoogleCredential(c.env, account);
     forgetGoogleTokens();
     await clearContentCacheKind(c.env.DB, "analytics");
     await clearContentCacheKind(c.env.DB, "seo");
-    return back({ google: "connected" });
+    return back({ google: "connected" }, returnTo);
   } catch (error) {
     if (error instanceof GoogleError) return back({ google: "error", message: error.message });
     throw error;
@@ -2121,6 +2140,54 @@ api.get("/sites/:id/search-console", (c) =>
     return c.json<SiteSearchConsole>(data);
   }),
 );
+
+/**
+ * Set a WordPress site up in Search Console: get Google's verification tag,
+ * have KontrolWP Connect print it, let Google check it, add the site and
+ * submit its sitemap. A site already in Search Console only gets its sitemap.
+ */
+api.post("/sites/:id/search-console/setup", async (c) => {
+  const id = siteId(c);
+  const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
+  if (!site) return c.json({ error: "Site not found" }, 404);
+  if (site.kind === "static") {
+    return c.json({ error: "A static website has no KontrolWP Connect to print the verification tag, so add it in Search Console yourself." }, 400);
+  }
+  return googleRequest(c, (access, credential) =>
+    seoResponse(c, async () => {
+      if (!googleCanSetUpSites(credential)) {
+        return c.json({ error: "Allow setup in Google first, so KontrolWP can add and verify the site.", code: "google_setup_scopes" }, 409);
+      }
+      const seo = await siteSeo(c.env, site, credentials);
+      if (!seo.settings.enabled) {
+        throw new SeoError("Turn on SEO Management for this site first. It prints the verification tag.", 400);
+      }
+      if (seo.conflict) {
+        throw new SeoError(`${seo.conflict} is active, so KontrolWP does not print the verification tag. Add the site in Search Console with that plugin.`, 400);
+      }
+      const token = await access(GOOGLE_SCOPES.manage);
+      const property = propertyUrl(site.url);
+      const existing = (await listSearchConsoleProperties(token)).find((item) => item.id === property);
+      if (!existing) {
+        const code = await verificationCode(token, property);
+        const tools = await siteSeoTools(c.env, site, credentials);
+        await saveSeoTools(c.env, site, credentials, { ...tools.settings, verify: { ...tools.settings.verify, google: code } });
+        await verifyProperty(token, property);
+        await addProperty(token, property);
+      }
+      const sitemap = `${property}wp-sitemap.xml`;
+      let sitemapError: string | null = null;
+      try {
+        await submitSitemap(token, property, sitemap);
+      } catch (error) {
+        if (!(error instanceof GoogleError)) throw error;
+        sitemapError = error.message;
+      }
+      await clearContentCache(c.env.DB, site.id);
+      return c.json<SearchConsoleSetup>({ property, already: !!existing, sitemap: sitemapError ? null : sitemap, sitemap_error: sitemapError });
+    }),
+  );
+});
 
 /** The properties in Search Console the connected Google account can read. */
 api.get("/google/search-console/properties", (c) =>

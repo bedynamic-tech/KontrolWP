@@ -48,6 +48,7 @@ import type {
   AnalyticsProvider,
   GoogleSettings,
   SearchConsoleRange,
+  SearchConsoleSetup,
   SiteSearchConsole,
   UmamiSettings,
   UmamiWebsite,
@@ -260,7 +261,10 @@ export const saveGoogleClient = (client_id: string, client_secret: string) =>
   request<GoogleSettings>("/settings/google/client", { method: "PUT", json: { client_id, client_secret } });
 export const deleteGoogleClient = () => request<GoogleSettings>("/settings/google/client", { method: "DELETE" });
 /** The address of Google's sign-in page, which the browser then opens. */
-export const startGoogleConnect = () => request<{ url: string }>("/google/connect", { method: "POST" });
+export const startGoogleConnect = (options: { setup?: boolean; return_to?: string } = {}) =>
+  request<{ url: string }>("/google/connect", { method: "POST", json: options });
+export const setUpSearchConsole = (siteId: number) =>
+  request<SearchConsoleSetup>(`/sites/${siteId}/search-console/setup`, { method: "POST" });
 export const deleteGoogleSettings = () => request<GoogleSettings>("/settings/google", { method: "DELETE" });
 export const fetchGa4Properties = () => request<{ websites: UmamiWebsite[] }>("/google/analytics/properties");
 

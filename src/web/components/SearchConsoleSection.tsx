@@ -17,10 +17,13 @@ import {
   fetchSearchConsole,
   fetchSearchConsoleProperties,
   setSiteSearchConsoleProperty,
+  setUpSearchConsole,
+  startGoogleConnect,
 } from "../api";
 import { hostname } from "../format";
 import { count, JumpButton, SELECT_CLASS, Stat } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
+import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 
 const RANGE_LABELS: Record<SearchConsoleRange, string> = {
@@ -144,6 +147,9 @@ export function SearchConsoleSection(props: {
             : `Search Console has no property for ${hostname(site.url)} that ${google.data.account} can read. Make sure that account is a user of the property in Search Console, or choose one.`}
         </p>
         <PropertyPicker site={site} current={null} chosen={data.data.chosen} />
+        {!data.data.chosen && site.kind !== "static" && (
+          <SetUpSearchConsole site={site} canSetUp={google.data.can_setup} />
+        )}
       </div>
     );
   } else {
@@ -298,6 +304,56 @@ function RowList(props: {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Add a WordPress site to Search Console: Google's verification tag is printed
+ * by KontrolWP Connect, Google checks it, and the sitemap is handed over. A
+ * sign-in made before this existed has to allow it once.
+ */
+function SetUpSearchConsole(props: { site: SiteSummary; canSetUp: boolean }) {
+  const queryClient = useQueryClient();
+  const allow = useMutation({
+    mutationFn: async () => {
+      const { url } = await startGoogleConnect({
+        setup: true,
+        return_to: `${window.location.pathname}${window.location.search}`,
+      });
+      window.location.assign(url);
+      // Keep the button busy while the browser leaves for Google.
+      await new Promise(() => {});
+    },
+  });
+  const setUp = useMutation({
+    mutationFn: () => setUpSearchConsole(props.site.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["site", props.site.id, "search-console"] });
+      queryClient.invalidateQueries({ queryKey: ["google", "search-console", "properties"] });
+    },
+  });
+  const run = props.canSetUp ? setUp : allow;
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <Button size="sm" loading={run.isPending} onClick={() => run.mutate()}>
+          {props.canSetUp ? "Set up Search Console for this site" : "Allow setup in Google"}
+        </Button>
+        <HelpTip>
+          Adds this site to Search Console, proves you own it with a tag KontrolWP Connect prints on the home page, and
+          submits the sitemap. It needs SEO Management switched on for the site.
+          {props.canSetUp
+            ? ""
+            : " Google will ask once to also let KontrolWP add sites and verify them, which goes beyond reading."}
+        </HelpTip>
+      </div>
+      {run.error && <p className="text-sm text-destructive">{run.error.message}</p>}
+      {setUp.data?.sitemap_error && (
+        <p className="text-sm text-muted-foreground">
+          The site was added, but its sitemap was not accepted: {setUp.data.sitemap_error}
+        </p>
       )}
     </div>
   );
