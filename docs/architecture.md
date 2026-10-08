@@ -524,7 +524,7 @@ Switching a module off hides it. With SEO Management off (plugin 0.24.0), the SE
 
 ## Overview health cards
 
-Every site's Overview starts with a Health section of up to four cards: Links and Security (WordPress only), SEO, and Accessibility. Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
+Every site's Overview starts with a Health section of up to five cards: Links and Security (WordPress only), SEO, Accessibility, and Search Console (clicks and impressions for 28 days, or a prompt to connect Google; it opens the SEO tab). Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
 
 ## Analytics providers
 
