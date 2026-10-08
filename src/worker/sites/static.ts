@@ -2,6 +2,7 @@ import { CloudflareError, fetchBuilds, fetchDeployments, loadCloudflareToken, wo
 import { clearContentCache } from "../content-cache.ts";
 import type { SiteDeployment } from "../../shared/types.ts";
 import { findIcon } from "./icons.ts";
+import { decode, meta } from "./seo-audit-check.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import type { SyncResult } from "./sync.ts";
 
@@ -30,6 +31,36 @@ export async function inspectStaticSite(url: string): Promise<{ error: string | 
     icon = findIcon(await response.text().catch(() => ""), response.url || url);
   }
   return { error: null, icon };
+}
+
+/** Words a home page title often starts with that are not the site's name. */
+const GENERIC_TITLE = /^(home|homepage|welcome|index|main)$/i;
+
+/** The site's own name from its home page HTML: og:site_name, application-name, or the title without its tagline. */
+export function siteNameFromHtml(html: string): string {
+  const named = meta(html, "og:site_name") || meta(html, "application-name");
+  if (named) return named.slice(0, 120);
+  const title = decode(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
+  const parts = title
+    .split(/\s+[|\u2013\u2014\u00b7:\u2022-]\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part && !GENERIC_TITLE.test(part));
+  return (parts[0] ?? title).slice(0, 120);
+}
+
+/** The name a static site gives itself, or "" when it cannot be read. */
+export async function readStaticSiteName(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "text/html", "User-Agent": "KontrolWP" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!response.ok || !(response.headers.get("Content-Type") ?? "").includes("html")) return "";
+    return siteNameFromHtml((await response.text()).slice(0, 200_000));
+  } catch {
+    return "";
+  }
 }
 
 interface StaticRow {

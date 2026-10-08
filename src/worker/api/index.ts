@@ -78,7 +78,7 @@ import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
 import { enqueueUpdate } from "../sites/updates.ts";
-import { inspectStaticSite, syncStaticSite } from "../sites/static.ts";
+import { inspectStaticSite, readStaticSiteName, syncStaticSite } from "../sites/static.ts";
 import {
   CloudflareError,
   deleteCloudflareToken,
@@ -190,6 +190,12 @@ api.get("/overview", async (c) => {
 });
 
 api.get("/sites", async (c) => c.json(await listSites(c.env.DB)));
+
+/** The name a static website gives itself (its home page's site name or title), for the Add site dialog. */
+api.get("/static-site-name", async (c) => {
+  const url = normalizeSiteUrl(c.req.query("url") ?? "");
+  return c.json({ name: url ? await readStaticSiteName(url) : "" });
+});
 
 const siteInput = z.object({
   url: z.string().trim().min(1).max(2000),

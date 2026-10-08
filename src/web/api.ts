@@ -125,6 +125,8 @@ export type NewSite =
   | { url: string; connection_key: string }
   | { kind: "static"; url: string; name?: string; cloudflare?: boolean; cf_account_id?: string; cf_worker?: string };
 
+export const fetchStaticSiteName = (url: string) =>
+  request<{ name: string }>(`/static-site-name?url=${encodeURIComponent(url)}`);
 export const createSite = (input: NewSite) => request<SiteSummary>("/sites", { method: "POST", json: input });
 
 export const updateSiteUrl = (id: number, url: string) =>

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { SiteKind, SiteSummary } from "../../shared/types";
-import { ApiError, createSite } from "../api";
+import { ApiError, createSite, fetchStaticSiteName } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { CloudflareWorkerSelect, type WorkerChoice } from "./CloudflareWorkerSelect";
 import { ConnectionSteps } from "./ConnectionSteps";
@@ -69,12 +69,24 @@ export function AddSiteDialog() {
     },
   });
 
+  // The name the site gives itself, filled in once its address is typed, unless a name was already typed.
+  const [nameTyped, setNameTyped] = useState(false);
+  const suggestName = () => {
+    if (kind !== "static" || nameTyped || !url.trim()) return;
+    const address = url.includes("://") ? url : `https://${url}`;
+    fetchStaticSiteName(address).then(
+      ({ name: found }) => found && setName((current) => (current ? current : found)),
+      () => {},
+    );
+  };
+
   const reset = (next: boolean) => {
     setOpen(next);
     if (!next) {
       setUrl("");
       setConnectionKey("");
       setName("");
+      setNameTyped(false);
       setWorker(null);
       setOnCloudflare(false);
       setKind("wordpress");
@@ -133,7 +145,8 @@ export function AddSiteDialog() {
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com"
+                onBlur={suggestName}
+                placeholder="example.com"
                 inputMode="url"
                 required
               />
@@ -158,8 +171,11 @@ export function AddSiteDialog() {
                   <span className="text-sm font-medium">Name</span>
                   <Input
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Defaults to the domain"
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setNameTyped(true);
+                    }}
+                    placeholder="Defaults to the site's own name"
                     maxLength={120}
                   />
                 </label>
