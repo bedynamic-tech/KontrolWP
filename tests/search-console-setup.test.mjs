@@ -79,3 +79,22 @@ test("a disabled Site Verification API keeps the page that turns it on", async (
     /Enable it at https:\/\/console\.developers\.google\.com\/apis\/api\/siteverification\.googleapis\.com\/overview\?project=123/,
   );
 });
+
+test("a sitemap refused just after the site was added is retried, and a lasting refusal quotes Google", async () => {
+  let tries = 0;
+  const path = "PUT www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/sitemaps/https%3A%2F%2Fexample.com%2Fwp-sitemap.xml";
+  stubFetch({
+    [path]: () => {
+      tries++;
+      return tries < 3 ? [403, { error: { message: "User does not have sufficient permission for site" } }] : [204, null];
+    },
+  });
+  await submitSitemap("tok", "https://example.com/", "https://example.com/wp-sitemap.xml", 3, 1);
+  assert.equal(tries, 3);
+
+  stubFetch({ [path]: () => [403, { error: { message: "User does not have sufficient permission for site" } }] });
+  await assert.rejects(
+    submitSitemap("tok", "https://example.com/", "https://example.com/wp-sitemap.xml", 2, 1),
+    /Google said: User does not have sufficient permission/,
+  );
+});

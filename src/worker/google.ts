@@ -350,7 +350,11 @@ export async function googleCall<T>(
       );
     }
     if (res.status === 403 || res.status === 401) {
-      throw new GoogleError("Google would not let the connected account read this. It needs to be able to view the property in Google Analytics or Search Console.", 400);
+      const reason = detail ? ` Google said: ${detail}` : "";
+      throw new GoogleError(
+        `Google refused this request (${res.status}) for the connected account. It needs access to the property in Google Analytics or Search Console, and to have allowed it when signing in.${reason}`,
+        400,
+      );
     }
     throw new GoogleError(`Google answered ${res.status}${detail ? `: ${detail}` : ""}.`, res.status === 400 ? 400 : 502);
   }

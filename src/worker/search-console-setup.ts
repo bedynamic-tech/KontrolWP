@@ -54,8 +54,16 @@ export async function addProperty(token: string, property: string): Promise<void
   await googleCall(token, `${SEARCH_API}/sites/${encodeURIComponent(property)}`, { method: "PUT" });
 }
 
-export async function submitSitemap(token: string, property: string, sitemap: string): Promise<void> {
-  await googleCall(token, `${SEARCH_API}/sites/${encodeURIComponent(property)}/sitemaps/${encodeURIComponent(sitemap)}`, {
-    method: "PUT",
-  });
+/** A property that was only just added may not accept requests for a moment, so a refusal is retried briefly. */
+export async function submitSitemap(token: string, property: string, sitemap: string, attempts = 3, wait = 3000): Promise<void> {
+  const url = `${SEARCH_API}/sites/${encodeURIComponent(property)}/sitemaps/${encodeURIComponent(sitemap)}`;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await googleCall(token, url, { method: "PUT" });
+      return;
+    } catch (error) {
+      if (!(error instanceof GoogleError) || error.status !== 400 || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
 }
