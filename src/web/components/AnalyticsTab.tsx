@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
@@ -15,7 +16,9 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
-import { Section } from "./Section";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { SearchConsoleSection } from "./SearchConsoleSection";
+import { EmptyRow, Section } from "./Section";
 
 const regionNames = (() => {
   try {
@@ -57,8 +60,35 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: the site's analytics in full. */
+/** The Analytics tab: Search Console above the site's analytics in full. */
 export function AnalyticsTab(props: { site: SiteSummary }) {
+  const { site } = props;
+  const source = useAnalyticsProvider(site);
+  return (
+    <>
+      <ErrorBoundary label="Search Console">
+        <SearchConsoleSection site={site} />
+      </ErrorBoundary>
+      {source.configured ? (
+        <AnalyticsContent site={site} />
+      ) : (
+        source.loaded && (
+          <Section title="Analytics">
+            <EmptyRow>
+              Connect {source.label} in{" "}
+              <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+                Settings
+              </Link>{" "}
+              to show this site's analytics.
+            </EmptyRow>
+          </Section>
+        )
+      )}
+    </>
+  );
+}
+
+function AnalyticsContent(props: { site: SiteSummary }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
   const [range, chooseRange] = useAnalyticsRange();
