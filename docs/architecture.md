@@ -460,6 +460,8 @@ Builds API needs a user token with Workers Builds Configuration; without it the
 deployments still show. Build logs are read from Cloudflare when opened, one
 cursor page at a time, and only for builds the site listed at its last sync.
 
+The Deployments list shows builds only, newest first, with a Live chip on the build the live version came from (`src/shared/deployments.ts`): the newest successful build that started no later than two minutes after the newest deployment. A live version no build explains, and a site with no builds, keep their deployment rows.
+
 ### Pages from the sitemap
 
 A static site's Pages tab (`GET /api/sites/:id/pages`) reads the site's
