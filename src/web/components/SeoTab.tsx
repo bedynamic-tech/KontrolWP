@@ -1318,8 +1318,8 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
   );
 }
 
-/** Views that do nothing while SEO Management is off. */
-const SEO_NEEDS_SEO = ["content", "tools"];
+/** Views that are hidden while SEO Management is off. */
+const SEO_NEEDS_SEO = ["redirects", "404", "content", "tools"];
 
 const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
@@ -1339,8 +1339,8 @@ export function SeoTab(props: { site: SiteSummary }) {
     queryFn: () => fetchSeo(props.site.id),
     enabled: compareVersions(props.site.plugin_version ?? "0", SEO_SINCE) >= 0,
   });
-  // Content and Tools only work while SEO Management is on, so they are hidden until it is. Redirects, the 404 log and Import
-  // stay: redirect rules keep working on the site either way, and Import is how a site brings another plugin's settings in.
+  // Redirects, the 404 log, Content and Tools belong to KontrolWP SEO, so they are hidden until SEO Management is on.
+  // Import stays: it is how a site brings another plugin's settings in.
   const views = seo.data?.settings.enabled ? SEO_VIEWS : SEO_VIEWS.filter((item) => !SEO_NEEDS_SEO.includes(item.value));
   const shown = views.some((item) => item.value === view) ? view : "settings";
   return (
