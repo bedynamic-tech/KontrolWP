@@ -9,6 +9,7 @@ import { fetchSecurity, setSecurityFixes } from "../api";
 import { timeAgo } from "../format";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
+import { LoginUrlSection } from "./LoginUrlSection";
 
 const SEVERITY_LABEL: Record<VulnSeverity, string> = {
   critical: "Critical",
@@ -235,6 +236,8 @@ export function SecurityTab(props: { site: SiteSummary }) {
           ))}
         </ul>
       </Section>
+
+      <LoginUrlSection site={site} />
     </div>
   );
 }

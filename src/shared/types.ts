@@ -1239,3 +1239,28 @@ export interface Snippets {
 export interface UpdateEmails {
   disabled: boolean;
 }
+
+export const LOGIN_URL_REDIRECTS = ["404", "home"] as const;
+export type LoginUrlRedirect = (typeof LOGIN_URL_REDIRECTS)[number];
+
+/** A WordPress site's custom login address (KontrolWP Connect 0.31.0+). */
+export interface LoginUrl {
+  enabled: boolean;
+  slug: string;
+  /** Where wp-login.php and the signed-out wp-admin lead: a not found page, or the home page. */
+  redirect: LoginUrlRedirect;
+  /** In force right now: on, valid, not switched off in wp-config.php and no other login plugin in the way. */
+  active: boolean;
+  /** KONTROLWP_DISABLE_LOGIN_URL is set in wp-config.php. */
+  locked: boolean;
+  /** Names of other plugins that also change the login page. */
+  conflicts: string[];
+  login_url: string;
+  default_login_url: string;
+}
+
+export interface LoginUrlSettings {
+  enabled: boolean;
+  slug: string;
+  redirect: LoginUrlRedirect;
+}

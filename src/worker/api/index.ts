@@ -52,7 +52,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -145,6 +145,7 @@ import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
 import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
+import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -291,7 +292,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|login-url|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -1208,6 +1209,17 @@ api.put("/sites/:id/update-emails", async (c) => {
   const parsed = z.object({ disabled: z.boolean() }).safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid setting" }, 400);
   return redirectsCall(c, (site, credentials) => saveUpdateEmails(site, credentials, parsed.data.disabled));
+});
+
+/** A site's custom login address. */
+api.get("/sites/:id/login-url", async (c) => redirectsCall(c, (site, credentials) => siteLoginUrl(site, credentials)));
+
+api.put("/sites/:id/login-url", async (c) => {
+  const parsed = z
+    .object({ enabled: z.boolean(), slug: z.string().max(200), redirect: z.enum(LOGIN_URL_REDIRECTS) })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid login address" }, 400);
+  return redirectsCall(c, (site, credentials) => saveLoginUrl(site, credentials, parsed.data));
 });
 
 /** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */
