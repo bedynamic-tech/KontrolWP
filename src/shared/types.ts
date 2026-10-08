@@ -1234,3 +1234,8 @@ export interface Snippets {
   settings: SnippetsSettings;
   limits: { snippets: number; code: number; name: number; paths: number };
 }
+
+/** Whether a WordPress site suppresses the emails WordPress sends about updates. */
+export interface UpdateEmails {
+  disabled: boolean;
+}

@@ -144,6 +144,7 @@ import {
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
+import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -290,7 +291,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -1198,6 +1199,15 @@ api.put("/sites/:id/snippets", async (c) => {
   const parsed = snippetsBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid snippets" }, 400);
   return redirectsCall(c, (site, credentials) => saveSnippets(c.env, site, credentials, parsed.data));
+});
+
+/** Whether a site's update emails are switched off. */
+api.get("/sites/:id/update-emails", async (c) => redirectsCall(c, (site, credentials) => siteUpdateEmails(site, credentials)));
+
+api.put("/sites/:id/update-emails", async (c) => {
+  const parsed = z.object({ disabled: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid setting" }, 400);
+  return redirectsCall(c, (site, credentials) => saveUpdateEmails(site, credentials, parsed.data.disabled));
 });
 
 /** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */
