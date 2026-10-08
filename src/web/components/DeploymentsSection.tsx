@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { DeploymentStatus, SiteDeployment, SiteSummary } from "../../shared/types";
 import { fetchBuildLog, fetchSiteDeployments } from "../api";
+import { visibleDeployments } from "../../shared/deployments";
 import { timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
@@ -84,10 +85,8 @@ export function DeploymentsSection(props: { site: SiteSummary; compact?: boolean
       </EmptyRow>
     );
   } else {
-    const rows = query.data.deployments;
+    const { rows, live } = visibleDeployments(query.data.deployments);
     const shown = compact ? rows.slice(0, COMPACT_ROWS) : rows;
-    // The newest deployment is the one serving traffic.
-    const live = rows.find((row) => row.type === "deployment")?.ref;
     body = (
       <>
         {query.data.error && (
@@ -146,6 +145,8 @@ export function DeploymentsSection(props: { site: SiteSummary; compact?: boolean
 function DeploymentRow(props: { site: SiteSummary; row: SiteDeployment; live: boolean; logs: boolean }) {
   const { row } = props;
   const state = row.type === "deployment" && !props.live ? "previous" : row.status;
+  // A build the live version came from keeps its own status and gets a second chip.
+  const liveBuild = props.live && row.type === "build";
   const fallback = row.type === "deployment" ? "New version deployed" : "Build";
   const details = [
     row.author,
@@ -165,6 +166,16 @@ function DeploymentRow(props: { site: SiteSummary; row: SiteDeployment; live: bo
         >
           {STATUS_LABELS[state]}
         </span>
+        {liveBuild && (
+          <span
+            className={cn(
+              "mt-0.5 inline-flex h-5 shrink-0 items-center rounded-full px-2 text-xs font-medium",
+              STATUS_TONES.live,
+            )}
+          >
+            {STATUS_LABELS.live}
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{row.message || fallback}</span>
           <span className="block truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
