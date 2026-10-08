@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PencilIcon } from "lucide-react";
+import { ArrowUpRightIcon, PencilIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,7 +91,16 @@ export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: Ana
   );
 }
 
-export function AnalyticsSection(props: { site: SiteSummary }) {
+/** A small icon button on an Overview module that jumps to the full view. */
+export function JumpButton(props: { label: string; onClick: () => void }) {
+  return (
+    <Button type="button" variant="ghost" size="icon-xs" aria-label={props.label} title={props.label} onClick={props.onClick}>
+      <ArrowUpRightIcon />
+    </Button>
+  );
+}
+
+export function AnalyticsSection(props: { site: SiteSummary; onOpen?: () => void }) {
   const { site } = props;
   const [range, chooseRange] = useAnalyticsRange();
   const source = useAnalyticsProvider(site);
@@ -145,7 +154,12 @@ export function AnalyticsSection(props: { site: SiteSummary }) {
   return (
     <Section
       title="Analytics"
-      action={<RangeSelect range={range} onChange={chooseRange} />}
+      action={
+        <span className="flex items-center gap-1.5">
+          {props.onOpen && <JumpButton label="Open Analytics" onClick={props.onOpen} />}
+          <RangeSelect range={range} onChange={chooseRange} />
+        </span>
+      }
     >
       <div className={cn("@container", analytics.isPlaceholderData && "opacity-60 transition-opacity")}>{body}</div>
     </Section>
