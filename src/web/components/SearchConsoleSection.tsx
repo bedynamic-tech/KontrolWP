@@ -57,8 +57,12 @@ function useRange(): [SearchConsoleRange, (next: SearchConsoleRange) => void] {
 }
 
 /** Search Console clicks, impressions, top queries and top pages, shown in the SEO tab once Google is connected. */
-export function SearchConsoleSection(props: { site: SiteSummary }) {
-  const { site } = props;
+export function SearchConsoleSection(props: {
+  site: SiteSummary;
+  /** The Overview version: the stats and clicks trend, with a link to the full section. */
+  onOpen?: () => void;
+}) {
+  const { site, onOpen } = props;
   const [range, chooseRange] = useRange();
   const google = useQuery({
     queryKey: ["settings", "google"],
@@ -135,7 +139,7 @@ export function SearchConsoleSection(props: { site: SiteSummary }) {
       </div>
     );
   } else {
-    body = <Body site={site} data={data.data} />;
+    body = <Body site={site} data={data.data} onOpen={onOpen} />;
   }
 
   return (
@@ -156,7 +160,11 @@ export function SearchConsoleSection(props: { site: SiteSummary }) {
   );
 }
 
-function Body(props: { site: SiteSummary; data: SiteSearchConsole }) {
+function Body(props: {
+  site: SiteSummary;
+  data: SiteSearchConsole;
+  onOpen?: () => void;
+}) {
   const { data } = props;
   const totals = data.totals!;
   const max = Math.max(1, ...data.series.map((point) => point.clicks));
@@ -197,19 +205,21 @@ function Body(props: { site: SiteSummary; data: SiteSearchConsole }) {
           </div>
         </div>
       )}
-      <div className="grid divide-y @2xl:grid-cols-2 @2xl:divide-x @2xl:divide-y-0">
-        <RowList
-          title="Top queries"
-          rows={data.queries}
-          empty="No queries in this period."
-        />
-        <RowList
-          title="Top pages"
-          rows={data.pages}
-          empty="No pages in this period."
-          page
-        />
-      </div>
+      {!props.onOpen && (
+        <div className="grid divide-y @2xl:grid-cols-2 @2xl:divide-x @2xl:divide-y-0">
+          <RowList
+            title="Top queries"
+            rows={data.queries}
+            empty="No queries in this period."
+          />
+          <RowList
+            title="Top pages"
+            rows={data.pages}
+            empty="No pages in this period."
+            page
+          />
+        </div>
+      )}
       <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
         <span>Connected to {data.property!.name}</span>
         <PropertyPicker
@@ -218,9 +228,19 @@ function Body(props: { site: SiteSummary; data: SiteSearchConsole }) {
           chosen={data.chosen}
           compact
         />
-        <span className="ml-auto">
-          Search Console reports whole days, about two days late.
-        </span>
+        {props.onOpen ? (
+          <button
+            type="button"
+            onClick={props.onOpen}
+            className="ml-auto hover:text-foreground hover:underline"
+          >
+            Top queries and pages
+          </button>
+        ) : (
+          <span className="ml-auto">
+            Search Console reports whole days, about two days late.
+          </span>
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import {
   Link2Icon,
   SearchIcon,
   ShieldCheckIcon,
-  TrendingUpIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -17,9 +16,7 @@ import {
 import type { SiteSummary } from "../../shared/types";
 import {
   fetchAccessibility,
-  fetchGoogleSettings,
   fetchLinks,
-  fetchSearchConsole,
   fetchSecurity,
   fetchSeo,
   fetchSeoAudit,
@@ -312,69 +309,6 @@ function AccessibilityCard(props: {
   );
 }
 
-/** Clicks and impressions from Search Console over the last 28 days, or a prompt to connect Google. */
-function SearchConsoleCard(props: {
-  site: SiteSummary;
-  onOpen: (tab: string) => void;
-}) {
-  const { site } = props;
-  const google = useQuery({
-    queryKey: ["settings", "google"],
-    queryFn: fetchGoogleSettings,
-    refetchInterval: false,
-  });
-  const connected = !!google.data?.configured;
-  const stats = useQuery({
-    queryKey: ["site", site.id, "search-console", "28d"],
-    queryFn: () => fetchSearchConsole(site.id, "28d"),
-    enabled: connected,
-    staleTime: 60_000,
-    refetchInterval: false,
-  });
-  let summary: Summary | null = null;
-  if (google.error)
-    summary = { value: "Unavailable", detail: "Open the tab for details" };
-  else if (google.data && !connected)
-    summary = {
-      value: "Not connected",
-      detail: "Connect Google in Settings",
-    };
-  else if (stats.error)
-    summary = { value: "Unavailable", detail: "Open the tab for details" };
-  else if (stats.data) {
-    const { totals } = stats.data;
-    if (!stats.data.property || !totals) {
-      summary = {
-        value: "No property found",
-        detail: "Open the tab to choose one",
-        tone: "warn",
-      };
-    } else {
-      const { value, previous } = totals.clicks;
-      const change =
-        previous !== null && previous > 0
-          ? Math.round(((value - previous) / previous) * 100)
-          : null;
-      summary = {
-        value: `${value.toLocaleString()} ${value === 1 ? "click" : "clicks"}`,
-        detail: `${totals.impressions.value.toLocaleString()} impressions, last 28 days${
-          change ? `, ${change > 0 ? "+" : ""}${change}% clicks` : ""
-        }`,
-        tone: change === null || change === 0 ? undefined : change > 0 ? "good" : "warn",
-      };
-    }
-  }
-  return (
-    <HealthCard
-      icon={<TrendingUpIcon />}
-      title="Search Console"
-      tab="analytics"
-      summary={summary}
-      onOpen={props.onOpen}
-    />
-  );
-}
-
 /** A basic summary of each health area the site has switched on, each opening its tab. */
 export function HealthOverview(props: {
   site: SiteSummary;
@@ -397,7 +331,6 @@ export function HealthOverview(props: {
         {security && <SecurityCard site={site} onOpen={onOpen} />}
         <SeoCard site={site} onOpen={onOpen} />
         {accessibility && <AccessibilityCard site={site} onOpen={onOpen} />}
-        {!site.analytics_excluded && <SearchConsoleCard site={site} onOpen={onOpen} />}
       </div>
     </section>
   );
