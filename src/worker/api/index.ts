@@ -13,6 +13,7 @@ import type {
   SiteDomain,
   LinkUnlinkResult,
   SiteLinks,
+  AnalyticsProvider,
   SiteAnalytics,
   SiteAnalyticsDetails,
   SiteDeployments,
@@ -48,7 +49,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -99,6 +100,7 @@ import {
   UmamiError,
   type UmamiConfig,
 } from "../umami.ts";
+import { listWebAnalyticsSites, matchWebAnalyticsSite, webAnalytics, webAnalyticsDetails } from "../web-analytics.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
@@ -1722,6 +1724,7 @@ api.put("/settings/cloudflare", async (c) => {
   try {
     const workers = await listWorkers(parsed.data.token);
     await saveCloudflareToken(c.env, parsed.data.token);
+    await clearContentCacheKind(c.env.DB, "analytics");
     return c.json({ configured: true, workers: workers.length });
   } catch (error) {
     if (error instanceof CloudflareError) return c.json({ error: error.message }, 400);
@@ -1731,6 +1734,7 @@ api.put("/settings/cloudflare", async (c) => {
 
 api.delete("/settings/cloudflare", async (c) => {
   await deleteCloudflareToken(c.env);
+  await clearContentCacheKind(c.env.DB, "analytics");
   return c.json<CloudflareSettings>({ configured: false });
 });
 
@@ -1807,7 +1811,7 @@ const ANALYTICS_CACHE = { maxAge: 300, staleOnError: false };
 
 const analyticsRange = z.enum(["24h", "7d", "30d", "90d"]);
 
-api.get("/sites/:id/analytics", (c) =>
+const umamiSummary = (c: AppContext) =>
   umamiRequest(c, async (config) => {
     const id = siteId(c);
     const site =
@@ -1843,12 +1847,11 @@ api.get("/sites/:id/analytics", (c) =>
       async () => ({ website, chosen: !!chosen, ...(await siteAnalytics(client, website, range, tz)) }),
       ANALYTICS_CACHE,
     );
-    return c.json<SiteAnalytics>(data);
-  }),
-);
+    return c.json<SiteAnalytics>({ provider: "umami", ...data });
+  });
 
 /** The Analytics tab: everything in the summary, plus Umami's other breakdowns. */
-api.get("/sites/:id/analytics/details", (c) =>
+const umamiDetails = (c: AppContext) =>
   umamiRequest(c, async (config) => {
     const id = siteId(c);
     const site =
@@ -1886,9 +1889,98 @@ api.get("/sites/:id/analytics/details", (c) =>
       async () => ({ website, chosen: !!chosen, ...(await siteAnalyticsDetails(client, website, range, tz)) }),
       ANALYTICS_CACHE,
     );
-    return c.json<SiteAnalyticsDetails>(data);
-  }),
+    return c.json<SiteAnalyticsDetails>({ provider: "umami", ...data });
+  });
+
+/** A site's analytics provider; Umami for a site that has not chosen. */
+async function analyticsProvider(c: AppContext): Promise<AnalyticsProvider> {
+  const id = siteId(c);
+  const row = id && (await c.env.DB.prepare("SELECT analytics_provider FROM sites WHERE id = ?").bind(id).first<{ analytics_provider: string }>());
+  return row && (ANALYTICS_PROVIDERS as readonly string[]).includes(row.analytics_provider)
+    ? (row.analytics_provider as AnalyticsProvider)
+    : "umami";
+}
+
+/** Cloudflare Web Analytics for the site: the owner's chosen Web Analytics site, or the one with the site's domain. */
+function cloudflareAnalytics(c: AppContext, detailed: boolean) {
+  return cloudflareRequest(c, async (token) => {
+    const id = siteId(c);
+    const site =
+      id &&
+      (await c.env.DB.prepare("SELECT url, analytics_ref FROM sites WHERE id = ?")
+        .bind(id)
+        .first<{ url: string; analytics_ref: string | null }>());
+    if (!site) return c.json({ error: "Site not found" }, 404);
+    const range = analyticsRange.catch("7d").parse(c.req.query("range"));
+    const tz = validTimeZone(c.req.query("tz"));
+    const sources = await listWebAnalyticsSites(token);
+    const chosen = site.analytics_ref ? (sources.find((source) => source.id === site.analytics_ref) ?? null) : null;
+    const source = chosen ?? (site.analytics_ref ? null : matchWebAnalyticsSite(sources, site.url));
+    if (!source) {
+      return c.json<SiteAnalyticsDetails>({
+        provider: "cloudflare",
+        website: null,
+        chosen: !!site.analytics_ref,
+        range,
+        stats: null,
+        series: [],
+        pages: [],
+        referrers: [],
+        breakdowns: null,
+        active: null,
+      });
+    }
+    const data = await cachedRead(
+      c.env.DB,
+      id,
+      "analytics",
+      `cf-${detailed ? "details" : "summary"}|${source.id}|${range}|${tz}`,
+      async () => ({
+        chosen: !!chosen,
+        ...(await (detailed ? webAnalyticsDetails : webAnalytics)(token, source, range, tz)),
+      }),
+      ANALYTICS_CACHE,
+    );
+    return c.json(data);
+  });
+}
+
+api.get("/sites/:id/analytics", async (c) =>
+  (await analyticsProvider(c)) === "cloudflare" ? cloudflareAnalytics(c, false) : umamiSummary(c),
 );
+
+api.get("/sites/:id/analytics/details", async (c) =>
+  (await analyticsProvider(c)) === "cloudflare" ? cloudflareAnalytics(c, true) : umamiDetails(c),
+);
+
+/** The Web Analytics sites the Cloudflare token can see. */
+api.get("/cloudflare/web-analytics/sites", (c) =>
+  cloudflareRequest(c, async (token) => c.json({ websites: await listWebAnalyticsSites(token) })),
+);
+
+/** Choose where a site's analytics come from. */
+api.put("/sites/:id/analytics-provider", async (c) => {
+  const parsed = z.object({ provider: z.enum(ANALYTICS_PROVIDERS) }).safeParse(await c.req.json().catch(() => null));
+  const id = siteId(c);
+  if (!parsed.success || !id) return c.json({ error: "Invalid analytics provider" }, 400);
+  const result = await c.env.DB.prepare("UPDATE sites SET analytics_provider = ?, analytics_ref = NULL WHERE id = ?")
+    .bind(parsed.data.provider, id)
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
+  await clearContentCacheKind(c.env.DB, "analytics");
+  return c.json({ ok: true });
+});
+
+/** Choose the Web Analytics site or GA4 property for a site, or null to match by domain again. */
+api.put("/sites/:id/analytics-source", async (c) => {
+  const parsed = z.object({ ref: z.string().trim().min(1).max(200).nullable() }).safeParse(await c.req.json().catch(() => null));
+  const id = siteId(c);
+  if (!parsed.success || !id) return c.json({ error: "Invalid analytics source" }, 400);
+  const result = await c.env.DB.prepare("UPDATE sites SET analytics_ref = ? WHERE id = ?").bind(parsed.data.ref, id).run();
+  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
+  await clearContentCache(c.env.DB, id);
+  return c.json({ ok: true });
+});
 
 function validTimeZone(value: string | undefined): string {
   if (!value) return "UTC";

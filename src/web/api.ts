@@ -45,6 +45,7 @@ import type {
   SyncSettings,
   SiteAnalytics,
   SiteAnalyticsDetails,
+  AnalyticsProvider,
   UmamiSettings,
   UmamiWebsite,
   Overview,
@@ -250,6 +251,14 @@ export const saveUmamiSettings = (input: UmamiInput) =>
 export const deleteUmamiSettings = () => request<UmamiSettings>("/settings/umami", { method: "DELETE" });
 
 export const fetchUmamiWebsites = () => request<{ websites: UmamiWebsite[] }>("/umami/websites");
+
+export const fetchWebAnalyticsSites = () => request<{ websites: UmamiWebsite[] }>("/cloudflare/web-analytics/sites");
+
+export const setSiteAnalyticsProvider = (siteId: number, provider: AnalyticsProvider) =>
+  request<{ ok: true }>(`/sites/${siteId}/analytics-provider`, { method: "PUT", json: { provider } });
+
+export const setSiteAnalyticsSource = (siteId: number, ref: string | null) =>
+  request<{ ok: true }>(`/sites/${siteId}/analytics-source`, { method: "PUT", json: { ref } });
 
 export const setSiteUmamiWebsite = (siteId: number, websiteId: string | null) =>
   request<{ ok: true }>(`/sites/${siteId}/umami`, { method: "PUT", json: { website_id: websiteId } });

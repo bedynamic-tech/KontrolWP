@@ -48,7 +48,7 @@ interface Envelope<T> {
   errors?: { code?: number; message?: string }[];
 }
 
-async function call<T>(token: string, path: string, params: Record<string, string | number> = {}): Promise<T> {
+export async function call<T>(token: string, path: string, params: Record<string, string | number> = {}): Promise<T> {
   const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
   const url = `${API}${path}${query.size ? `?${query}` : ""}`;
   let res: Response;

@@ -67,7 +67,7 @@ function HealthCard(props: {
         <>
           <span
             className={cn(
-              "truncate text-base font-medium tabular-nums",
+              "text-base font-medium tabular-nums",
               summary.tone && TONE_CLASS[summary.tone],
             )}
           >
