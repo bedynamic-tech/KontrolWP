@@ -130,7 +130,11 @@ class KontrolWP_Connect_Links {
 			)
 		);
 
-		$items      = array();
+		$items = array();
+		if ( ! $ids && 1 === (int) $request['page'] ) {
+			// Header and footer links sit outside every post; they are listed once, ahead of the posts.
+			$items = self::site_areas();
+		}
 		$deadline   = microtime( true ) + self::RENDER_BUDGET;
 		$unrendered = 0;
 		foreach ( $query->posts as $post ) {
@@ -162,6 +166,67 @@ class KontrolWP_Connect_Links {
 			'total_posts' => (int) $query->found_posts,
 			'unrendered'  => $unrendered,
 		);
+	}
+
+	/**
+	 * Links in the site's header and footer, as two pseudo-items (ids -1 and -2). They come from the menus
+	 * assigned to theme locations and from the <header> and <footer> of the home page, so themes, widgets and
+	 * block template parts are all covered. Each address is listed once however many pages repeat it.
+	 */
+	private static function site_areas() {
+		$home  = home_url( '/' );
+		$areas = array(
+			'header' => array(),
+			'footer' => array(),
+		);
+
+		foreach ( (array) get_nav_menu_locations() as $location => $menu_id ) {
+			$area = false !== stripos( (string) $location, 'footer' ) ? 'footer' : 'header';
+			foreach ( (array) wp_get_nav_menu_items( (int) $menu_id ) as $item ) {
+				$url = self::absolute( trim( (string) $item->url ), $home );
+				if ( $url ) {
+					$areas[ $area ][] = array(
+						'url'  => $url,
+						'text' => mb_substr( trim( wp_strip_all_tags( html_entity_decode( (string) $item->title, ENT_QUOTES, 'UTF-8' ) ) ), 0, 120 ),
+						'kind' => 'link',
+					);
+				}
+			}
+		}
+
+		$response = wp_remote_get(
+			$home,
+			array(
+				'timeout'    => 8,
+				'sslverify'  => apply_filters( 'https_local_ssl_verify', false ),
+				'user-agent' => 'KontrolWP-Connect/' . KONTROLWP_CONNECT_VERSION,
+			)
+		);
+		if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+			$html = (string) wp_remote_retrieve_body( $response );
+			foreach ( array( 'header', 'footer' ) as $area ) {
+				if ( preg_match_all( '/<' . $area . '\b[^>]*>(.*?)<\/' . $area . '>/is', $html, $regions ) ) {
+					$areas[ $area ] = array_merge( $areas[ $area ], self::extract( implode( "\n", $regions[1] ), $home ) );
+				}
+			}
+		}
+
+		$items = array();
+		$id    = -1;
+		foreach ( $areas as $area => $links ) {
+			$links = self::merge( $links, array() );
+			if ( $links ) {
+				$items[] = array(
+					'post_id'   => $id,
+					'title'     => 'header' === $area ? 'Header' : 'Footer',
+					'type'      => 'area',
+					'permalink' => $home,
+					'links'     => $links,
+				);
+			}
+			--$id;
+		}
+		return $items;
 	}
 
 	/** The post's content as visitors get it, with every filter applied. A failure in another plugin leaves it empty. */
