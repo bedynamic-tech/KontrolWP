@@ -585,6 +585,17 @@ export interface SiteSearchConsole {
   pages: SearchConsoleRow[];
 }
 
+/** What setting a WordPress site up in Search Console did. */
+export interface SearchConsoleSetup {
+  /** The Search Console property, such as "https://example.com/". */
+  property: string;
+  /** The site was already in Search Console, so nothing had to be verified. */
+  already: boolean;
+  /** The sitemap handed to Google, or null when that failed. */
+  sitemap: string | null;
+  sitemap_error: string | null;
+}
+
 /** The Google connection as Settings shows it; secrets and tokens never leave the Worker. */
 export interface GoogleSettings {
   configured: boolean;
@@ -595,6 +606,8 @@ export interface GoogleSettings {
   /** The OAuth client ID the owner saved; the secret is never returned. */
   client_id: string;
   client_configured: boolean;
+  /** The sign-in allows adding sites to Search Console and verifying them. */
+  can_setup: boolean;
   /** The address to list as an authorized redirect URI on the OAuth client. */
   redirect_uri: string;
 }
