@@ -124,9 +124,19 @@ export function LoginUrlSection({ site }: { site: SiteSummary }) {
           </HelpTip>
         </p>
         <Switch
-          checked={draft.enabled}
+          checked={save.isPending ? save.variables.enabled : draft.enabled}
           disabled={blocked || save.isPending}
-          onCheckedChange={(value) => setDraft({ ...draft, enabled: value })}
+          onCheckedChange={(value) => {
+            if (!value && saved.enabled) {
+              // Turning it off takes effect at once, like the other switches, and keeps the saved address for later.
+              setDraft({ enabled: false, slug: saved.slug, redirect: saved.redirect });
+              save.mutate({ enabled: false, slug: saved.slug, redirect: saved.redirect });
+            } else if (value && !saved.enabled && saved.slug && draft.slug === saved.slug && draft.redirect === saved.redirect) {
+              save.mutate({ enabled: true, slug: saved.slug, redirect: saved.redirect });
+            } else {
+              setDraft({ ...draft, enabled: value });
+            }
+          }}
         />
       </label>
       <div className={`divide-y border-t ${off ? "opacity-60" : ""}`}>
