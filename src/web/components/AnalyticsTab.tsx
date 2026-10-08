@@ -60,15 +60,19 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: Search Console above the site's analytics in full. */
+/** The Analytics tab: one date range at the top, then Search Console above the site's analytics in full. */
 export function AnalyticsTab(props: { site: SiteSummary }) {
   const { site } = props;
   const source = useAnalyticsProvider(site);
+  const [range, chooseRange] = useAnalyticsRange();
   return (
     <>
-      <div id="site-search-console">
+      <div className="flex justify-end">
+        <RangeSelect range={range} onChange={chooseRange} />
+      </div>
+      <div id="site-search-console" className="mt-3">
         <ErrorBoundary label="Search Console">
-          <SearchConsoleSection site={site} linked={source.configured} />
+          <SearchConsoleSection site={site} linked />
         </ErrorBoundary>
       </div>
       <div id="site-analytics">
@@ -95,7 +99,7 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
 function AnalyticsContent(props: { site: SiteSummary }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
-  const [range, chooseRange] = useAnalyticsRange();
+  const [range] = useAnalyticsRange();
   const details = useQuery({
     queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
@@ -106,7 +110,6 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   const header = (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <ActiveNow data={details.data} />
-      <RangeSelect range={range} onChange={chooseRange} />
     </div>
   );
 
