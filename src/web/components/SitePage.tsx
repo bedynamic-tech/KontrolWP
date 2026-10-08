@@ -471,7 +471,9 @@ export function SitePage() {
             {!isStatic && !site.updates_excluded && <CoreAutoUpdateRow site={site} className="py-3" />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
+                <div
+                  className={`min-w-0 flex-1 ${site.updates_excluded ? "opacity-60" : ""}`}
+                >
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     Enable update checks
                     <HelpTip>
@@ -505,7 +507,9 @@ export function SitePage() {
             )}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
+                <div
+                  className={`min-w-0 flex-1 ${site.links_excluded ? "opacity-60" : ""}`}
+                >
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     Enable broken link checks
                     <HelpTip>
@@ -720,7 +724,7 @@ function CloudflareRow(props: { site: SiteSummary }) {
   return (
     <>
       <label className="flex cursor-pointer items-center gap-3 py-3">
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 ${site.cf_hosted ? "" : "opacity-60"}`}>
           <p className="flex items-center gap-1.5 text-sm font-medium">
             Hosted on Cloudflare Workers
             <HelpTip>
