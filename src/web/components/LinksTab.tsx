@@ -90,7 +90,7 @@ export function LinksTab(props: { site: SiteSummary }) {
   const [filter, setFilter] = useState<Filter>("problems");
   const [search, setSearch] = useState("");
   const [unlinking, setUnlinking] = useState<SiteLink[] | null>(null);
-  const [redirecting, setRedirecting] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState<{ path: string; url: string } | null>(null);
   const [unlinked, setUnlinked] = useState<LinkUnlinkResult | null>(null);
   const canUnlink = !!site.plugin_version && compareVersions(site.plugin_version, LINK_UNLINK_SINCE) >= 0;
   const links = useQuery({
@@ -181,7 +181,7 @@ export function LinksTab(props: { site: SiteSummary }) {
   });
 
   const brokenLinks = data.links.filter((link) => link.status === "broken" && removable(link));
-  const onRedirect = supportsRedirects(site) ? (path: string) => setRedirecting(path) : undefined;
+  const onRedirect = supportsRedirects(site) ? (link: SiteLink, path: string) => setRedirecting({ path, url: link.url }) : undefined;
   const onUnlink = canUnlink ? (urls: SiteLink[]) => setUnlinking(urls) : undefined;
 
   /** Saves the links in the current view, as filtered and searched, in the chosen format. */
@@ -319,8 +319,10 @@ export function LinksTab(props: { site: SiteSummary }) {
         <RuleDialog
           site={site}
           rule={null}
-          initial={{ ...blankRule(), source: redirecting }}
+          initial={{ ...blankRule(), source: redirecting.path }}
           onClose={() => setRedirecting(null)}
+          // The link may be fixed now, so check it again straight away.
+          onSaved={() => recheckLink(site.id, redirecting.url).then(setData, () => {})}
         />
       )}
     </>
@@ -505,7 +507,7 @@ function LinkList(props: {
   links: SiteLink[];
   onChange: (data: SiteLinks) => void;
   onUnlink?: (links: SiteLink[]) => void;
-  onRedirect?: (path: string) => void;
+  onRedirect?: (link: SiteLink, path: string) => void;
 }) {
   return (
     <>
@@ -691,7 +693,7 @@ function Actions(props: {
   link: SiteLink;
   onChange: (data: SiteLinks) => void;
   onUnlink?: (links: SiteLink[]) => void;
-  onRedirect?: (path: string) => void;
+  onRedirect?: (link: SiteLink, path: string) => void;
 }) {
   const { site, link } = props;
   const recheck = useMutation({
@@ -724,7 +726,7 @@ function Actions(props: {
           <Button
             size="icon-sm"
             variant="outline"
-            onClick={() => props.onRedirect!(redirectFrom)}
+            onClick={() => props.onRedirect!(link, redirectFrom)}
             title="Redirect this address to another page"
             aria-label="Redirect"
           >
