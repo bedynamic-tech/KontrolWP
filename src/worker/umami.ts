@@ -138,7 +138,7 @@ const RANGES: Record<AnalyticsRange, { days: number; unit: "hour" | "day" }> = {
 };
 
 /** Milliseconds to add to UTC to get the wall time in timeZone at that instant. */
-function zoneOffset(ms: number, timeZone: string): number {
+export function zoneOffset(ms: number, timeZone: string): number {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
       timeZone,

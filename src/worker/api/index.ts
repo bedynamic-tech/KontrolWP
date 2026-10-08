@@ -14,6 +14,7 @@ import type {
   LinkUnlinkResult,
   SiteLinks,
   AnalyticsProvider,
+  GoogleSettings,
   SiteAnalytics,
   SiteAnalyticsDetails,
   SiteDeployments,
@@ -100,6 +101,18 @@ import {
   UmamiError,
   type UmamiConfig,
 } from "../umami.ts";
+import { ga4Analytics, ga4Details, listGa4Properties, matchGa4Property } from "../ga4.ts";
+import {
+  deleteGoogleKey,
+  forgetGoogleTokens,
+  GOOGLE_SCOPES,
+  googleAccessToken,
+  GoogleError,
+  loadGoogleKey,
+  parseGoogleKey,
+  saveGoogleKey,
+  type GoogleKey,
+} from "../google.ts";
 import { listWebAnalyticsSites, matchWebAnalyticsSite, webAnalytics, webAnalyticsDetails } from "../web-analytics.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
@@ -1945,12 +1958,110 @@ function cloudflareAnalytics(c: AppContext, detailed: boolean) {
   });
 }
 
-api.get("/sites/:id/analytics", async (c) =>
-  (await analyticsProvider(c)) === "cloudflare" ? cloudflareAnalytics(c, false) : umamiSummary(c),
-);
+/** Run a Google request with the saved service account, turning its failures into messages for the page. */
+async function googleRequest(c: AppContext, request: (key: GoogleKey) => Promise<Response>) {
+  try {
+    const key = await loadGoogleKey(c.env);
+    if (!key) return c.json({ error: "Connect Google in Settings first", code: "google_not_configured" }, 409);
+    return await request(key);
+  } catch (error) {
+    if (error instanceof GoogleError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+}
 
-api.get("/sites/:id/analytics/details", async (c) =>
-  (await analyticsProvider(c)) === "cloudflare" ? cloudflareAnalytics(c, true) : umamiDetails(c),
+/** Google Analytics 4 for the site: the owner's chosen property, or the one whose web stream has the site's domain. */
+function ga4Analytics_(c: AppContext, detailed: boolean) {
+  return googleRequest(c, async (key) => {
+    const id = siteId(c);
+    const site =
+      id &&
+      (await c.env.DB.prepare("SELECT url, analytics_ref FROM sites WHERE id = ?")
+        .bind(id)
+        .first<{ url: string; analytics_ref: string | null }>());
+    if (!site) return c.json({ error: "Site not found" }, 404);
+    const range = analyticsRange.catch("7d").parse(c.req.query("range"));
+    const tz = validTimeZone(c.req.query("tz"));
+    const token = await googleAccessToken(key, GOOGLE_SCOPES.analytics);
+    const properties = await listGa4Properties(token);
+    const chosen = site.analytics_ref ? (properties.find((property) => property.id === site.analytics_ref) ?? null) : null;
+    const property = chosen ?? (site.analytics_ref ? null : matchGa4Property(properties, site.url));
+    if (!property) {
+      return c.json<SiteAnalyticsDetails>({
+        provider: "ga4",
+        website: null,
+        chosen: !!site.analytics_ref,
+        range,
+        stats: null,
+        series: [],
+        pages: [],
+        referrers: [],
+        breakdowns: null,
+        active: null,
+      });
+    }
+    const data = await cachedRead(
+      c.env.DB,
+      id,
+      "analytics",
+      `ga4-${detailed ? "details" : "summary"}|${property.id}|${range}|${tz}`,
+      async () => ({ chosen: !!chosen, ...(await (detailed ? ga4Details : ga4Analytics)(token, property, range, tz)) }),
+      ANALYTICS_CACHE,
+    );
+    return c.json(data);
+  });
+}
+
+api.get("/sites/:id/analytics", async (c) => {
+  const provider = await analyticsProvider(c);
+  return provider === "cloudflare" ? cloudflareAnalytics(c, false) : provider === "ga4" ? ga4Analytics_(c, false) : umamiSummary(c);
+});
+
+api.get("/sites/:id/analytics/details", async (c) => {
+  const provider = await analyticsProvider(c);
+  return provider === "cloudflare" ? cloudflareAnalytics(c, true) : provider === "ga4" ? ga4Analytics_(c, true) : umamiDetails(c);
+});
+
+api.get("/settings/google", async (c) => {
+  try {
+    const key = await loadGoogleKey(c.env);
+    return c.json<GoogleSettings>({ configured: !!key, client_email: key?.client_email ?? "" });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+/** Save the service account's JSON key after checking that Google accepts it. */
+api.put("/settings/google", async (c) => {
+  const parsed = z.object({ key: z.string().trim().min(1).max(10_000) }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Paste the service account's JSON key" }, 400);
+  try {
+    const key = parseGoogleKey(parsed.data.key);
+    forgetGoogleTokens();
+    await googleAccessToken(key, GOOGLE_SCOPES.analytics);
+    await saveGoogleKey(c.env, key);
+    await clearContentCacheKind(c.env.DB, "analytics");
+    return c.json<GoogleSettings>({ configured: true, client_email: key.client_email });
+  } catch (error) {
+    if (error instanceof GoogleError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    throw error;
+  }
+});
+
+api.delete("/settings/google", async (c) => {
+  await deleteGoogleKey(c.env);
+  forgetGoogleTokens();
+  await clearContentCacheKind(c.env.DB, "analytics");
+  return c.json<GoogleSettings>({ configured: false, client_email: "" });
+});
+
+/** The GA4 properties the service account can see. */
+api.get("/google/analytics/properties", (c) =>
+  googleRequest(c, async (key) =>
+    c.json({ websites: await listGa4Properties(await googleAccessToken(key, GOOGLE_SCOPES.analytics)) }),
+  ),
 );
 
 /** The Web Analytics sites the Cloudflare token can see. */

@@ -4,16 +4,21 @@ import { useLocation, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LINK_SCAN_INTERVALS,
   SYNC_INTERVALS,
+  type GoogleSettings,
   type LinkScanInterval,
   type SyncInterval,
   type UmamiMode,
 } from "../../shared/types";
 import {
   deleteCloudflareSettings,
+  deleteGoogleSettings,
+  fetchGoogleSettings,
+  saveGoogleSettings,
   deleteUmamiSettings,
   deleteWordfenceKey,
   fetchWordfenceSettings,
@@ -27,6 +32,7 @@ import {
   saveSyncSettings,
   saveUmamiSettings,
 } from "../api";
+import { CopyField } from "./CopyField";
 import { HelpTip } from "./HelpTip";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Section } from "./Section";
@@ -79,6 +85,7 @@ export function SettingsPage() {
           <UmamiSettingsSection />
           <WordfenceSettingsSection />
           <CloudflareSettingsSection />
+          <GoogleSettingsSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -592,6 +599,101 @@ function CloudflareSettingsSection() {
           {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending} disabled={!token.trim()}>
+              {save.isPending ? "Checking..." : "Save and test"}
+            </Button>
+            {settings.data.configured && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                loading={disconnect.isPending}
+                onClick={() => disconnect.mutate()}
+              >
+                Disconnect
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+    </Section>
+  );
+}
+
+/** The Google service account KontrolWP reads Google Analytics and Search Console with. */
+function GoogleSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
+  const [key, setKey] = useState("");
+  const refresh = (result: GoogleSettings) => {
+    setKey("");
+    queryClient.setQueryData(["settings", "google"], result);
+    queryClient.invalidateQueries({ queryKey: ["google"] });
+    queryClient.invalidateQueries({ queryKey: ["site"] });
+  };
+  const save = useMutation({ mutationFn: () => saveGoogleSettings(key.trim()), onSuccess: refresh });
+  const disconnect = useMutation({
+    mutationFn: deleteGoogleSettings,
+    onSuccess: (result) => {
+      save.reset();
+      refresh(result);
+    },
+  });
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    save.mutate();
+  };
+
+  return (
+    <Section
+      title="Google"
+      hint="Connect a Google service account to read Google Analytics 4. KontrolWP only reads. Create the account in Google Cloud, enable the Analytics Data API and Analytics Admin API, download its JSON key, then add its email address as a Viewer in each Analytics property."
+    >
+      {settings.isPending ? (
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : settings.error ? (
+        <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
+      ) : (
+        <form onSubmit={submit} className="space-y-4 p-4">
+          {settings.data.configured && (
+            <div className="space-y-1.5">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                Service account
+                <HelpTip>Add this email address as a Viewer in Google Analytics (Admin, Property access management).</HelpTip>
+              </span>
+              <CopyField value={settings.data.client_email} />
+            </div>
+          )}
+          <label className="block space-y-1.5">
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              Service account key
+              <HelpTip>
+                The JSON key file from Google Cloud, under IAM and Admin, Service Accounts, Keys. It is stored encrypted
+                and never shown again.
+              </HelpTip>
+            </span>
+            <Textarea
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={settings.data.configured ? "Saved; paste a new key to replace it" : '{"type": "service_account", ...}'}
+              className="font-mono text-xs"
+              rows={4}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+          {save.isSuccess && (
+            <p className="text-sm text-muted-foreground">
+              Connected. Add {save.data.client_email} as a Viewer in Google Analytics.
+            </p>
+          )}
+          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
               {save.isPending ? "Checking..." : "Save and test"}
             </Button>
             {settings.data.configured && (

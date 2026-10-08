@@ -46,6 +46,7 @@ import type {
   SiteAnalytics,
   SiteAnalyticsDetails,
   AnalyticsProvider,
+  GoogleSettings,
   UmamiSettings,
   UmamiWebsite,
   Overview,
@@ -251,6 +252,12 @@ export const saveUmamiSettings = (input: UmamiInput) =>
 export const deleteUmamiSettings = () => request<UmamiSettings>("/settings/umami", { method: "DELETE" });
 
 export const fetchUmamiWebsites = () => request<{ websites: UmamiWebsite[] }>("/umami/websites");
+
+export const fetchGoogleSettings = () => request<GoogleSettings>("/settings/google");
+export const saveGoogleSettings = (key: string) =>
+  request<GoogleSettings>("/settings/google", { method: "PUT", json: { key } });
+export const deleteGoogleSettings = () => request<GoogleSettings>("/settings/google", { method: "DELETE" });
+export const fetchGa4Properties = () => request<{ websites: UmamiWebsite[] }>("/google/analytics/properties");
 
 export const fetchWebAnalyticsSites = () => request<{ websites: UmamiWebsite[] }>("/cloudflare/web-analytics/sites");
 
