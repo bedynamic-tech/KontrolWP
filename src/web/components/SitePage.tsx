@@ -5,8 +5,8 @@ import {
   RefreshCwIcon,
   SettingsIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "./HelpTip";
 import { ANALYTICS_PROVIDERS, type AnalyticsProvider, type SiteSummary } from "../../shared/types";
@@ -129,6 +129,18 @@ export function SitePage() {
     });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { hash } = useLocation();
+  // Open a tab scrolled to one of its sections, from the shortcut icons on the Overview.
+  const jumpTo = (next: string, section: string) =>
+    navigate({ search: `?tab=${next}`, hash: `#${section}` }, { replace: true });
+  // A link such as ?tab=analytics#site-search-console scrolls to that section once the tab is showing.
+  // The sections above it may still be loading and growing, so it scrolls again a moment later.
+  useEffect(() => {
+    if (!hash || requestedTab === "overview") return;
+    const scroll = () => document.getElementById(hash.slice(1))?.scrollIntoView();
+    const timers = [0, 250, 600].map((delay) => setTimeout(scroll, delay));
+    return () => timers.forEach(clearTimeout);
+  }, [hash, requestedTab]);
   const [connectionKey, setConnectionKey] = useState("");
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -356,7 +368,7 @@ export function SitePage() {
           {(() => {
             const searchConsole = searchConsoleOn && (
               <ErrorBoundary label="Search Console">
-                <SearchConsoleSection site={site} onOpen={() => setTab("analytics")} />
+                <SearchConsoleSection site={site} onOpen={() => jumpTo("analytics", "site-search-console")} />
               </ErrorBoundary>
             );
             const health = <HealthOverview site={site} onOpen={setTab} />;
@@ -387,13 +399,13 @@ export function SitePage() {
               <div className="grid items-start gap-x-6 lg:grid-cols-2">
                 <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                 <div className={`min-w-0 ${TAB_CLASS}`}>
-                  {analyticsOn && <AnalyticsSection site={site} onOpen={() => setTab("analytics")} />}
+                  {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
                   {searchConsole}
                 </div>
               </div>
             ) : (
               <>
-                {analyticsOn && <AnalyticsSection site={site} onOpen={() => setTab("analytics")} />}
+                {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
                 {searchConsole}
                 {main}
               </>
