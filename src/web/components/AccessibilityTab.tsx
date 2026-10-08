@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { scoreBand, type AccessibilityImpact, type ScoreBand } from "../../shared/accessibility";
@@ -262,34 +263,18 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
             <ul className="divide-y">
               {result.fixes.map((fix) => (
                 <li key={fix.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
-                  <div className="min-w-0">
+                  <div className={cn("min-w-0", !fix.enabled && "opacity-60")}>
                     <p className="flex items-center gap-1.5 font-medium">
                       {fix.title}
                       <HelpTip>{fix.detail}</HelpTip>
                     </p>
                   </div>
-                  {fix.enabled ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <CheckIcon className="size-4 text-muted-foreground" aria-label="In place" />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={scanning}
-                        onClick={() => fixes.mutate({ ids: [fix.id], enabled: false })}
-                      >
-                        Turn off
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={scanning}
-                      onClick={() => fixes.mutate({ ids: [fix.id], enabled: true })}
-                    >
-                      Turn on
-                    </Button>
-                  )}
+                  <Switch
+                    aria-label={fix.title}
+                    checked={fix.enabled}
+                    disabled={scanning}
+                    onCheckedChange={(enabled) => fixes.mutate({ ids: [fix.id], enabled })}
+                  />
                 </li>
               ))}
             </ul>
