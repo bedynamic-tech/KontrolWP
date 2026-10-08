@@ -56,7 +56,7 @@ function Row(props: {
           {props.detail && <HelpTip>{props.detail}</HelpTip>}
         </p>
       </div>
-      <div className="min-w-0 sm:w-80">{props.children}</div>
+      <div className="grid min-w-0 [&>select]:justify-self-end sm:w-80">{props.children}</div>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function Row(props: { title: string; hint?: ReactNode; children: ReactNod
         {props.title}
         {props.hint && <HelpTip>{props.hint}</HelpTip>}
       </p>
-      <div className="min-w-0 sm:w-96">{props.children}</div>
+      <div className="grid min-w-0 [&>select]:justify-self-end sm:w-96">{props.children}</div>
     </div>
   );
 }
