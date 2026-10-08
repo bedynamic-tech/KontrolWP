@@ -256,8 +256,11 @@ export const deleteUmamiSettings = () => request<UmamiSettings>("/settings/umami
 export const fetchUmamiWebsites = () => request<{ websites: UmamiWebsite[] }>("/umami/websites");
 
 export const fetchGoogleSettings = () => request<GoogleSettings>("/settings/google");
-export const saveGoogleSettings = (key: string) =>
-  request<GoogleSettings>("/settings/google", { method: "PUT", json: { key } });
+export const saveGoogleClient = (client_id: string, client_secret: string) =>
+  request<GoogleSettings>("/settings/google/client", { method: "PUT", json: { client_id, client_secret } });
+export const deleteGoogleClient = () => request<GoogleSettings>("/settings/google/client", { method: "DELETE" });
+/** The address of Google's sign-in page, which the browser then opens. */
+export const startGoogleConnect = () => request<{ url: string }>("/google/connect", { method: "POST" });
 export const deleteGoogleSettings = () => request<GoogleSettings>("/settings/google", { method: "DELETE" });
 export const fetchGa4Properties = () => request<{ websites: UmamiWebsite[] }>("/google/analytics/properties");
 

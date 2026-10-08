@@ -78,7 +78,7 @@ export function SearchConsoleSection(props: { site: SiteSummary }) {
     return (
       <Section title="Search Console">
         <EmptyRow>
-          Connect a Google service account in{" "}
+          Connect Google in{" "}
           <Link
             to="/settings?tab=integrations"
             className="underline underline-offset-4"
@@ -129,7 +129,7 @@ export function SearchConsoleSection(props: { site: SiteSummary }) {
         <p className="text-sm text-muted-foreground">
           {data.data.chosen
             ? "The Search Console property chosen for this site is no longer available."
-            : `Search Console has no property for ${hostname(site.url)} that ${google.data.client_email} can read. Add that email as a user of the property in Search Console, or choose one.`}
+            : `Search Console has no property for ${hostname(site.url)} that ${google.data.account} can read. Make sure that account is a user of the property in Search Console, or choose one.`}
         </p>
         <PropertyPicker site={site} current={null} chosen={data.data.chosen} />
       </div>

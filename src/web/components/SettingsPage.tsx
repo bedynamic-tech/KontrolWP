@@ -16,9 +16,11 @@ import {
 } from "../../shared/types";
 import {
   deleteCloudflareSettings,
+  deleteGoogleClient,
   deleteGoogleSettings,
   fetchGoogleSettings,
-  saveGoogleSettings,
+  saveGoogleClient,
+  startGoogleConnect,
   deleteUmamiSettings,
   deleteWordfenceKey,
   fetchWordfenceSettings,
@@ -619,35 +621,79 @@ function CloudflareSettingsSection() {
   );
 }
 
-/** The Google service account KontrolWP reads Google Analytics and Search Console with. */
+/** The Google account KontrolWP reads Google Analytics and Search Console with, signed in through "Connect to Google". */
 function GoogleSettingsSection() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const settings = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
-  const [key, setKey] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [changingClient, setChangingClient] = useState(false);
+  // Google sends the owner back to Settings with the result of the sign-in in the address.
+  const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
+  useEffect(() => {
+    const result = searchParams.get("google");
+    if (!result) return;
+    setOutcome(
+      result === "connected"
+        ? { ok: true, message: "Connected to Google." }
+        : { ok: false, message: searchParams.get("message") || "Google did not finish the sign-in." },
+    );
+    queryClient.invalidateQueries({ queryKey: ["settings", "google"] });
+    queryClient.invalidateQueries({ queryKey: ["google"] });
+    queryClient.invalidateQueries({ queryKey: ["site"] });
+    const next = new URLSearchParams(searchParams);
+    next.delete("google");
+    next.delete("message");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, queryClient]);
+
   const refresh = (result: GoogleSettings) => {
-    setKey("");
+    setClientId("");
+    setClientSecret("");
+    setChangingClient(false);
     queryClient.setQueryData(["settings", "google"], result);
     queryClient.invalidateQueries({ queryKey: ["google"] });
     queryClient.invalidateQueries({ queryKey: ["site"] });
   };
-  const save = useMutation({ mutationFn: () => saveGoogleSettings(key.trim()), onSuccess: refresh });
+  const needsClient = !!settings.data && (!settings.data.client_configured || changingClient);
+  // Save a new client first when one was typed, then hand over to Google.
+  const connect = useMutation({
+    mutationFn: async () => {
+      if (needsClient) await saveGoogleClient(clientId.trim(), clientSecret.trim());
+      const { url } = await startGoogleConnect();
+      window.location.assign(url);
+      // Keep the button busy while the browser leaves for Google.
+      await new Promise(() => {});
+    },
+  });
   const disconnect = useMutation({
     mutationFn: deleteGoogleSettings,
     onSuccess: (result) => {
-      save.reset();
+      connect.reset();
+      setOutcome(null);
+      refresh(result);
+    },
+  });
+  const forgetClient = useMutation({
+    mutationFn: deleteGoogleClient,
+    onSuccess: (result) => {
+      connect.reset();
+      setOutcome(null);
       refresh(result);
     },
   });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    save.mutate();
+    connect.mutate();
   };
+  const data = settings.data;
 
   return (
     <Section
       title="Google"
-      hint="Connect a Google service account to read Google Analytics 4. KontrolWP only reads. Create the account in Google Cloud, enable the Analytics Data API and Analytics Admin API, download its JSON key, then add its email address as a Viewer in each Analytics property."
+      hint="Sign in with Google to show Google Analytics 4 and Search Console. KontrolWP only reads, and keeps a revocable sign-in that is stored encrypted."
     >
       {settings.isPending ? (
         <div className="space-y-3 p-4">
@@ -657,45 +703,86 @@ function GoogleSettingsSection() {
         <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
       ) : (
         <form onSubmit={submit} className="space-y-4 p-4">
-          {settings.data.configured && (
-            <div className="space-y-1.5">
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                Service account
-                <HelpTip>Add this email address as a Viewer in Google Analytics (Admin, Property access management).</HelpTip>
-              </span>
-              <CopyField value={settings.data.client_email} />
+          {data!.configured && (
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Connected account</span>
+              <p className="text-sm break-all text-muted-foreground">
+                {data!.account}
+                {data!.kind === "service_account" && " (service account key)"}
+              </p>
+              {data!.kind === "service_account" && (
+                <p className="text-xs text-muted-foreground">
+                  This connection still works. Connect to Google to replace it with a sign-in.
+                </p>
+              )}
             </div>
           )}
-          <label className="block space-y-1.5">
-            <span className="flex items-center gap-1.5 text-sm font-medium">
-              Service account key
-              <HelpTip>
-                The JSON key file from Google Cloud, under IAM and Admin, Service Accounts, Keys. It is stored encrypted
-                and never shown again.
-              </HelpTip>
-            </span>
-            <Textarea
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder={settings.data.configured ? "Saved; paste a new key to replace it" : '{"type": "service_account", ...}'}
-              className="font-mono text-xs"
-              rows={4}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </label>
-          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
-          {save.isSuccess && (
-            <p className="text-sm text-muted-foreground">
-              Connected. Add {save.data.client_email} as a Viewer in Google Analytics.
-            </p>
+          {needsClient && (
+            <>
+              <div className="space-y-1.5">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  Authorized redirect URI
+                  <HelpTip>
+                    In Google Cloud, create an OAuth client ID of type Web application and add this address under
+                    Authorized redirect URIs. Also enable the Google Analytics Data API, Google Analytics Admin API and
+                    Google Search Console API, and under OAuth consent screen set the publishing status to In
+                    production so the sign-in does not expire after seven days. Google warns that the app is
+                    unverified; choose Advanced and continue, it is your own app.
+                  </HelpTip>
+                </span>
+                <CopyField value={data!.redirect_uri} />
+              </div>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">OAuth client ID</span>
+                <Input
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder={data!.client_id || "1234567890-abc.apps.googleusercontent.com"}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  OAuth client secret
+                  <HelpTip>It is stored encrypted and never shown again.</HelpTip>
+                </span>
+                <Input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  autoComplete="off"
+                />
+              </label>
+            </>
           )}
-          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
+          {outcome && (
+            <p className={outcome.ok ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>{outcome.message}</p>
+          )}
+          {connect.error && <p className="text-sm text-destructive">{connect.error.message}</p>}
+          {(disconnect.error || forgetClient.error) && (
+            <p className="text-sm text-destructive">{(disconnect.error ?? forgetClient.error)!.message}</p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
-              {save.isPending ? "Checking..." : "Save and test"}
+            <Button
+              type="submit"
+              size="sm"
+              loading={connect.isPending}
+              disabled={needsClient && (!clientId.trim() || !clientSecret.trim())}
+            >
+              {data!.configured && data!.kind === "oauth" ? "Reconnect to Google" : "Connect to Google"}
             </Button>
-            {settings.data.configured && (
+            {data!.client_configured && !changingClient && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setChangingClient(true)}>
+                Change OAuth client
+              </Button>
+            )}
+            {changingClient && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setChangingClient(false)}>
+                Cancel
+              </Button>
+            )}
+            {data!.configured && (
               <Button
                 type="button"
                 size="sm"
@@ -705,6 +792,18 @@ function GoogleSettingsSection() {
                 onClick={() => disconnect.mutate()}
               >
                 Disconnect
+              </Button>
+            )}
+            {data!.client_configured && !data!.configured && !changingClient && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                loading={forgetClient.isPending}
+                onClick={() => forgetClient.mutate()}
+              >
+                Remove OAuth client
               </Button>
             )}
           </div>
