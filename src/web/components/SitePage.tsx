@@ -42,7 +42,6 @@ import {
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
-import { CloudflareSetup, cloudflareSetupState } from "./AnalyticsSetup";
 import { SearchConsoleSection } from "./SearchConsoleSection";
 import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
@@ -768,26 +767,8 @@ function AnalyticsSourceRows(props: {
   const providers = ANALYTICS_PROVIDERS.filter(
     (provider) => source.connected[provider] || provider === source.provider,
   );
-  const [range] = useAnalyticsRange();
-  const analytics = useQuery({
-    queryKey: ["site", site.id, "analytics", range, source.provider],
-    queryFn: () => fetchSiteAnalytics(site.id, range),
-    enabled: source.configured && source.provider === "cloudflare",
-    refetchInterval: false,
-  });
-  const setup =
-    source.provider !== "cloudflare"
-      ? null
-      : !source.configured
-        ? "not-connected"
-        : cloudflareSetupState({
-            error: analytics.error,
-            website: analytics.data?.website,
-            sources: analytics.data?.sources,
-            chosen: analytics.data?.chosen,
-          });
   // Nothing to choose between until a second provider is connected.
-  if (providers.length < 2 && !source.configured && !setup) return null;
+  if (providers.length < 2 && !source.configured) return null;
   return (
     <>
       {providers.length > 1 && (
@@ -811,14 +792,9 @@ function AnalyticsSourceRows(props: {
           </select>
         </SettingRow>
       )}
-      {setup && (
-        <div className="rounded-lg border bg-muted/30">
-          <CloudflareSetup site={site} state={setup} sources={analytics.data?.sources} />
-        </div>
-      )}
       {source.configured && (
         <SettingRow
-          title={`${source.label} ${source.provider === "umami" ? "website" : source.provider === "ga4" ? "property" : "source"}`}
+          title={`${source.label} ${source.provider === "umami" ? "website" : "property"}`}
           detail="Where this site's analytics come from."
         >
           <div className="[&_select]:max-w-52">
