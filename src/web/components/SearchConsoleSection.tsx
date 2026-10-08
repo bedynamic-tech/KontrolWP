@@ -19,7 +19,7 @@ import {
   setSiteSearchConsoleProperty,
 } from "../api";
 import { hostname } from "../format";
-import { count, SELECT_CLASS, Stat } from "./AnalyticsSection";
+import { count, JumpButton, SELECT_CLASS, Stat } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 
@@ -96,7 +96,7 @@ export function SearchConsoleSection(props: {
     );
   }
 
-  const action = (
+  const select = (
     <select
       aria-label="Date range"
       value={range}
@@ -111,6 +111,14 @@ export function SearchConsoleSection(props: {
         </option>
       ))}
     </select>
+  );
+  const action = onOpen ? (
+    <span className="flex items-center gap-1.5">
+      <JumpButton label="Open Search Console" onClick={onOpen} />
+      {select}
+    </span>
+  ) : (
+    select
   );
 
   let body;
@@ -181,7 +189,7 @@ function Body(props: {
           lowerIsBetter
         />
       </dl>
-      {data.series.length > 0 && (
+      {!props.onOpen && data.series.length > 0 && (
         <div className="border-b px-4 pt-4 pb-3">
           <div
             className="flex h-24 items-end gap-[2px]"
@@ -220,28 +228,20 @@ function Body(props: {
           />
         </div>
       )}
-      <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
-        <span>Connected to {data.property!.name}</span>
-        <PropertyPicker
-          site={props.site}
-          current={data.property!.id}
-          chosen={data.chosen}
-          compact
-        />
-        {props.onOpen ? (
-          <button
-            type="button"
-            onClick={props.onOpen}
-            className="ml-auto hover:text-foreground hover:underline"
-          >
-            Top queries and pages
-          </button>
-        ) : (
+      {!props.onOpen && (
+        <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
+          <span>Connected to {data.property!.name}</span>
+          <PropertyPicker
+            site={props.site}
+            current={data.property!.id}
+            chosen={data.chosen}
+            compact
+          />
           <span className="ml-auto">
             Search Console reports whole days, about two days late.
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
