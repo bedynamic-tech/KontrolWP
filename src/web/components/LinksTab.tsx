@@ -3,6 +3,7 @@ import {
   DownloadIcon,
   EyeOffIcon,
   ImageIcon,
+  CornerDownRightIcon,
   PencilIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -33,6 +34,7 @@ import { createMagicLogin, fetchLinks, ignoreLink, recheckLink, scanLinks, unlin
 import { download, linksTable, toCsv, toXlsx } from "../export";
 import { hostname, plural, timeAgo } from "../format";
 import { IconButton } from "./IconButton";
+import { blankRule, RuleDialog, supportsRedirects } from "./RedirectsTab";
 import { EmptyRow, Section } from "./Section";
 
 type Filter = "problems" | "broken" | "unresponsive" | "blocked" | "ignored";
@@ -60,6 +62,20 @@ function supported(site: SiteSummary): boolean {
 const removable = (link: SiteLink) =>
   !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link");
 
+/** The site-relative address of a broken link on this site, or null for other sites' links, which cannot be redirected. */
+function sitePath(site: SiteSummary, url: string): string | null {
+  try {
+    const link = new URL(url);
+    const home = new URL(site.url);
+    const bare = (host: string) => host.replace(/^www\./, "");
+    if (bare(link.hostname) !== bare(home.hostname)) return null;
+    const path = link.pathname + link.search;
+    return path === "/" ? null : path;
+  } catch {
+    return null;
+  }
+}
+
 /** A scheduled check waiting its turn in the queue (sites are spaced a couple of minutes apart). */
 const queued = (scan: LinkScan | null | undefined) =>
   scan?.status === "collecting" && scan.started_at > Math.floor(Date.now() / 1000);
@@ -74,6 +90,7 @@ export function LinksTab(props: { site: SiteSummary }) {
   const [filter, setFilter] = useState<Filter>("problems");
   const [search, setSearch] = useState("");
   const [unlinking, setUnlinking] = useState<SiteLink[] | null>(null);
+  const [redirecting, setRedirecting] = useState<string | null>(null);
   const [unlinked, setUnlinked] = useState<LinkUnlinkResult | null>(null);
   const canUnlink = !!site.plugin_version && compareVersions(site.plugin_version, LINK_UNLINK_SINCE) >= 0;
   const links = useQuery({
@@ -164,6 +181,7 @@ export function LinksTab(props: { site: SiteSummary }) {
   });
 
   const brokenLinks = data.links.filter((link) => link.status === "broken" && removable(link));
+  const onRedirect = supportsRedirects(site) ? (path: string) => setRedirecting(path) : undefined;
   const onUnlink = canUnlink ? (urls: SiteLink[]) => setUnlinking(urls) : undefined;
 
   /** Saves the links in the current view, as filtered and searched, in the chosen format. */
@@ -266,7 +284,7 @@ export function LinksTab(props: { site: SiteSummary }) {
         {unlinked && <UnlinkNotice result={unlinked} onClose={() => setUnlinked(null)} />}
         <div className="overflow-hidden rounded-xl border bg-background">
           {shown.length ? (
-            <LinkList site={site} links={shown} onChange={setData} onUnlink={onUnlink} />
+            <LinkList site={site} links={shown} onChange={setData} onUnlink={onUnlink} onRedirect={onRedirect} />
           ) : (
             <EmptyRow>
               {query
@@ -297,6 +315,14 @@ export function LinksTab(props: { site: SiteSummary }) {
           setUnlinking(null);
         }}
       />
+      {redirecting !== null && (
+        <RuleDialog
+          site={site}
+          rule={null}
+          initial={{ ...blankRule(), source: redirecting }}
+          onClose={() => setRedirecting(null)}
+        />
+      )}
     </>
   );
 }
@@ -479,6 +505,7 @@ function LinkList(props: {
   links: SiteLink[];
   onChange: (data: SiteLinks) => void;
   onUnlink?: (links: SiteLink[]) => void;
+  onRedirect?: (path: string) => void;
 }) {
   return (
     <>
@@ -491,7 +518,7 @@ function LinkList(props: {
               <LinkCell link={link} />
             </div>
             <Refs site={props.site} refs={link.refs} />
-            <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} />
+            <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} onRedirect={props.onRedirect} />
           </li>
         ))}
       </ul>
@@ -519,7 +546,7 @@ function LinkList(props: {
                 <Refs site={props.site} refs={link.refs} />
               </td>
               <td className="px-4 py-3">
-                <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} />
+                <Actions site={props.site} link={link} onChange={props.onChange} onUnlink={props.onUnlink} onRedirect={props.onRedirect} />
               </td>
             </tr>
           ))}
@@ -664,6 +691,7 @@ function Actions(props: {
   link: SiteLink;
   onChange: (data: SiteLinks) => void;
   onUnlink?: (links: SiteLink[]) => void;
+  onRedirect?: (path: string) => void;
 }) {
   const { site, link } = props;
   const recheck = useMutation({
@@ -674,6 +702,7 @@ function Actions(props: {
     mutationFn: () => ignoreLink(site.id, link.url, !link.ignored),
     onSuccess: props.onChange,
   });
+  const redirectFrom = props.onRedirect && !link.ignored && link.status === "broken" ? sitePath(site, link.url) : null;
   const error = recheck.error ?? ignore.error;
   return (
     <div className="flex flex-col items-start gap-1 md:items-end">
@@ -689,6 +718,17 @@ function Actions(props: {
             aria-label="Check again"
           >
             {!recheck.isPending && <RefreshCwIcon />}
+          </Button>
+        )}
+        {redirectFrom && (
+          <Button
+            size="icon-sm"
+            variant="outline"
+            onClick={() => props.onRedirect!(redirectFrom)}
+            title="Redirect this address to another page"
+            aria-label="Redirect"
+          >
+            <CornerDownRightIcon />
           </Button>
         )}
         {props.onUnlink && removable(link) && (

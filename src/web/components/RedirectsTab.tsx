@@ -75,7 +75,7 @@ const MATCH_LABELS = {
 
 const PER_PAGE = 25;
 
-const blankRule = (): RedirectInput => ({
+export const blankRule = (): RedirectInput => ({
   source: "",
   match_type: "exact",
   target: "",
@@ -138,7 +138,7 @@ function Field(props: {
   );
 }
 
-function RuleDialog(props: {
+export function RuleDialog(props: {
   site: SiteSummary;
   rule: Redirect | null;
   initial: RedirectInput;
@@ -957,7 +957,7 @@ function useRedirectState(site: SiteSummary, supported: boolean) {
   });
 }
 
-const supportsRedirects = (site: SiteSummary) =>
+export const supportsRedirects = (site: SiteSummary) =>
   !!site.plugin_version &&
   compareVersions(site.plugin_version, SEO_REDIRECTS_SINCE) >= 0;
 
