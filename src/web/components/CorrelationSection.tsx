@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { correlate, describe, toDaily, type DailySeries } from "../../shared/correlation";
 import type { AnalyticsRange, SearchConsoleRange, SiteSummary } from "../../shared/types";
-import { fetchGoogleSettings, fetchSearchConsole, fetchSiteAnalytics } from "../api";
+import { fetchGoogleAds, fetchGoogleSettings, fetchSearchConsole, fetchSiteAnalytics } from "../api";
 import { useAnalyticsProvider, useAnalyticsRange } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 
@@ -33,28 +33,43 @@ export function CorrelationSection(props: { site: SiteSummary }) {
     refetchInterval: false,
   });
 
+  const adsReady = !!google.data?.configured && google.data.can_use_ads && google.data.ads_token_configured;
+  const ads = useQuery({
+    queryKey: ["site", site.id, "google-ads", range],
+    queryFn: () => fetchGoogleAds(site.id, range),
+    enabled: adsReady,
+    refetchInterval: false,
+    retry: false,
+  });
+
   const series = useMemo(() => {
     const out: DailySeries[] = [];
     const web = analytics.data?.website ? analytics.data : null;
     const sc = searchConsole.data?.property ? searchConsole.data : null;
     if (web) {
       const name = source.label;
-      out.push({ name: `${name} visitors`, days: toDaily(web.series, (p: { visitors: number }) => p.visitors) });
-      out.push({ name: `${name} pageviews`, days: toDaily(web.series, (p: { pageviews: number }) => p.pageviews) });
+      out.push({ name: `${name} visitors`, source: name, days: toDaily(web.series, (p: { visitors: number }) => p.visitors) });
+      out.push({ name: `${name} pageviews`, source: name, days: toDaily(web.series, (p: { pageviews: number }) => p.pageviews) });
     }
     if (sc) {
-      out.push({ name: "Search Console clicks", days: toDaily(sc.series, (p: { clicks: number }) => p.clicks) });
-      out.push({ name: "Search Console impressions", days: toDaily(sc.series, (p: { impressions: number }) => p.impressions) });
+      out.push({ name: "Search Console clicks", source: "Search Console", days: toDaily(sc.series, (p: { clicks: number }) => p.clicks) });
+      out.push({ name: "Search Console impressions", source: "Search Console", days: toDaily(sc.series, (p: { impressions: number }) => p.impressions) });
+    }
+    const gads = ads.data?.account ? ads.data : null;
+    if (gads) {
+      out.push({ name: "Ads clicks", source: "Google Ads", days: toDaily(gads.series, (p: { clicks: number }) => p.clicks) });
+      out.push({ name: "Ads cost", source: "Google Ads", days: toDaily(gads.series, (p: { cost: number }) => p.cost) });
+      out.push({ name: "Ads conversions", source: "Google Ads", days: toDaily(gads.series, (p: { conversions: number }) => p.conversions) });
     }
     return out;
-  }, [analytics.data, searchConsole.data, source.label]);
+  }, [analytics.data, searchConsole.data, ads.data, source.label]);
 
   // Only pairs from different sources say anything; two measures of one source move together by definition.
-  const pairs = useMemo(
-    () => correlate(series).filter((pair) => pair.a.startsWith("Search Console") !== pair.b.startsWith("Search Console")),
-    [series],
-  );
-  const loading = analytics.isPending && source.configured ? true : searchConsole.isPending && !!google.data?.configured;
+  const pairs = useMemo(() => correlate(series).filter((pair) => !pair.same), [series]);
+  const loading =
+    (analytics.isPending && source.configured) ||
+    (searchConsole.isPending && !!google.data?.configured) ||
+    (ads.isPending && adsReady);
 
   return (
     <Section
@@ -63,8 +78,8 @@ export function CorrelationSection(props: { site: SiteSummary }) {
     >
       {loading ? (
         <EmptyRow>Loading...</EmptyRow>
-      ) : series.length < 3 ? (
-        <EmptyRow>Connect Analytics and Search Console to see how they line up for this site.</EmptyRow>
+      ) : new Set(series.map((item) => item.source)).size < 2 ? (
+        <EmptyRow>Connect two or more of Analytics, Search Console and Google Ads to see how they line up for this site.</EmptyRow>
       ) : pairs.length === 0 ? (
         <EmptyRow>Not enough overlapping days yet. Pick a longer range.</EmptyRow>
       ) : (

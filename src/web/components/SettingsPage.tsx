@@ -18,7 +18,9 @@ import {
   deleteCloudflareSettings,
   deleteGoogleClient,
   deleteGoogleSettings,
+  deleteGoogleAdsToken,
   fetchGoogleSettings,
+  saveGoogleAdsToken,
   saveGoogleClient,
   startGoogleConnect,
   deleteUmamiSettings,
@@ -92,6 +94,7 @@ export function SettingsPage() {
             <div className="min-w-0">
               <CloudflareSettingsSection />
               <GoogleSettingsSection />
+              <GoogleAdsSettingsSection />
             </div>
           </div>
         </TabsContent>
@@ -758,7 +761,7 @@ function GoogleSettingsSection() {
                   <HelpTip>
                     In Google Cloud, create an OAuth client ID of type Web application and add this address under
                     Authorized redirect URIs. Also enable the Google Analytics Data API, Google Analytics Admin API and
-                    Google Search Console API (and the Google Site Verification API to set sites up from KontrolWP), and under OAuth consent screen set the publishing status to In
+                    Google Search Console API (and the Google Site Verification API to set sites up from KontrolWP, and the Google Ads API for Ads), and under OAuth consent screen set the publishing status to In
                     production so the sign-in does not expire after seven days. Google warns that the app is
                     unverified; choose Advanced and continue, it is your own app.
                   </HelpTip>
@@ -842,6 +845,94 @@ function GoogleSettingsSection() {
           </div>
         </form>
       )}
+    </Section>
+  );
+}
+
+/** The developer token Google Ads needs, on top of the Google sign-in. */
+function GoogleAdsSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
+  const [token, setToken] = useState("");
+  const done = (result: GoogleSettings) => {
+    setToken("");
+    queryClient.setQueryData(["settings", "google"], result);
+    queryClient.invalidateQueries({ queryKey: ["site"] });
+  };
+  const save = useMutation({ mutationFn: () => saveGoogleAdsToken(token.trim()), onSuccess: done });
+  const remove = useMutation({ mutationFn: deleteGoogleAdsToken, onSuccess: done });
+  const data = settings.data;
+  if (!data?.configured) return null;
+
+  return (
+    <Section
+      title="Google Ads"
+      hint="Shows a site's Google Ads clicks, cost and conversions and adds them to the Analytics correlation report. Google requires a developer token for its Ads API: apply for one in the API Center of an Ads manager account. Until Google approves Basic access the token only works with test accounts."
+    >
+      <form
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          save.mutate();
+        }}
+        className="space-y-4 p-4"
+      >
+        {!data.can_use_ads && (
+          <p className="text-sm text-muted-foreground">
+            This Google sign-in was made before Google Ads support. Choose Reconnect to Google above to allow it.
+          </p>
+        )}
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium">Open in Google</span>
+          <ul className="space-y-1 text-sm">
+            <li>
+              <a href="https://ads.google.com/aw/apicenter" target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
+                1. Get the developer token (Ads API Center)
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://console.cloud.google.com/apis/library/googleads.googleapis.com"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-4"
+              >
+                2. Enable the Google Ads API
+              </a>
+            </li>
+          </ul>
+        </div>
+        <label className="block space-y-1.5">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            Developer token
+            <HelpTip>It is stored encrypted and never shown again.</HelpTip>
+          </span>
+          <Input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={data.ads_token_configured ? "Saved. Paste a new token to replace it." : ""}
+            autoComplete="off"
+          />
+        </label>
+        {(save.error || remove.error) && <p className="text-sm text-destructive">{(save.error ?? remove.error)!.message}</p>}
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" size="sm" loading={save.isPending} disabled={token.trim().length < 8}>
+            {data.ads_token_configured ? "Replace token" : "Save token"}
+          </Button>
+          {data.ads_token_configured && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              loading={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              Remove token
+            </Button>
+          )}
+        </div>
+      </form>
     </Section>
   );
 }

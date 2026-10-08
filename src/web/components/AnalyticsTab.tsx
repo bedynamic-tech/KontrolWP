@@ -18,6 +18,7 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
+import { GoogleAdsSection } from "./GoogleAdsSection";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { CorrelationSection } from "./CorrelationSection";
 import { SearchConsoleSection } from "./SearchConsoleSection";
@@ -67,6 +68,7 @@ const VIEWS = [
   { id: "overview", label: "Overview" },
   { id: "search-console", label: "Search Console" },
   { id: "analytics", label: "Analytics" },
+  { id: "google-ads", label: "Google Ads" },
 ] as const;
 type View = (typeof VIEWS)[number]["id"];
 
@@ -112,6 +114,13 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
         <div id="site-search-console" className="mt-3">
           <ErrorBoundary label="Search Console">
             <SearchConsoleSection site={site} linked />
+          </ErrorBoundary>
+        </div>
+      )}
+      {view === "google-ads" && (
+        <div id="site-google-ads" className="mt-3">
+          <ErrorBoundary label="Google Ads">
+            <GoogleAdsSection site={site} />
           </ErrorBoundary>
         </div>
       )}
