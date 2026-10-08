@@ -299,6 +299,8 @@ keeps a revision to restore, then re-read so the list matches. A site keeps at m
 From 0.25.0 the listing reads each post's content as visitors get it (`the_content` filters applied, so shortcodes, dynamic blocks and page builders such as Kadence add their links) as well as the saved content, merged. Rendering has a 12 second budget per listing page; posts after it are read from the saved content only, and the response reports how many (`unrendered`). Remove link works on the saved content, so a link that exists only in rendered output cannot be unwrapped.
 
 Broken links on the site itself also get a Redirect button (sites with the redirects feature). It opens the redirect dialog from the Redirects tab with the link's path and query as the From address, so the To address has the same page suggestions. Links to other sites have no button.
+
+From 0.28.0 the first page of the link listing also carries the site's header and footer links, as two pseudo-items with ids -1 (Header) and -2 (Footer) and type `area`. They come from the nav menus assigned to theme locations (a location with "footer" in its name counts as footer) and from the `<header>` and `<footer>` elements of the home page, each address once. Their refs show as Header or Footer in the Links tab with no edit button, and Remove link ignores them (it only edits posts, ids above 0).
 The Enable broken link checks setting in Site settings (`PUT /api/sites/:id/links-excluded`)
 excludes a site: its scan and every link it found are deleted, scheduled
 checks skip it, Scan now answers 409, and its Links tab says detection is off.

@@ -60,7 +60,7 @@ function supported(site: SiteSummary): boolean {
 
 /** Remove link takes a broken or unresponsive link out of posts; images, ignored links and ones that couldn't be checked are left alone. */
 const removable = (link: SiteLink) =>
-  !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link");
+  !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link" && ref.post_id > 0);
 
 /** The site-relative address of a broken link on this site, or null for other sites' links, which cannot be redirected. */
 function sitePath(site: SiteSummary, url: string): string | null {
@@ -346,7 +346,7 @@ function UnlinkDialog(props: {
     onSuccess: props.onDone,
   });
   const posts = new Set(
-    links.flatMap((link) => link.refs.filter((ref) => ref.kind === "link").map((ref) => ref.post_id)),
+    links.flatMap((link) => link.refs.filter((ref) => ref.kind === "link" && ref.post_id > 0).map((ref) => ref.post_id)),
   );
   const one = links.length === 1 ? links[0] : null;
   return (
@@ -623,8 +623,12 @@ function Refs(props: { site: SiteSummary; refs: LinkRef[] }) {
           >
             {ref.post_title || `(no title) #${ref.post_id}`}
           </a>
-          <span className="shrink-0 text-xs text-muted-foreground">{typeLabel(ref.post_type)}</span>
-          <EditButton site={props.site} postId={ref.post_id} />
+          {ref.post_id > 0 && (
+            <>
+              <span className="shrink-0 text-xs text-muted-foreground">{typeLabel(ref.post_type)}</span>
+              <EditButton site={props.site} postId={ref.post_id} />
+            </>
+          )}
         </li>
       ))}
       {props.refs.length > REFS_SHOWN && !all && (
