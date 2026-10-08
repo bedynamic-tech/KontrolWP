@@ -108,7 +108,7 @@ test("a rejected key and a missing grant each say what to do", async () => {
       "t",
       "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
     ),
-    /view the property/i,
+    /Google said: The caller does not have permission/,
   );
   stubFetch({
     "GET analyticsadmin.googleapis.com/v1beta/accountSummaries": () => [
