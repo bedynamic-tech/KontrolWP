@@ -16,6 +16,7 @@ import type {
   AnalyticsProvider,
   GoogleSettings,
   SiteAnalytics,
+  SiteSearchConsole,
   SiteAnalyticsDetails,
   SiteDeployments,
   SitePlugins,
@@ -50,7 +51,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, CONTENT_STATUSES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -113,6 +114,7 @@ import {
   saveGoogleKey,
   type GoogleKey,
 } from "../google.ts";
+import { listSearchConsoleProperties, matchSearchConsoleProperty, searchConsole } from "../search-console.ts";
 import { listWebAnalyticsSites, matchWebAnalyticsSite, webAnalytics, webAnalyticsDetails } from "../web-analytics.ts";
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
@@ -2055,6 +2057,65 @@ api.delete("/settings/google", async (c) => {
   forgetGoogleTokens();
   await clearContentCacheKind(c.env.DB, "analytics");
   return c.json<GoogleSettings>({ configured: false, client_email: "" });
+});
+
+const searchConsoleRange = z.enum(SEARCH_CONSOLE_RANGES);
+
+/** The site's Search Console clicks, impressions, queries and pages. */
+api.get("/sites/:id/search-console", (c) =>
+  googleRequest(c, async (key) => {
+    const id = siteId(c);
+    const site =
+      id &&
+      (await c.env.DB.prepare("SELECT url, gsc_property FROM sites WHERE id = ?")
+        .bind(id)
+        .first<{ url: string; gsc_property: string | null }>());
+    if (!site) return c.json({ error: "Site not found" }, 404);
+    const range = searchConsoleRange.catch("28d").parse(c.req.query("range"));
+    const token = await googleAccessToken(key, GOOGLE_SCOPES.searchConsole);
+    const properties = await listSearchConsoleProperties(token);
+    const chosen = site.gsc_property ? (properties.find((property) => property.id === site.gsc_property) ?? null) : null;
+    const property = chosen ?? (site.gsc_property ? null : matchSearchConsoleProperty(properties, site.url));
+    if (!property) {
+      return c.json<SiteSearchConsole>({
+        property: null,
+        chosen: !!site.gsc_property,
+        range,
+        totals: null,
+        series: [],
+        queries: [],
+        pages: [],
+      });
+    }
+    // Search Console reports whole days, a couple of days late, so an hour old is fresh enough.
+    const data = await cachedRead(
+      c.env.DB,
+      id,
+      "seo",
+      `search-console|${property.id}|${range}`,
+      async () => ({ chosen: !!chosen, ...(await searchConsole(token, property, range)) }),
+      { maxAge: 3600, staleOnError: false },
+    );
+    return c.json<SiteSearchConsole>(data);
+  }),
+);
+
+/** The properties in Search Console the service account can read. */
+api.get("/google/search-console/properties", (c) =>
+  googleRequest(c, async (key) =>
+    c.json({ websites: await listSearchConsoleProperties(await googleAccessToken(key, GOOGLE_SCOPES.searchConsole)) }),
+  ),
+);
+
+/** Choose the Search Console property for a site, or null to match by domain again. */
+api.put("/sites/:id/search-console", async (c) => {
+  const parsed = z.object({ property: z.string().trim().min(1).max(300).nullable() }).safeParse(await c.req.json().catch(() => null));
+  const id = siteId(c);
+  if (!parsed.success || !id) return c.json({ error: "Invalid property" }, 400);
+  const result = await c.env.DB.prepare("UPDATE sites SET gsc_property = ? WHERE id = ?").bind(parsed.data.property, id).run();
+  if (!result.meta.changes) return c.json({ error: "Site not found" }, 404);
+  await clearContentCache(c.env.DB, id);
+  return c.json({ ok: true });
 });
 
 /** The GA4 properties the service account can see. */

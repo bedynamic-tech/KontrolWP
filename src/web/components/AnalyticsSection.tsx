@@ -215,7 +215,7 @@ function duration(seconds: number): string {
   return minutes < 60 ? `${minutes}m ${total % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-function Stat(props: { label: string; stat: AnalyticsStat; format: (value: number) => string; lowerIsBetter?: boolean }) {
+export function Stat(props: { label: string; stat: AnalyticsStat; format: (value: number) => string; lowerIsBetter?: boolean }) {
   const { value, previous } = props.stat;
   let change = null;
   if (previous !== null && previous > 0) {
