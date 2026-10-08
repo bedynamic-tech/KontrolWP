@@ -65,6 +65,7 @@ import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
 import { ContentTab } from "./ContentTab";
+import { HealthOverview } from "./HealthOverview";
 import { LinksTab } from "./LinksTab";
 import { SecurityTab } from "./SecurityTab";
 import { SitemapTab } from "./SitemapTab";
@@ -340,16 +341,21 @@ export function SitePage() {
         <ResponsiveTabsList tabs={tabItems} value={tab} onChange={setTab} label="Section" />
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
+            const health = <HealthOverview site={site} onOpen={setTab} />;
             const main = isStatic ? (
-              onCloudflare && (
-                <DeploymentsSection
-                  site={site}
-                  compact
-                  onChooseWorker={() => setSettingsOpen(true)}
-                />
-              )
+              <>
+                {health}
+                {onCloudflare && (
+                  <DeploymentsSection
+                    site={site}
+                    compact
+                    onChooseWorker={() => setSettingsOpen(true)}
+                  />
+                )}
+              </>
             ) : (
               <>
+                {health}
                 <SiteUpdatesSection site={site} updates={updates} />
                 <Section
                   title={`Comments awaiting review (${site.pending_comments})`}
