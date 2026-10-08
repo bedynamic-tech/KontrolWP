@@ -68,6 +68,7 @@ import {
   SELF_UPDATING_SINCE,
 } from "../../shared/plugin-version";
 import { SiteUpdatePolicyRow } from "./UpdatePolicy";
+import { UpdateEmailsRow } from "./UpdateEmailsRow";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { SiteIcon } from "./SiteIcon";
 import { SiteName } from "./SiteName";
@@ -505,6 +506,7 @@ export function SitePage() {
             {!isStatic && !site.updates_excluded && (
               <SiteUpdatePolicyRow site={site} />
             )}
+            {!isStatic && <UpdateEmailsRow site={site} />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div

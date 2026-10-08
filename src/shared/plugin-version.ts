@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.29.1";
+export const KONTROLWP_CONNECT_VERSION = "0.30.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -87,3 +87,6 @@ export const SEO_SCORE_SINCE = "0.23.0";
 
 /** Code snippets (analytics and tracking codes in the head, body or footer) arrived in this version. */
 export const SNIPPETS_SINCE = "0.29.0";
+
+/** The switch for update emails arrived in this version. */
+export const UPDATE_EMAILS_SINCE = "0.30.0";

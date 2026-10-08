@@ -13,6 +13,7 @@ delete_option( 'kontrolwp_connect_seo_tools_texts' );
 delete_option( 'kontrolwp_connect_seo_content' );
 delete_option( 'kontrolwp_connect_snippets' );
 delete_option( 'kontrolwp_connect_snippets_active' );
+delete_option( 'kontrolwp_connect_update_emails' );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
 KontrolWP_Connect_Login::delete_all();
