@@ -342,7 +342,12 @@ export async function googleCall<T>(
   if (!res.ok) {
     const detail = body?.error?.message ?? "";
     if (res.status === 403 && /has not been used|is disabled|SERVICE_DISABLED/i.test(detail)) {
-      throw new GoogleError(`${detail.split(/\s+Enable it|\s+If you enabled/)[0]} Enable the API in the Google Cloud project that owns the OAuth client or service account.`, 400);
+      // Google's message ends with the page that enables the API; keep it so the owner can open it.
+      const enableAt = /https:\/\/console\.(?:developers|cloud)\.google\.com\/[^\s"')]+/.exec(detail)?.[0];
+      throw new GoogleError(
+        `${detail.split(/\s+Enable it|\s+If you enabled/)[0]} Enable the API in the Google Cloud project that owns the OAuth client or service account.${enableAt ? ` Enable it at ${enableAt}` : ""}`,
+        400,
+      );
     }
     if (res.status === 403 || res.status === 401) {
       throw new GoogleError("Google would not let the connected account read this. It needs to be able to view the property in Google Analytics or Search Console.", 400);

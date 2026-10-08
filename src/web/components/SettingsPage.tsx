@@ -633,7 +633,8 @@ const GOOGLE_CLOUD_LINKS = [
   { label: "2. Enable the Google Analytics Data API", href: "https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" },
   { label: "3. Enable the Google Analytics Admin API", href: "https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" },
   { label: "4. Enable the Google Search Console API", href: "https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" },
-  { label: "5. Publish the consent screen (In production)", href: "https://console.cloud.google.com/apis/credentials/consent" },
+  { label: "5. Enable the Google Site Verification API (to set sites up)", href: "https://console.cloud.google.com/apis/library/siteverification.googleapis.com" },
+  { label: "6. Publish the consent screen (In production)", href: "https://console.cloud.google.com/apis/credentials/consent" },
 ];
 
 /** The Google account KontrolWP reads Google Analytics and Search Console with, signed in through "Connect to Google". */
@@ -757,7 +758,7 @@ function GoogleSettingsSection() {
                   <HelpTip>
                     In Google Cloud, create an OAuth client ID of type Web application and add this address under
                     Authorized redirect URIs. Also enable the Google Analytics Data API, Google Analytics Admin API and
-                    Google Search Console API, and under OAuth consent screen set the publishing status to In
+                    Google Search Console API (and the Google Site Verification API to set sites up from KontrolWP), and under OAuth consent screen set the publishing status to In
                     production so the sign-in does not expire after seven days. Google warns that the app is
                     unverified; choose Advanced and continue, it is your own app.
                   </HelpTip>
