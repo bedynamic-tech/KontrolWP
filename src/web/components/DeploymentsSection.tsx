@@ -145,8 +145,8 @@ export function DeploymentsSection(props: { site: SiteSummary; compact?: boolean
 function DeploymentRow(props: { site: SiteSummary; row: SiteDeployment; live: boolean; logs: boolean }) {
   const { row } = props;
   const state = row.type === "deployment" && !props.live ? "previous" : row.status;
-  // A build the live version came from keeps its own status and gets a second chip.
-  const liveBuild = props.live && row.type === "build";
+  // The build the live version came from shows Live in place of its build status.
+  const shown = props.live ? "live" : state;
   const fallback = row.type === "deployment" ? "New version deployed" : "Build";
   const details = [
     row.author,
@@ -161,21 +161,11 @@ function DeploymentRow(props: { site: SiteSummary; row: SiteDeployment; live: bo
         <span
           className={cn(
             "mt-0.5 inline-flex h-5 shrink-0 items-center rounded-full px-2 text-xs font-medium",
-            STATUS_TONES[state],
+            STATUS_TONES[shown],
           )}
         >
-          {STATUS_LABELS[state]}
+          {STATUS_LABELS[shown]}
         </span>
-        {liveBuild && (
-          <span
-            className={cn(
-              "mt-0.5 inline-flex h-5 shrink-0 items-center rounded-full px-2 text-xs font-medium",
-              STATUS_TONES.live,
-            )}
-          >
-            {STATUS_LABELS.live}
-          </span>
-        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{row.message || fallback}</span>
           <span className="block truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
