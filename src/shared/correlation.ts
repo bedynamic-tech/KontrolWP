@@ -2,6 +2,8 @@
 export interface DailySeries {
   /** Source and measure, such as "Search Console clicks". */
   name: string;
+  /** Which connected source it comes from, such as "Search Console". */
+  source: string;
   /** Date (YYYY-MM-DD) to value. */
   days: Map<string, number>;
 }
@@ -40,6 +42,8 @@ export function pearson(a: number[], b: number[]): number | null {
 export interface Correlation {
   a: string;
   b: string;
+  /** Whether both come from the same source. */
+  same: boolean;
   /** -1 to 1. */
   r: number;
   /** Days both sources have figures for. */
@@ -60,7 +64,7 @@ export function correlate(series: DailySeries[]): Correlation[] {
         shared.map((day) => series[i].days.get(day)!),
         shared.map((day) => series[j].days.get(day)!),
       );
-      if (r !== null) out.push({ a: series[i].name, b: series[j].name, r, days: shared.length });
+      if (r !== null) out.push({ a: series[i].name, b: series[j].name, same: series[i].source === series[j].source, r, days: shared.length });
     }
   }
   return out.sort((x, y) => Math.abs(y.r) - Math.abs(x.r));
