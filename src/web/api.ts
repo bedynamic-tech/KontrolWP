@@ -24,6 +24,8 @@ import type {
   SeoContentSettings,
   SeoPageChange,
   SeoTools,
+  Snippets,
+  SnippetsSettings,
   SeoToolsSettings,
   SeoPages,
   SeoScore,
@@ -416,6 +418,9 @@ export const deactivateMigrationSource = (siteId: number, source: string) =>
     method: "POST",
     json: { source, confirm: true },
   });
+export const fetchSnippets = (siteId: number) => request<Snippets>(`/sites/${siteId}/snippets`);
+export const saveSnippets = (siteId: number, settings: SnippetsSettings) =>
+  request<Snippets>(`/sites/${siteId}/snippets`, { method: "PUT", json: settings });
 export const fetchSeoTools = (siteId: number) => request<SeoTools>(`/sites/${siteId}/seo/tools`);
 export const saveSeoTools = (siteId: number, settings: SeoToolsSettings) =>
   request<SeoTools>(`/sites/${siteId}/seo/tools`, { method: "PUT", json: settings });

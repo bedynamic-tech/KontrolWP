@@ -1204,3 +1204,33 @@ export interface SiteSeoAudit {
   error: string | null;
   history: { scanned_at: number; score: number }[];
 }
+
+export const SNIPPET_LOCATIONS = ["head", "body_start", "footer"] as const;
+export type SnippetLocation = (typeof SNIPPET_LOCATIONS)[number];
+export const SNIPPET_SCOPES = ["all", "only", "except"] as const;
+export type SnippetScope = (typeof SNIPPET_SCOPES)[number];
+
+/** A piece of HTML or JavaScript printed on the public site, such as an analytics or tracking code. */
+export interface CodeSnippet {
+  /** Made by the site; empty on a snippet not yet saved. */
+  id: string;
+  name: string;
+  code: string;
+  location: SnippetLocation;
+  enabled: boolean;
+  /** Where it prints: everywhere, only on the listed pages, or everywhere except them. */
+  scope: SnippetScope;
+  /** Page paths such as /pricing, or /blog/* for everything under it. */
+  paths: string[];
+}
+
+export interface SnippetsSettings {
+  /** Leave snippets out for logged-in editors, so the owner's own visits are not counted. */
+  skip_editors: boolean;
+  snippets: CodeSnippet[];
+}
+
+export interface Snippets {
+  settings: SnippetsSettings;
+  limits: { snippets: number; code: number; name: number; paths: number };
+}

@@ -52,7 +52,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -143,6 +143,7 @@ import {
 } from "../sites/redirects.ts";
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
+import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -1172,6 +1173,32 @@ api.post("/sites/:id/seo/pages/:pageId/score", async (c) => {
 api.get("/sites/:id/seo/tools", async (c) =>
   redirectsCall(c, (site, credentials) => siteSeoTools(c.env, site, credentials) as Promise<SeoTools>),
 );
+
+/** Code snippets for one site. */
+api.get("/sites/:id/snippets", async (c) => redirectsCall(c, (site, credentials) => siteSnippets(c.env, site, credentials)));
+
+const snippetsBody = z.object({
+  skip_editors: z.boolean(),
+  snippets: z
+    .array(
+      z.object({
+        id: z.string().max(40),
+        name: z.string().max(200),
+        code: z.string().max(100_000),
+        location: z.enum(SNIPPET_LOCATIONS),
+        enabled: z.boolean(),
+        scope: z.enum(SNIPPET_SCOPES),
+        paths: z.array(z.string().max(400)).max(100),
+      }),
+    )
+    .max(200),
+});
+
+api.put("/sites/:id/snippets", async (c) => {
+  const parsed = snippetsBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid snippets" }, 400);
+  return redirectsCall(c, (site, credentials) => saveSnippets(c.env, site, credentials, parsed.data));
+});
 
 /** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */
 api.get("/sites/:id/seo/content", async (c) => redirectsCall(c, (site, credentials) => siteSeoContent(c.env, site, credentials)));
