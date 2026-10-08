@@ -47,6 +47,8 @@ import type {
   SiteAnalyticsDetails,
   AnalyticsProvider,
   GoogleSettings,
+  SearchConsoleRange,
+  SiteSearchConsole,
   UmamiSettings,
   UmamiWebsite,
   Overview,
@@ -258,6 +260,13 @@ export const saveGoogleSettings = (key: string) =>
   request<GoogleSettings>("/settings/google", { method: "PUT", json: { key } });
 export const deleteGoogleSettings = () => request<GoogleSettings>("/settings/google", { method: "DELETE" });
 export const fetchGa4Properties = () => request<{ websites: UmamiWebsite[] }>("/google/analytics/properties");
+
+export const fetchSearchConsole = (siteId: number, range: SearchConsoleRange) =>
+  request<SiteSearchConsole>(`/sites/${siteId}/search-console?range=${range}`);
+export const fetchSearchConsoleProperties = () =>
+  request<{ websites: UmamiWebsite[] }>("/google/search-console/properties");
+export const setSiteSearchConsoleProperty = (siteId: number, property: string | null) =>
+  request<{ ok: true }>(`/sites/${siteId}/search-console`, { method: "PUT", json: { property } });
 
 export const fetchWebAnalyticsSites = () => request<{ websites: UmamiWebsite[] }>("/cloudflare/web-analytics/sites");
 

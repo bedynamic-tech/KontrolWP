@@ -41,6 +41,7 @@ import {
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
+import { SearchConsoleSection } from "./SearchConsoleSection";
 import { SeoAuditTab } from "./SeoAuditTab";
 import { SeoTab } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
@@ -414,6 +415,9 @@ export function SitePage() {
           <SecurityTab site={site} />
         </TabsContent>
         <TabsContent value="seo" className={TAB_CLASS}>
+          <ErrorBoundary label="Search Console">
+            <SearchConsoleSection site={site} />
+          </ErrorBoundary>
           <ErrorBoundary label="The SEO tab">
             {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
           </ErrorBoundary>

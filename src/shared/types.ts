@@ -46,6 +46,8 @@ export interface SiteSummary {
   plugin_auto_updates: boolean;
   /** The Umami website the owner chose for this site; null matches by domain. */
   umami_website_id: string | null;
+  /** The Search Console property the owner chose for this site; null matches by domain. */
+  gsc_property: string | null;
   /** Where this site's analytics come from. */
   analytics_provider: AnalyticsProvider;
   /** The Web Analytics site or GA4 property the owner chose, for providers other than Umami; null matches by domain. */
@@ -554,6 +556,32 @@ export interface LinkUnlinkResult {
 /** The Cloudflare connection as Settings shows it; the API token never leaves the Worker. */
 export interface CloudflareSettings {
   configured: boolean;
+}
+
+export const SEARCH_CONSOLE_RANGES = ["7d", "28d", "90d"] as const;
+export type SearchConsoleRange = (typeof SEARCH_CONSOLE_RANGES)[number];
+
+/** One query or page in Search Console: its clicks and impressions, click-through rate (0 to 1) and average position. */
+export interface SearchConsoleRow {
+  label: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+/** A site's Search Console data for a period, against the one before it. */
+export interface SiteSearchConsole {
+  /** The property shown, or null when the service account has none for this site's domain. */
+  property: UmamiWebsite | null;
+  /** True when the owner chose the property rather than KontrolWP matching it by domain. */
+  chosen: boolean;
+  range: SearchConsoleRange;
+  totals: { clicks: AnalyticsStat; impressions: AnalyticsStat; ctr: AnalyticsStat; position: AnalyticsStat } | null;
+  /** One point per day. */
+  series: { label: string; clicks: number; impressions: number }[];
+  queries: SearchConsoleRow[];
+  pages: SearchConsoleRow[];
 }
 
 /** The Google service account as Settings shows it; the private key never leaves the Worker. */
