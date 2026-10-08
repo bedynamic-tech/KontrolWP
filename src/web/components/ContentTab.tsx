@@ -138,7 +138,7 @@ export function ContentTab(props: { site: SiteSummary }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <select
             aria-label="Content type"
-            className={`${SELECT_CLASS} sm:hidden`}
+            className={SELECT_CLASS}
             value={type}
             onChange={(event) => choose(setType, event.target.value)}
           >
@@ -148,19 +148,6 @@ export function ContentTab(props: { site: SiteSummary }) {
               </option>
             ))}
           </select>
-          <div className="hidden gap-1 sm:flex">
-            {typeOptions.map((option) => (
-              <Button
-                key={option.slug}
-                size="sm"
-                variant={type === option.slug ? "outline" : "ghost"}
-                onClick={() => choose(setType, option.slug)}
-                aria-pressed={type === option.slug}
-              >
-                {option.name}
-              </Button>
-            ))}
-          </div>
           <div className="relative w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
