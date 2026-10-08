@@ -585,11 +585,18 @@ export interface SiteSearchConsole {
   pages: SearchConsoleRow[];
 }
 
-/** The Google service account as Settings shows it; the private key never leaves the Worker. */
+/** The Google connection as Settings shows it; secrets and tokens never leave the Worker. */
 export interface GoogleSettings {
   configured: boolean;
-  /** The service account's email address, which Analytics and Search Console must give access to. */
-  client_email: string;
+  /** How it signed in: "Connect to Google", or a service account key saved before that. */
+  kind: "oauth" | "service_account" | null;
+  /** The connected Google account's email address, or the service account's. */
+  account: string;
+  /** The OAuth client ID the owner saved; the secret is never returned. */
+  client_id: string;
+  client_configured: boolean;
+  /** The address to list as an authorized redirect URI on the OAuth client. */
+  redirect_uri: string;
 }
 
 /** A Worker the Cloudflare token can see, for choosing a static site's deployments. */

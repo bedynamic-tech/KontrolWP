@@ -108,7 +108,7 @@ test("a rejected key and a missing grant each say what to do", async () => {
       "t",
       "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
     ),
-    /add its email address as a viewer/i,
+    /view the property/i,
   );
   stubFetch({
     "GET analyticsadmin.googleapis.com/v1beta/accountSummaries": () => [

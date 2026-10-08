@@ -104,15 +104,20 @@ import {
 } from "../umami.ts";
 import { ga4Analytics, ga4Details, listGa4Properties, matchGa4Property } from "../ga4.ts";
 import {
-  deleteGoogleKey,
+  deleteGoogleClient,
+  deleteGoogleCredential,
+  finishGoogleSignIn,
   forgetGoogleTokens,
   GOOGLE_SCOPES,
   googleAccessToken,
   GoogleError,
-  loadGoogleKey,
-  parseGoogleKey,
-  saveGoogleKey,
-  type GoogleKey,
+  googleAccount,
+  googleRedirectUri,
+  loadGoogleClient,
+  loadGoogleCredential,
+  saveGoogleClient,
+  saveGoogleCredential,
+  startGoogleSignIn,
 } from "../google.ts";
 import { listSearchConsoleProperties, matchSearchConsoleProperty, searchConsole } from "../search-console.ts";
 import { MigrationError } from "../db/migrate.ts";
@@ -1915,12 +1920,16 @@ async function analyticsProvider(c: AppContext): Promise<AnalyticsProvider> {
     : "umami";
 }
 
-/** Run a Google request with the saved service account, turning its failures into messages for the page. */
-async function googleRequest(c: AppContext, request: (key: GoogleKey) => Promise<Response>) {
+/** Gets an access token for a Google scope with the saved connection. */
+type GoogleAccess = (scope: string) => Promise<string>;
+
+/** Run a Google request with the saved connection, turning its failures into messages for the page. */
+async function googleRequest(c: AppContext, request: (access: GoogleAccess) => Promise<Response>) {
   try {
-    const key = await loadGoogleKey(c.env);
-    if (!key) return c.json({ error: "Connect Google in Settings first", code: "google_not_configured" }, 409);
-    return await request(key);
+    const credential = await loadGoogleCredential(c.env);
+    if (!credential) return c.json({ error: "Connect Google in Settings first", code: "google_not_configured" }, 409);
+    const client = credential.kind === "oauth" ? await loadGoogleClient(c.env) : null;
+    return await request((scope) => googleAccessToken(credential, scope, Date.now(), client));
   } catch (error) {
     if (error instanceof GoogleError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
     if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
@@ -1930,7 +1939,7 @@ async function googleRequest(c: AppContext, request: (key: GoogleKey) => Promise
 
 /** Google Analytics 4 for the site: the owner's chosen property, or the one whose web stream has the site's domain. */
 function ga4Analytics_(c: AppContext, detailed: boolean) {
-  return googleRequest(c, async (key) => {
+  return googleRequest(c, async (access) => {
     const id = siteId(c);
     const site =
       id &&
@@ -1940,7 +1949,7 @@ function ga4Analytics_(c: AppContext, detailed: boolean) {
     if (!site) return c.json({ error: "Site not found" }, 404);
     const range = analyticsRange.catch("7d").parse(c.req.query("range"));
     const tz = validTimeZone(c.req.query("tz"));
-    const token = await googleAccessToken(key, GOOGLE_SCOPES.analytics);
+    const token = await access(GOOGLE_SCOPES.analytics);
     const properties = await listGa4Properties(token);
     const chosen = site.analytics_ref ? (properties.find((property) => property.id === site.analytics_ref) ?? null) : null;
     const property = chosen ?? (site.analytics_ref ? null : matchGa4Property(properties, site.url));
@@ -1981,45 +1990,102 @@ api.get("/sites/:id/analytics/details", async (c) => {
   return provider === "ga4" ? ga4Analytics_(c, true) : umamiDetails(c);
 });
 
+/** What Settings shows about the Google connection and the OAuth client it signs in with. */
+async function googleSettings(c: AppContext): Promise<GoogleSettings> {
+  const [credential, client] = await Promise.all([loadGoogleCredential(c.env), loadGoogleClient(c.env)]);
+  return {
+    configured: !!credential,
+    kind: credential ? (credential.kind === "oauth" ? "oauth" : "service_account") : null,
+    account: credential ? googleAccount(credential) : "",
+    client_id: client?.client_id ?? "",
+    client_configured: !!client,
+    redirect_uri: googleRedirectUri(new URL(c.req.url).origin),
+  };
+}
+
 api.get("/settings/google", async (c) => {
   try {
-    const key = await loadGoogleKey(c.env);
-    return c.json<GoogleSettings>({ configured: !!key, client_email: key?.client_email ?? "" });
+    return c.json<GoogleSettings>(await googleSettings(c));
   } catch (error) {
     if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
     throw error;
   }
 });
 
-/** Save the service account's JSON key after checking that Google accepts it. */
-api.put("/settings/google", async (c) => {
-  const parsed = z.object({ key: z.string().trim().min(1).max(10_000) }).safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Paste the service account's JSON key" }, 400);
-  try {
-    const key = parseGoogleKey(parsed.data.key);
-    forgetGoogleTokens();
-    await googleAccessToken(key, GOOGLE_SCOPES.analytics);
-    await saveGoogleKey(c.env, key);
+/** Save the OAuth client (id and secret) that "Connect to Google" signs in with. A new client ends the old sign-in. */
+api.put("/settings/google/client", async (c) => {
+  const parsed = z
+    .object({ client_id: z.string().trim().min(1).max(300), client_secret: z.string().trim().min(1).max(300) })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter the OAuth client ID and secret" }, 400);
+  if (!parsed.data.client_id.endsWith(".apps.googleusercontent.com")) {
+    return c.json({ error: "That does not look like a Google client ID. It ends in .apps.googleusercontent.com." }, 400);
+  }
+  const credential = await loadGoogleCredential(c.env);
+  await saveGoogleClient(c.env, parsed.data);
+  if (credential?.kind === "oauth") {
+    await deleteGoogleCredential(c.env);
     await clearContentCacheKind(c.env.DB, "analytics");
-    return c.json<GoogleSettings>({ configured: true, client_email: key.client_email });
+    await clearContentCacheKind(c.env.DB, "seo");
+  }
+  return c.json<GoogleSettings>(await googleSettings(c));
+});
+
+/** Start "Connect to Google": the address of Google's sign-in page, which the browser then opens. */
+api.post("/google/connect", async (c) => {
+  const client = await loadGoogleClient(c.env);
+  if (!client) return c.json({ error: "Save the OAuth client ID and secret first" }, 400);
+  const url = await startGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin));
+  return c.json({ url });
+});
+
+/** Google sends the owner back here; the Worker finishes the sign-in and returns them to Settings. */
+api.get("/google/callback", async (c) => {
+  const back = (result: Record<string, string>) =>
+    c.redirect(`/settings?${new URLSearchParams({ tab: "integrations", ...result })}`, 302);
+  const code = c.req.query("code");
+  const state = c.req.query("state") ?? "";
+  const denied = c.req.query("error");
+  if (denied || !code) {
+    return back({ google: "error", message: denied === "access_denied" ? "Google access was not allowed." : "Google did not finish the sign-in." });
+  }
+  try {
+    const client = await loadGoogleClient(c.env);
+    if (!client) return back({ google: "error", message: "Save the OAuth client ID and secret first." });
+    const account = await finishGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin), code, state);
+    await saveGoogleCredential(c.env, account);
+    forgetGoogleTokens();
+    await clearContentCacheKind(c.env.DB, "analytics");
+    await clearContentCacheKind(c.env.DB, "seo");
+    return back({ google: "connected" });
   } catch (error) {
-    if (error instanceof GoogleError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    if (error instanceof GoogleError) return back({ google: "error", message: error.message });
     throw error;
   }
 });
 
+/** Disconnect Google (an OAuth sign-in or an older service account). The OAuth client stays so it can be reconnected. */
 api.delete("/settings/google", async (c) => {
-  await deleteGoogleKey(c.env);
-  forgetGoogleTokens();
+  await deleteGoogleCredential(c.env);
   await clearContentCacheKind(c.env.DB, "analytics");
-  return c.json<GoogleSettings>({ configured: false, client_email: "" });
+  await clearContentCacheKind(c.env.DB, "seo");
+  return c.json<GoogleSettings>(await googleSettings(c));
+});
+
+/** Forget the OAuth client too. */
+api.delete("/settings/google/client", async (c) => {
+  await deleteGoogleCredential(c.env);
+  await deleteGoogleClient(c.env);
+  await clearContentCacheKind(c.env.DB, "analytics");
+  await clearContentCacheKind(c.env.DB, "seo");
+  return c.json<GoogleSettings>(await googleSettings(c));
 });
 
 const searchConsoleRange = z.enum(SEARCH_CONSOLE_RANGES);
 
 /** The site's Search Console clicks, impressions, queries and pages. */
 api.get("/sites/:id/search-console", (c) =>
-  googleRequest(c, async (key) => {
+  googleRequest(c, async (access) => {
     const id = siteId(c);
     const site =
       id &&
@@ -2028,7 +2094,7 @@ api.get("/sites/:id/search-console", (c) =>
         .first<{ url: string; gsc_property: string | null }>());
     if (!site) return c.json({ error: "Site not found" }, 404);
     const range = searchConsoleRange.catch("28d").parse(c.req.query("range"));
-    const token = await googleAccessToken(key, GOOGLE_SCOPES.searchConsole);
+    const token = await access(GOOGLE_SCOPES.searchConsole);
     const properties = await listSearchConsoleProperties(token);
     const chosen = site.gsc_property ? (properties.find((property) => property.id === site.gsc_property) ?? null) : null;
     const property = chosen ?? (site.gsc_property ? null : matchSearchConsoleProperty(properties, site.url));
@@ -2056,10 +2122,10 @@ api.get("/sites/:id/search-console", (c) =>
   }),
 );
 
-/** The properties in Search Console the service account can read. */
+/** The properties in Search Console the connected Google account can read. */
 api.get("/google/search-console/properties", (c) =>
-  googleRequest(c, async (key) =>
-    c.json({ websites: await listSearchConsoleProperties(await googleAccessToken(key, GOOGLE_SCOPES.searchConsole)) }),
+  googleRequest(c, async (access) =>
+    c.json({ websites: await listSearchConsoleProperties(await access(GOOGLE_SCOPES.searchConsole)) }),
   ),
 );
 
@@ -2074,10 +2140,10 @@ api.put("/sites/:id/search-console", async (c) => {
   return c.json({ ok: true });
 });
 
-/** The GA4 properties the service account can see. */
+/** The GA4 properties the connected Google account can see. */
 api.get("/google/analytics/properties", (c) =>
-  googleRequest(c, async (key) =>
-    c.json({ websites: await listGa4Properties(await googleAccessToken(key, GOOGLE_SCOPES.analytics)) }),
+  googleRequest(c, async (access) =>
+    c.json({ websites: await listGa4Properties(await access(GOOGLE_SCOPES.analytics)) }),
   ),
 );
 
