@@ -41,6 +41,7 @@ import {
   MagicLoginUserSelect,
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { SnippetsTab } from "./SnippetsTab";
 import { SearchConsoleSection } from "./SearchConsoleSection";
 import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
 import { SeoAuditTab } from "./SeoAuditTab";
@@ -93,6 +94,7 @@ const WORDPRESS_TABS = [
   "links",
   "security",
   "seo",
+  "snippets",
   "accessibility",
   "domain",
 ];
@@ -255,6 +257,7 @@ export function SitePage() {
           ...(site.links_excluded ? [] : [{ value: "links", label: "Links" }]),
           ...(site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
           { value: "seo", label: "SEO" },
+          { value: "snippets", label: "Code snippets" },
         ]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
     { value: "domain", label: "Domain" },
@@ -445,6 +448,9 @@ export function SitePage() {
           <ErrorBoundary label="The SEO tab">
             {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
           </ErrorBoundary>
+        </TabsContent>
+        <TabsContent value="snippets" className={TAB_CLASS}>
+          {!isStatic && <SnippetsTab site={site} />}
         </TabsContent>
         <TabsContent value="accessibility" className={TAB_CLASS}>
           <AccessibilityTab site={site} />

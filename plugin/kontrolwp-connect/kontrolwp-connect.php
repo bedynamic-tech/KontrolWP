@@ -3,7 +3,7 @@
  * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://github.com/bedynamic-tech/KontrolWP
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.28.0
+ * Version:           0.29.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.28.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.29.0' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
@@ -48,6 +48,7 @@ require_once __DIR__ . '/includes/class-kontrolwp-connect-seo-tools.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-seo-content.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-seo-archives.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-seo-score.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-snippets.php';
 
 register_activation_hook( __FILE__, array( 'KontrolWP_Connect_Auth', 'ensure_credentials' ) );
 // Short category addresses live in the stored rewrite rules; forget them so they go with the plugin.
@@ -60,6 +61,7 @@ add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Redirects', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO_Tools', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO_Content', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO_Archives', 'boot' ) );
+add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Snippets', 'boot' ) );
 KontrolWP_Connect_Login::init();
 
 if ( is_admin() ) {
