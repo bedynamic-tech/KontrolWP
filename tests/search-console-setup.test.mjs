@@ -61,3 +61,21 @@ test("the site is added and its sitemap submitted with encoded addresses", async
   await submitSitemap("tok", "https://example.com/", "https://example.com/wp-sitemap.xml");
   assert.equal(calls.length, 2);
 });
+
+test("a disabled Site Verification API keeps the page that turns it on", async () => {
+  stubFetch({
+    "POST www.googleapis.com/siteVerification/v1/token": () => [
+      403,
+      {
+        error: {
+          message:
+            "Google Site Verification API has not been used in project 123 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/siteverification.googleapis.com/overview?project=123 then retry.",
+        },
+      },
+    ],
+  });
+  await assert.rejects(
+    verificationCode("tok", "https://example.com/"),
+    /Enable it at https:\/\/console\.developers\.google\.com\/apis\/api\/siteverification\.googleapis\.com\/overview\?project=123/,
+  );
+});

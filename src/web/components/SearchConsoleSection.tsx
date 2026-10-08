@@ -309,6 +309,19 @@ function RowList(props: {
   );
 }
 
+/** An error message with its web address made into a link, so a "turn the API on" page can be opened. */
+function linkify(message: string) {
+  return message.split(/(https:\/\/\S+)/).map((part, index) =>
+    /^https:\/\//.test(part) ? (
+      <a key={index} href={part.replace(/[.,]$/, "")} target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
+        Open the page
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 /**
  * Add a WordPress site to Search Console: Google's verification tag is printed
  * by KontrolWP Connect, Google checks it, and the sitemap is handed over. A
@@ -349,7 +362,7 @@ function SetUpSearchConsole(props: { site: SiteSummary; canSetUp: boolean }) {
             : " Google will ask once to also let KontrolWP add sites and verify them, which goes beyond reading."}
         </HelpTip>
       </div>
-      {run.error && <p className="text-sm text-destructive">{run.error.message}</p>}
+      {run.error && <p className="text-sm text-destructive">{linkify(run.error.message)}</p>}
       {setUp.data?.sitemap_error && (
         <p className="text-sm text-muted-foreground">
           The site was added, but its sitemap was not accepted: {setUp.data.sitemap_error}
