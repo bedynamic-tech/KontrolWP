@@ -66,24 +66,28 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
   const source = useAnalyticsProvider(site);
   return (
     <>
-      <ErrorBoundary label="Search Console">
-        <SearchConsoleSection site={site} />
-      </ErrorBoundary>
-      {source.configured ? (
-        <AnalyticsContent site={site} />
-      ) : (
-        source.loaded && (
-          <Section title="Analytics">
-            <EmptyRow>
-              Connect {source.label} in{" "}
-              <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-                Settings
-              </Link>{" "}
-              to show this site's analytics.
-            </EmptyRow>
-          </Section>
-        )
-      )}
+      <div id="site-search-console">
+        <ErrorBoundary label="Search Console">
+          <SearchConsoleSection site={site} />
+        </ErrorBoundary>
+      </div>
+      <div id="site-analytics">
+        {source.configured ? (
+          <AnalyticsContent site={site} />
+        ) : (
+          source.loaded && (
+            <Section title="Analytics">
+              <EmptyRow>
+                Connect {source.label} in{" "}
+                <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+                  Settings
+                </Link>{" "}
+                to show this site's analytics.
+              </EmptyRow>
+            </Section>
+          )
+        )}
+      </div>
     </>
   );
 }
