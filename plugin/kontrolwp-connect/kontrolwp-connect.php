@@ -1,12 +1,13 @@
 <?php
 /**
  * Plugin Name:       KontrolWP Connect
- * Plugin URI:        https://github.com/bedynamic-tech/KontrolWP
+ * Plugin URI:        https://kontrolwp.com
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.29.0
+ * Version:           0.29.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
+ * Author URI:        https://kontrolwp.com
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       kontrolwp-connect
@@ -28,7 +29,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.29.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.29.1' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
