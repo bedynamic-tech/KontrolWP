@@ -15,6 +15,7 @@ import {
   useAnalyticsRange,
   WebsitePicker,
 } from "./AnalyticsSection";
+import { CloudflareSetup, cloudflareSetupState } from "./AnalyticsSetup";
 import { Section } from "./Section";
 
 const regionNames = (() => {
@@ -89,6 +90,21 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
           </div>
         </div>
       </>
+    );
+  }
+  const setup = cloudflareSetupState({
+    error: details.error,
+    website: details.data?.website,
+    sources: details.data?.sources,
+    chosen: details.data?.chosen,
+  });
+  if (setup && site.analytics_provider === "cloudflare") {
+    return (
+      <Section title="Analytics">
+        <CloudflareSetup site={site} state={setup} sources={details.data?.sources}>
+          {setup === "no-match" && <WebsitePicker site={site} current={null} chosen={details.data?.chosen ?? false} />}
+        </CloudflareSetup>
+      </Section>
     );
   }
   if (details.error) {

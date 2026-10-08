@@ -20,6 +20,15 @@ import { analyticsWindow, bareHost, bucketKey } from "./umami.ts";
 
 const GRAPHQL = "https://api.cloudflare.com/client/v4/graphql";
 const TIMEOUT_MS = 20_000;
+/** The code a token without Web Analytics access answers with, so the dashboard can show how to fix it. */
+export const PERMISSION_CODE = "cloudflare_permission";
+
+const permissionError = () =>
+  new CloudflareError(
+    "The Cloudflare API token cannot read Web Analytics. Edit it and add Account Analytics: Read.",
+    400,
+    PERMISSION_CODE,
+  );
 
 /** Every Web Analytics site the token can see, across its accounts. */
 export async function listWebAnalyticsSites(token: string): Promise<UmamiWebsite[]> {
@@ -27,7 +36,10 @@ export async function listWebAnalyticsSites(token: string): Promise<UmamiWebsite
   if (!accounts.length) throw new CloudflareError("That API token cannot see any Cloudflare account.", 400);
   const lists = await Promise.allSettled(
     accounts.map(async (account) => {
-      const rows = await call<unknown>(token, `/accounts/${account.id}/rum/site_info/list`, { per_page: 100 });
+      const rows = await call<unknown>(token, `/accounts/${account.id}/rum/site_info/list`, { per_page: 100 }).catch((error) => {
+        if (error instanceof CloudflareError && error.status === 400) throw permissionError();
+        throw error;
+      });
       return (Array.isArray(rows) ? rows : []).flatMap((row): UmamiWebsite[] => {
         const site = row as { site_tag?: unknown; host?: unknown; ruleset?: { zone_name?: unknown } };
         if (typeof site.site_tag !== "string" || !/^[a-z0-9]+$/i.test(site.site_tag)) return [];
@@ -80,10 +92,7 @@ async function graphql<T>(token: string, query: string): Promise<T> {
   }
   const message = body?.errors?.[0]?.message;
   if (res.status === 403 || (message && /authoriz|permission|access/i.test(message))) {
-    throw new CloudflareError(
-      "The Cloudflare API token cannot read Web Analytics. Edit it and add Account Analytics: Read.",
-      400,
-    );
+    throw permissionError();
   }
   if (!res.ok || !body?.data) {
     throw new CloudflareError(`Cloudflare answered ${res.status}${message ? `: ${message}` : ""}.`);

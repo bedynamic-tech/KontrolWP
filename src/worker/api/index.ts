@@ -1717,7 +1717,9 @@ async function cloudflareRequest(c: AppContext, request: (token: string) => Prom
       return c.json({ error: "Connect Cloudflare in Settings first", code: "cloudflare_not_configured" }, 409);
     return await request(token);
   } catch (error) {
-    if (error instanceof CloudflareError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
+    if (error instanceof CloudflareError) {
+      return c.json({ error: error.message, code: error.code }, error.status === 400 ? 400 : 502);
+    }
     if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
     throw error;
   }
@@ -1935,6 +1937,7 @@ function cloudflareAnalytics(c: AppContext, detailed: boolean) {
       return c.json<SiteAnalyticsDetails>({
         provider: "cloudflare",
         website: null,
+        sources: sources.length,
         chosen: !!site.analytics_ref,
         range,
         stats: null,
@@ -1993,6 +1996,7 @@ function ga4Analytics_(c: AppContext, detailed: boolean) {
       return c.json<SiteAnalyticsDetails>({
         provider: "ga4",
         website: null,
+        sources: properties.length,
         chosen: !!site.analytics_ref,
         range,
         stats: null,

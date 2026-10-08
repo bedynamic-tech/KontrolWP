@@ -279,6 +279,8 @@ export interface SiteAnalytics {
   provider?: AnalyticsProvider;
   /** The source shown (an Umami website, a Web Analytics site or a GA4 property), or null when none matches the site. */
   website: UmamiWebsite | null;
+  /** How many sources the provider offers, so "none" and "none for this domain" can be told apart. */
+  sources?: number;
   /** True when the owner chose the website rather than KontrolWP matching it by domain. */
   chosen: boolean;
   range: AnalyticsRange;
