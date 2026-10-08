@@ -368,7 +368,7 @@ export function SitePage() {
           {(() => {
             const searchConsole = searchConsoleOn && (
               <ErrorBoundary label="Search Console">
-                <SearchConsoleSection site={site} onOpen={() => jumpTo("analytics", "site-search-console")} />
+                <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
               </ErrorBoundary>
             );
             const health = <HealthOverview site={site} onOpen={setTab} />;

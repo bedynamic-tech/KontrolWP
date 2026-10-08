@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  SEARCH_CONSOLE_RANGES,
+  type AnalyticsRange,
   type SearchConsoleRange,
   type SearchConsoleRow,
   type SiteSearchConsole,
@@ -23,52 +23,33 @@ import {
 } from "../api";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import { hostname } from "../format";
-import { count, JumpButton, SELECT_CLASS, Stat } from "./AnalyticsSection";
+import { count, JumpButton, RangeSelect, SELECT_CLASS, Stat, useAnalyticsRange } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 
-const RANGE_LABELS: Record<SearchConsoleRange, string> = {
-  "7d": "Last 7 days",
-  "28d": "Last 28 days",
-  "90d": "Last 90 days",
+/** Search Console only offers 7, 28 and 90 days, so the shared range maps to the nearest of those. */
+const SEARCH_CONSOLE_RANGE: Record<AnalyticsRange, SearchConsoleRange> = {
+  "24h": "7d",
+  "7d": "7d",
+  "30d": "28d",
+  "90d": "90d",
 };
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 const position = (value: number) => value.toFixed(1);
-
-function useRange(): [SearchConsoleRange, (next: SearchConsoleRange) => void] {
-  const [range, setRange] = useState<SearchConsoleRange>(() => {
-    try {
-      const saved = localStorage.getItem("kontrolwp:search-console-range");
-      return SEARCH_CONSOLE_RANGES.includes(saved as SearchConsoleRange)
-        ? (saved as SearchConsoleRange)
-        : "28d";
-    } catch {
-      return "28d";
-    }
-  });
-  return [
-    range,
-    (next) => {
-      setRange(next);
-      try {
-        localStorage.setItem("kontrolwp:search-console-range", next);
-      } catch {
-        // Remembering the range is only a convenience.
-      }
-    },
-  ];
-}
 
 /** Search Console clicks, impressions, top queries and top pages, shown in the SEO tab once Google is connected. */
 export function SearchConsoleSection(props: {
   site: SiteSummary;
   /** The Overview version: the stats and clicks trend, with a link to the full section. */
   onOpen?: () => void;
+  /** The Analytics module beside this one already shows the date range, which changes both. */
+  linked?: boolean;
 }) {
-  const { site, onOpen } = props;
-  const [range, chooseRange] = useRange();
+  const { site, onOpen, linked } = props;
+  const [sharedRange, chooseRange] = useAnalyticsRange();
+  const range = SEARCH_CONSOLE_RANGE[sharedRange];
   const google = useQuery({
     queryKey: ["settings", "google"],
     queryFn: fetchGoogleSettings,
@@ -112,29 +93,15 @@ export function SearchConsoleSection(props: {
     );
   }
 
-  const select = (
-    <select
-      aria-label="Date range"
-      value={range}
-      onChange={(event) =>
-        chooseRange(event.target.value as SearchConsoleRange)
-      }
-      className={`${SELECT_CLASS} w-auto!`}
-    >
-      {SEARCH_CONSOLE_RANGES.map((value) => (
-        <option key={value} value={value}>
-          {RANGE_LABELS[value]}
-        </option>
-      ))}
-    </select>
-  );
+  const select = <RangeSelect range={sharedRange} onChange={chooseRange} />;
+  const picker = linked ? null : select;
   const action = onOpen ? (
     <span className="flex items-center gap-1.5">
       <JumpButton label="Open Search Console" onClick={onOpen} />
-      {select}
+      {picker}
     </span>
   ) : (
-    select
+    picker
   );
 
   let body;
