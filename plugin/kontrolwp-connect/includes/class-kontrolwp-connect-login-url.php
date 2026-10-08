@@ -262,15 +262,36 @@ class KontrolWP_Connect_Login_URL {
 			wp_safe_redirect( home_url( '/' ) );
 			exit;
 		}
-		global $wp_query;
-		$wp_query->set_404();
+		self::not_found();
+	}
+
+	/**
+	 * Answer as a page that does not exist. The theme's own 404 page is used
+	 * for wp-login.php, in a buffer so that a theme that cannot render here
+	 * falls back to a plain page instead of a fatal error. The signed-out
+	 * wp-admin always gets the plain page, because themes are not built to
+	 * render inside the admin.
+	 */
+	private static function not_found() {
 		status_header( 404 );
 		nocache_headers();
-		if ( ! defined( 'WP_USE_THEMES' ) ) {
-			define( 'WP_USE_THEMES', true );
+		if ( ! is_admin() ) {
+			global $wp_query;
+			ob_start();
+			try {
+				$wp_query->set_404();
+				if ( ! defined( 'WP_USE_THEMES' ) ) {
+					define( 'WP_USE_THEMES', true );
+				}
+				require_once ABSPATH . WPINC . '/template-loader.php';
+				$page = ob_get_clean();
+				echo $page; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				exit;
+			} catch ( Throwable $error ) {
+				ob_end_clean();
+			}
 		}
-		require_once ABSPATH . WPINC . '/template-loader.php';
-		exit;
+		wp_die( esc_html__( 'The page you requested could not be found.', 'kontrolwp-connect' ), esc_html__( 'Not Found', 'kontrolwp-connect' ), array( 'response' => 404 ) );
 	}
 
 	public static function report() {
