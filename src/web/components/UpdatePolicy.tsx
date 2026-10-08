@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import type {
@@ -69,13 +71,7 @@ function ScheduleFields(props: {
           ] as const
         ).map(([key, label]) => (
           <label key={key} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              className="size-4 accent-primary"
-              checked={value[key]}
-              disabled={disabled}
-              onChange={(event) => set({ [key]: event.target.checked })}
-            />
+            <Switch checked={value[key]} disabled={disabled} onCheckedChange={(next) => set({ [key]: next })} />
             {label}
           </label>
         ))}
@@ -185,28 +181,29 @@ function PluginPicker(props: {
           return (
             <li key={plugin.file}>
               <label className="flex items-center gap-3 px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
+                {/* A plugin left out of updates is dimmed, like an inactive plugin. */}
+                <span className={cn("flex min-w-0 flex-1 items-center gap-3", (left.has(plugin.file) || isLocked) && "opacity-60")}>
+                  <RemoteIcon
+                    sources={pluginIconSources(plugin.file, plugin.icon_url)}
+                    name={plugin.name}
+                    className="size-6 text-xs"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{plugin.name}</span>
+                  {isLocked ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">Left out for all sites</span>
+                  ) : (
+                    props.showSites && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {plugin.sites} {plugin.sites === 1 ? "site" : "sites"}
+                      </span>
+                    )
+                  )}
+                </span>
+                <Switch
                   checked={!left.has(plugin.file) && !isLocked}
                   disabled={props.disabled || isLocked}
-                  onChange={(event) => toggle(plugin.file, event.target.checked)}
+                  onCheckedChange={(value) => toggle(plugin.file, value)}
                 />
-                <RemoteIcon
-                  sources={pluginIconSources(plugin.file, plugin.icon_url)}
-                  name={plugin.name}
-                  className="size-6 text-xs"
-                />
-                <span className="min-w-0 flex-1 truncate">{plugin.name}</span>
-                {isLocked ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">Left out for all sites</span>
-                ) : (
-                  props.showSites && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {plugin.sites} {plugin.sites === 1 ? "site" : "sites"}
-                    </span>
-                  )
-                )}
               </label>
             </li>
           );
@@ -282,14 +279,7 @@ export function UpdatePolicySettingsSection() {
     >
       <div className="space-y-5 px-4 py-4">
         <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 shrink-0 accent-primary"
-            checked={!!current?.enabled}
-            disabled={busy || !current}
-            onChange={(event) => current && save.mutate({ ...current, enabled: event.target.checked })}
-          />
-          <span>
+          <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-sm font-medium">
               Update sites on a schedule
               <HelpTip>
@@ -298,6 +288,12 @@ export function UpdatePolicySettingsSection() {
               </HelpTip>
             </span>
           </span>
+          <Switch
+            className="mt-0.5"
+            checked={!!current?.enabled}
+            disabled={busy || !current}
+            onCheckedChange={(value) => current && save.mutate({ ...current, enabled: value })}
+          />
         </label>
         {current && (
           <>

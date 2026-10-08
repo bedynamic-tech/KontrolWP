@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
 import { PlusIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
@@ -179,14 +180,9 @@ export function AddSiteDialog() {
                     maxLength={120}
                   />
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-primary"
-                    checked={onCloudflare}
-                    onChange={(e) => setOnCloudflare(e.target.checked)}
-                  />
+                <label className="flex cursor-pointer items-center justify-between gap-3 text-sm font-medium">
                   Hosted on Cloudflare Workers
+                  <Switch checked={onCloudflare} onCheckedChange={setOnCloudflare} />
                 </label>
                 {onCloudflare && (
                   <div className="space-y-1.5">

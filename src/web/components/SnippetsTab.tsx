@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { compareVersions, SNIPPETS_SINCE } from "../../shared/plugin-version";
 import type { CodeSnippet, SnippetLocation, SnippetScope, SnippetsSettings, SiteSummary } from "../../shared/types";
@@ -163,7 +165,7 @@ function Snippets(props: { site: SiteSummary }) {
                   <div className="flex items-center gap-2 px-4 py-3">
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      className={cn("flex min-w-0 flex-1 items-center gap-2 text-left", !snippet.enabled && "opacity-60")}
                       aria-expanded={isOpen}
                       onClick={() => toggle(index)}
                     >
@@ -174,18 +176,13 @@ function Snippets(props: { site: SiteSummary }) {
                       )}
                       <span className="min-w-0 truncate text-sm font-medium">{snippet.name || "New snippet"}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{LOCATION_LABELS[snippet.location]}</span>
-                      {!snippet.enabled && <span className="shrink-0 text-xs text-muted-foreground">Off</span>}
+                      {!snippet.enabled && <span className="sr-only">(off)</span>}
                     </button>
-                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">On</span>
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-primary"
-                        aria-label={`${snippet.name || "New snippet"} on`}
-                        checked={snippet.enabled}
-                        onChange={(event) => update(index, { enabled: event.target.checked })}
-                      />
-                    </label>
+                    <Switch
+                      aria-label={`${snippet.name || "New snippet"} on`}
+                      checked={snippet.enabled}
+                      onCheckedChange={(value) => update(index, { enabled: value })}
+                    />
                     <Button
                       type="button"
                       variant="ghost"

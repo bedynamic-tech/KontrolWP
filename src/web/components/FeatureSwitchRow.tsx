@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
 import { setFeatureExcluded, type SiteFeature } from "../api";
 import type { SiteSummary } from "../../shared/types";
 import { HelpTip } from "./HelpTip";
@@ -29,7 +30,7 @@ export function FeatureSwitchRow({
   });
   return (
     <label className="flex cursor-pointer items-center gap-3 py-3">
-      <div className="min-w-0 flex-1">
+      <div className={`min-w-0 flex-1 ${excluded ? "opacity-60" : ""}`}>
         <p className="flex items-center gap-1.5 text-sm font-medium">
           {title}
           <HelpTip>{excluded ? off : on}</HelpTip>
@@ -41,12 +42,10 @@ export function FeatureSwitchRow({
         )}
       </div>
       {change.isPending && <Spinner className="size-4 text-muted-foreground" />}
-      <input
-        type="checkbox"
-        className="size-4 shrink-0 accent-primary"
+      <Switch
         checked={change.isPending ? change.variables === false : !excluded}
         disabled={change.isPending}
-        onChange={(event) => change.mutate(!event.target.checked)}
+        onCheckedChange={(value) => change.mutate(!value)}
       />
     </label>
   );
