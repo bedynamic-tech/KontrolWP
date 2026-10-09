@@ -215,12 +215,12 @@ function PluginPicker(props: {
   );
 }
 
-function RunsList(props: { runs: UpdateRun[]; showSite: boolean }) {
+function RunsList(props: { runs: UpdateRun[]; showSite: boolean; heading?: boolean }) {
   if (!props.runs.length) return null;
   return (
     <div>
-      <p className="text-sm font-medium">Recent scheduled runs</p>
-      <ul className="mt-1.5 space-y-1.5 text-xs text-muted-foreground">
+      {props.heading !== false && <p className="mb-1.5 text-sm font-medium">Recent scheduled runs</p>}
+      <ul className="space-y-1.5 text-xs text-muted-foreground">
         {props.runs.map((run) => (
           <li key={run.id}>
             <span className="font-medium text-foreground">
@@ -334,54 +334,71 @@ export function UpdatePolicySettingsSection() {
   );
 }
 
-/** A site's Plugins tab: follow the global schedule, use the site's own, or none. Each plugin row has its own switch. */
-export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
-  const { site } = props;
+/** A site's own schedule choice, read and saved through the shared query. */
+function useSitePolicyEditor(siteId: number) {
   const queryClient = useQueryClient();
-  const key = ["site", site.id, "update-policy"];
-  const view = useQuery({ queryKey: key, queryFn: () => fetchSiteUpdatePolicy(site.id), refetchInterval: false });
+  const key = ["site", siteId, "update-policy"];
+  const view = useQuery({ queryKey: key, queryFn: () => fetchSiteUpdatePolicy(siteId), refetchInterval: false });
   const save = useMutation({
-    mutationFn: (policy: SiteUpdatePolicy) => saveSiteUpdatePolicy(site.id, policy),
+    mutationFn: (policy: SiteUpdatePolicy) => saveSiteUpdatePolicy(siteId, policy),
     onSuccess: (data) => queryClient.setQueryData(key, data),
   });
   const data = view.data;
   const current: SiteUpdatePolicy | undefined = save.isPending ? save.variables : data?.policy;
-  const busy = view.isPending || save.isPending;
+  return { data, current, save, busy: view.isPending || save.isPending, error: view.error ?? save.error };
+}
+
+/** The site's Plugins header: follow the global schedule, use the site's own, or none. */
+export function SiteScheduleSelect(props: { siteId: number }) {
+  const { data, current, save, busy, error } = useSitePolicyEditor(props.siteId);
+  if (!current) return null;
   const globalSummary = data?.global.enabled ? describeSchedule(data.global) : "no schedule is set";
+  const next = data && data.effective !== "off" ? nextRun(data.next_run_at, data.time_zone) : null;
   return (
-    <Section
-      title="Scheduled updates"
-      hint={data ? `The global setting: ${globalSummary}.` : "Loading..."}
-      action={save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
-    >
-      <div className="space-y-3 p-4">
-        {current && (
-          <>
-            <select
-              aria-label="Scheduled updates for this site"
-              className={`${SELECT_CLASS} w-full sm:max-w-xs`}
-              value={current.mode}
-              disabled={busy}
-              onChange={(event) => save.mutate({ ...current, mode: event.target.value as SiteUpdatePolicy["mode"] })}
-            >
-              <option value="inherit">Follow the global setting</option>
-              <option value="custom">Use a schedule for this site</option>
-              <option value="off">No scheduled updates for this site</option>
-            </select>
-            {current.mode === "custom" && (
-              <ScheduleFields
-                value={current.schedule}
-                disabled={busy}
-                onChange={(schedule) => save.mutate({ ...current, schedule })}
-              />
-            )}
-            {data && data.effective !== "off" && (
-              <p className="text-xs text-muted-foreground">{nextRun(data.next_run_at, data.time_zone)}</p>
-            )}
-          </>
-        )}
-        {data && <RunsList runs={data.runs} showSite={false} />}
-        {(view.error || save.error) && <p className="text-xs text-destructive">{(view.error ?? save.error)!.message}</p>}
+    <div className="flex items-center gap-1.5">
+      <select
+        aria-label="Scheduled updates for this site"
+        className={`${SELECT_CLASS} bg-background`}
+        value={current.mode}
+        disabled={busy}
+        onChange={(event) => save.mutate({ ...current, mode: event.target.value as SiteUpdatePolicy["mode"] })}
+      >
+        <option value="inherit">Scheduled updates: global</option>
+        <option value="custom">Scheduled updates: custom</option>
+        <option value="off">Scheduled updates: off</option>
+      </select>
+      <HelpTip>
+        The global setting: {globalSummary}.{next && ` ${next}`} Use the switch on each plugin to include it.
+      </HelpTip>
+      {save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
+      {error && <span className="text-xs text-destructive">{error.message}</span>}
+    </div>
+  );
+}
+
+/** The site's own schedule, under the Plugins header while "custom" is chosen. */
+export function SiteScheduleFields(props: { siteId: number }) {
+  const { current, save, busy } = useSitePolicyEditor(props.siteId);
+  if (current?.mode !== "custom") return null;
+  return (
+    <div className="mt-2 border-t pt-3 pb-1">
+      <ScheduleFields
+        value={current.schedule}
+        disabled={busy}
+        onChange={(schedule) => save.mutate({ ...current, schedule })}
+      />
+    </div>
+  );
+}
+
+/** The site's recent scheduled runs, below its plugin list. */
+export function SiteScheduleRuns(props: { siteId: number }) {
+  const { data } = useSitePolicyEditor(props.siteId);
+  if (!data?.runs.length) return null;
+  return (
+    <Section title="Recent scheduled runs">
+      <div className="p-4">
+        <RunsList runs={data.runs} showSite={false} heading={false} />
       </div>
     </Section>
   );

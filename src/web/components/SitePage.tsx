@@ -59,7 +59,7 @@ import {
 import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
-import { SiteUpdatePolicySection } from "./UpdatePolicy";
+import { SiteScheduleRuns } from "./UpdatePolicy";
 import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
@@ -463,7 +463,7 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />
-          {!site.updates_excluded && <SiteUpdatePolicySection site={site} />}
+          {!site.updates_excluded && <SiteScheduleRuns siteId={site.id} />}
         </TabsContent>
         <TabsContent value="users" className={TAB_CLASS}>
           <UsersSection site={site} />
