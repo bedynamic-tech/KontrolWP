@@ -519,7 +519,7 @@ A static site has an SEO tab that only reads the site (`src/worker/sites/seo-aud
 
 There is no layout setting: wide screens always use two columns and phones one. A site's Overview puts Updates and Comments left and Analytics right when Umami is connected, and the SEO tab's Settings, Content and Verification and files views (`TwoColumns.tsx`) put their sections in CSS columns balanced by height. The Pages list under Settings stays full width.
 
-A site's Links, Code snippets, Performance and SEO tabs sit under one Tools tab with its own row of tabs (a dropdown on phones). Each keeps its own `?tab=` value, so `?tab=links` still opens Links inside Tools, and `?tab=tools` opens the first one the site has.
+A site's Links, Code snippets, Performance, SEO, Security, Accessibility and Domain tabs sit under one Tools tab with its own row of tabs (a dropdown on phones). Each keeps its own `?tab=` value, so `?tab=links` still opens Links inside Tools, and `?tab=tools` opens the first one the site has.
 
 ## Per-site feature switches
 
