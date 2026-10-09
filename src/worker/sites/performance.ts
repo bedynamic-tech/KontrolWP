@@ -274,7 +274,8 @@ export async function fetchPagespeed(
   let answer = await ask(trimAnswers);
   if (trimAnswers) {
     const message = String(asObject(asObject(answer.body).error).message ?? "");
-    const rejected = answer.status === 400 && /field/i.test(message);
+    // Google names a bad field list either way: "Invalid field selection" or just "Request contains an invalid argument".
+    const rejected = answer.status === 400 && !/api key/i.test(message);
     if (rejected || (answer.ok && !complete(answer.body))) {
       trimAnswers = false;
       answer = await ask(false);
