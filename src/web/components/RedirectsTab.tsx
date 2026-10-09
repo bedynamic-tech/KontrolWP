@@ -57,6 +57,7 @@ import { timeAgo } from "../format";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
+import { SelectBox, SelectionBar } from "./SelectionBar";
 import { Spinner } from "./Spinner";
 
 const CODE_LABELS: Record<number, string> = {
@@ -377,6 +378,7 @@ function RulesSection(props: {
   const [term, setTerm] = useState("");
   const [page, setPage] = useState(1);
   const [autoOnly, setAutoOnly] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [importing, setImporting] = useState<Partial<RedirectInput>[] | null>(
     null,
@@ -412,6 +414,7 @@ function RulesSection(props: {
     }) => bulkRedirects(site.id, input.action, input.ids),
     onSuccess: () => {
       setSelected([]);
+      setSelecting(false);
       refresh();
     },
   });
@@ -469,94 +472,100 @@ function RulesSection(props: {
         </div>
       }
     >
-      <div className="flex flex-wrap items-center gap-3 border-b px-4 py-2">
-        {items.length > 0 && (
-          <input
-            type="checkbox"
-            className="size-4 shrink-0 accent-primary"
-            checked={allSelected}
-            onChange={(event) =>
-              setSelected(
-                event.target.checked ? items.map((item) => item.id) : [],
-              )
-            }
-            aria-label="Select all on this page"
-            title="Select all on this page"
-          />
-        )}
-        <div className="relative min-w-0 flex-1 sm:max-w-64">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search redirects"
-            aria-label="Search redirects"
-            className="pl-8"
-          />
-        </div>
-        {props.hasAuto && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <IconButton
-                label={autoOnly ? "Filter (automatic only)" : "Filter"}
-                className="relative"
+      <SelectionBar
+        className="border-b px-4 py-2"
+        selecting={selecting}
+        onSelect={() => setSelecting(true)}
+        onCancel={() => {
+          setSelecting(false);
+          setSelected([]);
+        }}
+        busy={bulk.isPending}
+        allChecked={allSelected}
+        someChecked={selected.length > 0}
+        canSelectAll={items.length > 0}
+        onToggleAll={() => setSelected(allSelected ? [] : items.map((item) => item.id))}
+        selectAllLabel="Select all on this page"
+        status={selected.length > 0 ? `${selected.length} selected` : "Nothing selected"}
+        actions={
+          selected.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ action: "enable", ids: selected })}
               >
-                <FilterIcon />
-                {autoOnly && (
-                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary" />
-                )}
-              </IconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {[
-                { value: false, label: "All redirects" },
-                { value: true, label: "Automatic only" },
-              ].map((option) => (
-                <DropdownMenuItem
-                  key={String(option.value)}
-                  onSelect={() => {
-                    setAutoOnly(option.value);
-                    setPage(1);
-                  }}
-                >
-                  <CheckIcon
-                    className={autoOnly === option.value ? "" : "invisible"}
-                  />
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-        {selected.length > 0 && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">
-              {selected.length} selected
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => bulk.mutate({ action: "enable", ids: selected })}
-            >
-              Enable
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => bulk.mutate({ action: "disable", ids: selected })}
-            >
-              Disable
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => bulk.mutate({ action: "delete", ids: selected })}
-            >
-              Delete
-            </Button>
-          </div>
-        )}
-      </div>
+                Enable
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ action: "disable", ids: selected })}
+              >
+                Disable
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ action: "delete", ids: selected })}
+              >
+                Delete
+              </Button>
+            </>
+          )
+        }
+        tools={
+          <>
+            <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search redirects"
+                aria-label="Search redirects"
+                className="pl-8"
+              />
+            </div>
+            {props.hasAuto && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton
+                    label={autoOnly ? "Filter (automatic only)" : "Filter"}
+                    className="relative"
+                  >
+                    <FilterIcon />
+                    {autoOnly && (
+                      <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary" />
+                    )}
+                  </IconButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {[
+                    { value: false, label: "All redirects" },
+                    { value: true, label: "Automatic only" },
+                  ].map((option) => (
+                    <DropdownMenuItem
+                      key={String(option.value)}
+                      onSelect={() => {
+                        setAutoOnly(option.value);
+                        setPage(1);
+                      }}
+                    >
+                      <CheckIcon
+                        className={autoOnly === option.value ? "" : "invisible"}
+                      />
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        }
+      />
       {(fileError || bulk.error || exportAll.error) && (
         <p className="border-b px-4 py-3 text-sm text-destructive">
           {fileError || bulk.error?.message || exportAll.error?.message}
@@ -585,19 +594,19 @@ function RulesSection(props: {
                 key={item.id}
                 className="flex items-center gap-3 px-4 py-3 text-sm"
               >
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-primary"
-                  checked={selected.includes(item.id)}
-                  onChange={(event) =>
-                    setSelected(
-                      event.target.checked
-                        ? [...selected, item.id]
-                        : selected.filter((id) => id !== item.id),
-                    )
-                  }
-                  aria-label={`Select ${item.source}`}
-                />
+                {selecting && (
+                  <SelectBox
+                    checked={selected.includes(item.id)}
+                    onChange={() =>
+                      setSelected(
+                        selected.includes(item.id)
+                          ? selected.filter((id) => id !== item.id)
+                          : [...selected, item.id],
+                      )
+                    }
+                    label={`Select ${item.source}`}
+                  />
+                )}
                 <div className={`min-w-0 flex-1 ${item.enabled ? "" : "opacity-60"}`}>
                   <p className="truncate font-medium">
                     {item.source}

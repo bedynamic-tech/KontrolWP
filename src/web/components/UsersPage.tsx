@@ -10,7 +10,8 @@ import { USER_MANAGEMENT_SINCE } from "../../shared/plugin-version";
 import type { FleetUser, FleetUsers, UserAction, UserRole } from "../../shared/types";
 import { bulkUserAction, createUserOnSites, fetchFleetUsers, fetchOverview } from "../api";
 import { plural } from "../format";
-import { SelectBox, type BulkProgress } from "./PluginBulkBar";
+import { type BulkProgress } from "./PluginBulkBar";
+import { SelectBox } from "./SelectionBar";
 import { EmptyRow, Section } from "./Section";
 import { SitePicker } from "./SitePicker";
 import { AddUserDialog, roleLabel, UserBulkBar } from "./UsersShared";
@@ -106,12 +107,19 @@ function UnsupportedNote(props: { sites: FleetUsers["unsupported_sites"] }) {
 
 type Result = { key: string; ok: boolean; error?: string };
 
-/** The fleet's users with checkboxes, and one action bar for everything checked. */
+/** The fleet's users, with checkboxes after Select and one action bar for everything checked. */
 function FleetUserList(props: { users: FleetUser[]; groups: FleetUser[][]; roles: UserRole[] }) {
   const queryClient = useQueryClient();
+  const [selecting, setSelecting] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [progress, setProgress] = useState<BulkProgress | null>(null);
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setChecked(new Set());
+    setErrors(new Map());
+  };
 
   const selected = props.users.filter((user) => checked.has(keyOf(user)));
   const visible = props.groups.flat();
@@ -152,6 +160,7 @@ function FleetUserList(props: { users: FleetUser[]; groups: FleetUser[][]; roles
       const failed = results.filter((result) => !result.ok);
       setErrors(new Map(failed.map((result) => [result.key, result.error ?? "Failed"])));
       setChecked(new Set(failed.map((result) => result.key)));
+      if (!failed.length) setSelecting(false);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -165,6 +174,9 @@ function FleetUserList(props: { users: FleetUser[]; groups: FleetUser[][]; roles
   return (
     <>
       <UserBulkBar
+        selecting={selecting}
+        onSelect={() => setSelecting(true)}
+        onCancel={stopSelecting}
         selection={selected.length ? `${plural(people, "user")} on ${plural(sites, "site")} checked` : null}
         count={selected.length}
         roles={props.roles}
@@ -187,6 +199,7 @@ function FleetUserList(props: { users: FleetUser[]; groups: FleetUser[][]; roles
             key={personKey(group[0])}
             users={group}
             roles={props.roles}
+            selecting={selecting}
             checked={checked}
             errors={errors}
             onToggle={toggle}
@@ -200,6 +213,7 @@ function FleetUserList(props: { users: FleetUser[]; groups: FleetUser[][]; roles
 function UserGroup(props: {
   users: FleetUser[];
   roles: UserRole[];
+  selecting: boolean;
   checked: Set<string>;
   errors: Map<string, string>;
   onToggle: (users: FleetUser[], on: boolean) => void;
@@ -216,6 +230,16 @@ function UserGroup(props: {
   return (
     <li>
       <div className="flex items-start gap-3 px-4 py-3 sm:items-center">
+        {props.selecting && (
+          <span className="mt-2.5 flex size-4 shrink-0 items-center justify-center sm:mt-0">
+            <SelectBox
+              checked={all}
+              indeterminate={checkedCount > 0}
+              onChange={() => props.onToggle(users, !all)}
+              label={`Check ${name} on every site`}
+            />
+          </span>
+        )}
         <span
           className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground"
           aria-hidden="true"
@@ -241,18 +265,23 @@ function UserGroup(props: {
             {checkedCount > 0 && !all && ` · ${checkedCount} of ${users.length} sites checked`}
           </p>
         </div>
-        <SelectBox
-          className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
-          checked={all}
-          indeterminate={checkedCount > 0}
-          onChange={() => props.onToggle(users, !all)}
-          label={`Check ${name} on every site`}
-        />
       </div>
       {expanded && (
         <ul className="divide-y border-t bg-muted/30">
           {users.map((user) => (
-            <li key={keyOf(user)} className="flex items-start gap-3 py-2.5 pr-4 pl-4 sm:pl-16">
+            <li
+              key={keyOf(user)}
+              className={cn("flex items-start gap-3 py-2.5 pr-4 pl-4", props.selecting ? "sm:pl-[5.75rem]" : "sm:pl-16")}
+            >
+              {props.selecting && (
+                <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+                  <SelectBox
+                    checked={checked.has(keyOf(user))}
+                    onChange={() => props.onToggle([user], !checked.has(keyOf(user)))}
+                    label={`Check ${name} on ${user.site_name}`}
+                  />
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <Link to={`/sites/${user.site_id}`} className="truncate text-sm hover:underline">
                   {user.site_name}
@@ -262,12 +291,6 @@ function UserGroup(props: {
                 </p>
                 {errors.get(keyOf(user)) && <p className="mt-1 text-xs text-destructive">{errors.get(keyOf(user))}</p>}
               </div>
-              <SelectBox
-                className="mt-0.5 size-4 shrink-0 accent-primary"
-                checked={checked.has(keyOf(user))}
-                onChange={() => props.onToggle([user], !checked.has(keyOf(user)))}
-                label={`Check ${name} on ${user.site_name}`}
-              />
             </li>
           ))}
         </ul>

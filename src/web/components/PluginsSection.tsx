@@ -94,7 +94,7 @@ export function PluginsSection(props: { site: SiteSummary; updates: SiteUpdate[]
 
 type Result = { file: string; ok: boolean; error?: string };
 
-/** The site's plugins with checkboxes, and one action bar for everything checked. */
+/** The site's plugins, with checkboxes after Select and one action bar for everything checked. */
 function SitePluginList(props: {
   siteId: number;
   plugins: InstalledPlugin[];
@@ -109,10 +109,17 @@ function SitePluginList(props: {
   const queryClient = useQueryClient();
   const schedule = useSitePluginSchedule(siteId);
   const [scheduleErrors, setScheduleErrors] = useState<Map<string, string>>(new Map());
+  const [selecting, setSelecting] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [progress, setProgress] = useState<BulkProgress | null>(null);
   const [working, setWorking] = useState<string | null>(null);
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setChecked(new Set());
+    setErrors(new Map());
+  };
 
   const offers = new Map(
     props.updates
@@ -159,6 +166,7 @@ function SitePluginList(props: {
       const failed = results.filter((result) => !result.ok);
       setErrors(new Map(failed.map((result) => [result.file, result.error ?? "Failed"])));
       setChecked(new Set(failed.map((result) => result.file)));
+      if (!failed.length) setSelecting(false);
     },
     onSettled: () => {
       setWorking(null);
@@ -194,6 +202,9 @@ function SitePluginList(props: {
   return (
     <>
       <PluginBulkBar
+        selecting={selecting}
+        onSelect={() => setSelecting(true)}
+        onCancel={stopSelecting}
         counts={counts}
         selection={selected.length ? `${selected.length} ${selected.length === 1 ? "plugin" : "plugins"} checked` : null}
         allChecked={allChecked}
@@ -203,7 +214,7 @@ function SitePluginList(props: {
         onRun={(next) => action.mutate(next)}
         pending={action.isPending ? action.variables : null}
         progress={action.isPending ? progress : null}
-        start={props.showSchedule && <SiteScheduleSelect siteId={siteId} />}
+        tools={props.showSchedule && <SiteScheduleSelect siteId={siteId} />}
         below={props.showSchedule && <SiteScheduleFields siteId={siteId} />}
         deleteTitle={selected.length === 1 ? `Delete ${selected[0].name}?` : `Delete ${selected.length} plugins?`}
         error={
@@ -218,6 +229,7 @@ function SitePluginList(props: {
             plugin={plugin}
             autoUpdates={props.autoUpdates}
             update={offers.get(plugin.file) ?? props.updates.find((u) => u.kind === "plugin" && u.slug === plugin.file) ?? null}
+            selecting={selecting}
             checked={checked.has(plugin.file)}
             onToggle={() => toggle(plugin.file)}
             error={errors.get(plugin.file) ?? scheduleErrors.get(plugin.file) ?? null}
@@ -247,6 +259,8 @@ function PluginRow(props: {
   plugin: InstalledPlugin;
   autoUpdates: boolean | undefined;
   update: SiteUpdate | null;
+  /** Select was pressed, so each row shows its checkbox. */
+  selecting: boolean;
   checked: boolean;
   onToggle: () => void;
   error: string | null;
@@ -259,6 +273,17 @@ function PluginRow(props: {
   const jobActive = update?.job_status === "queued" || update?.job_status === "running";
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:items-center">
+      {props.selecting && (
+        <span className="mt-2.5 flex size-4 shrink-0 items-center justify-center sm:mt-0">
+          {props.working ? (
+            <Spinner className="size-4 text-muted-foreground" label={`Changing ${plugin.name}`} />
+          ) : (
+            !plugin.protected && (
+              <SelectBox checked={props.checked} onChange={props.onToggle} label={`Check ${plugin.name}`} />
+            )
+          )}
+        </span>
+      )}
       {/* Inactive plugins are dimmed rather than labelled. */}
       <div className={cn("flex min-w-0 flex-1 items-start gap-3 sm:items-center", !plugin.active && "opacity-60")}>
         <RemoteIcon
@@ -308,16 +333,6 @@ function PluginRow(props: {
             onCheckedChange={props.schedule.onChange}
           />
         </label>
-      )}
-      {props.working ? (
-        <Spinner className="mt-1 size-4 text-muted-foreground sm:mt-0" label={`Changing ${plugin.name}`} />
-      ) : !plugin.protected && (
-        <SelectBox
-          className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
-          checked={props.checked}
-          onChange={props.onToggle}
-          label={`Check ${plugin.name}`}
-        />
       )}
     </li>
   );

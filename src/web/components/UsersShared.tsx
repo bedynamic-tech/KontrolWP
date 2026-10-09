@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { NewUser, UserAction, UserRole } from "../../shared/types";
-import { SelectBox, type BulkProgress } from "./PluginBulkBar";
+import { type BulkProgress } from "./PluginBulkBar";
+import { SelectionBar } from "./SelectionBar";
 
 /** Role slugs as their names, such as "Administrator, Editor", or "No role". */
 export function roleLabel(slugs: string[], roles: UserRole[]): string {
@@ -34,9 +35,13 @@ const PENDING_LABELS: Record<UserAction, string> = {
 
 /**
  * The actions for the checked users, at the top of a user list: change
- * their role, send each a password reset, or delete them.
+ * their role, send each a password reset, or delete them. Checkboxes show
+ * only after Select.
  */
 export function UserBulkBar(props: {
+  selecting: boolean;
+  onSelect: () => void;
+  onCancel: () => void;
   /** "3 users checked", or null when nothing is checked. */
   selection: string | null;
   count: number;
@@ -60,69 +65,68 @@ export function UserBulkBar(props: {
   }, [pending]);
 
   return (
-    <div className="border-b bg-muted/40 px-4 py-2">
-      <div className="flex min-h-8 items-center gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-          <span className="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
-            {busy ? (
-              <>
-                <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
-                {PENDING_LABELS[pending]}
-                {progress && progress.total > 1 && ` ${progress.done} of ${progress.total} done`}
-              </>
-            ) : (
-              props.selection
-            )}
-          </span>
-          {props.selection && (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={busy} loading={pending === "set-role"}>
-                    Change role ({count}) <ChevronDownIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">Change role to</p>
-                  {props.roles.map((role) => (
-                    <DropdownMenuItem key={role.slug} onSelect={() => props.onRun("set-role", role.slug)}>
-                      {role.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                loading={pending === "reset-password"}
-                onClick={() => props.onRun("reset-password")}
-              >
-                Send password reset ({count})
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                disabled={busy}
-                loading={pending === "delete"}
-                onClick={() => setConfirmDelete(true)}
-              >
-                Delete ({count})
-              </Button>
-            </>
-          )}
-        </div>
-        {props.canSelectAll && (
-          <SelectBox
-            checked={props.allChecked}
-            indeterminate={props.someChecked}
-            onChange={props.onToggleAll}
-            label="Check every user"
-            disabled={busy}
-          />
-        )}
-      </div>
+    <SelectionBar
+      selecting={props.selecting}
+      onSelect={props.onSelect}
+      onCancel={props.onCancel}
+      busy={busy}
+      allChecked={props.allChecked}
+      someChecked={props.someChecked}
+      canSelectAll={props.canSelectAll}
+      onToggleAll={props.onToggleAll}
+      selectAllLabel="Check every user"
+      status={
+        busy ? (
+          <>
+            <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+            {PENDING_LABELS[pending]}
+            {progress && progress.total > 1 && ` ${progress.done} of ${progress.total} done`}
+          </>
+        ) : (
+          props.selection ?? "Nothing checked"
+        )
+      }
+      actions={
+        props.selection && (
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={busy} loading={pending === "set-role"}>
+                  Change role ({count}) <ChevronDownIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">Change role to</p>
+                {props.roles.map((role) => (
+                  <DropdownMenuItem key={role.slug} onSelect={() => props.onRun("set-role", role.slug)}>
+                    {role.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              loading={pending === "reset-password"}
+              onClick={() => props.onRun("reset-password")}
+            >
+              Send password reset ({count})
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              disabled={busy}
+              loading={pending === "delete"}
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete ({count})
+            </Button>
+          </>
+        )
+      }
+    >
       {busy && progress && progress.total > 1 && (
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-border"
@@ -159,7 +163,7 @@ export function UserBulkBar(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </SelectionBar>
   );
 }
 
