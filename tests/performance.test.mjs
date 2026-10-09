@@ -171,6 +171,16 @@ test("when Google rejects or ignores the trimmed field list, the full answer is 
   await fetchPagespeed("https://a.test/", "desktop", null, 1, rejecting);
   assert.deepEqual(asked, [true, false, false]);
 
+  // Both devices run at once: the slower one must still retry after the faster one learned to stop trimming.
+  resetFieldsCheck();
+  const together = await Promise.all(
+    ["mobile", "desktop"].map((strategy) => fetchPagespeed("https://a.test/", strategy, null, 1, rejecting)),
+  );
+  assert.deepEqual(
+    together.map((r) => r.scores.performance),
+    [87, 87],
+  );
+
   resetFieldsCheck();
   const seen = [];
   const ignoring = async (url) => {

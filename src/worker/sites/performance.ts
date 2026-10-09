@@ -271,8 +271,10 @@ export async function fetchPagespeed(
     return { ok: response.ok, status: response.status, body };
   };
 
-  let answer = await ask(trimAnswers);
-  if (trimAnswers) {
+  // Mobile and desktop run side by side, so whether this request was trimmed is kept here, not read back from trimAnswers.
+  const trimmed = trimAnswers;
+  let answer = await ask(trimmed);
+  if (trimmed) {
     const message = String(asObject(asObject(answer.body).error).message ?? "");
     // Google names a bad field list either way: "Invalid field selection" or just "Request contains an invalid argument".
     const rejected = answer.status === 400 && !/api key/i.test(message);
