@@ -1312,7 +1312,7 @@ const SEO_VIEWS = [
   { value: "redirects", label: "Redirects" },
   { value: "404", label: "404 log" },
   { value: "content", label: "Content" },
-  { value: "tools", label: "Tools" },
+  { value: "tools", label: "Verification and files" },
   { value: "migrate", label: "Import" },
 ];
 
