@@ -79,10 +79,10 @@ import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
 import { ContentTab } from "./ContentTab";
 import { HealthOverview } from "./HealthOverview";
+import { BrandingTab } from "./BrandingTab";
 import { LinksTab } from "./LinksTab";
 import { SecurityTab } from "./SecurityTab";
 import { SitemapTab } from "./SitemapTab";
-import { LoginLogoSetting } from "./LoginLogoSetting";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
@@ -100,6 +100,7 @@ const WORDPRESS_TABS = [
   "snippets",
   "performance",
   "seo",
+  "branding",
   "security",
   "accessibility",
   "domain",
@@ -131,7 +132,7 @@ const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
  * These sit under the Tools tab with their own row of tabs. Each keeps its own ?tab= value,
  * so links such as ?tab=links still open it, inside Tools.
  */
-const TOOL_TABS = ["links", "snippets", "performance", "seo", "security", "accessibility", "domain"];
+const TOOL_TABS = ["links", "snippets", "performance", "seo", "branding", "security", "accessibility", "domain"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -262,6 +263,7 @@ export function SitePage() {
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "seo", label: "SEO" },
+    ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
     ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
     { value: "domain", label: "Domain" },
@@ -485,6 +487,9 @@ export function SitePage() {
                 {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
               </ErrorBoundary>
             </TabsContent>
+            <TabsContent value="branding" className={TAB_CLASS}>
+              {!isStatic && <BrandingTab site={site} />}
+            </TabsContent>
             <TabsContent value="security" className={TAB_CLASS}>
               <SecurityTab site={site} />
             </TabsContent>
@@ -621,7 +626,6 @@ export function SitePage() {
               on="KontrolWP tests this site with Google PageSpeed Insights when asked and once a week."
               off="KontrolWP does not test this site's speed, and its Performance tab is off."
             />
-            {!isStatic && <LoginLogoSetting site={site} />}
             {!isStatic && (
               <SettingRow
                 title="Magic Login administrator"
