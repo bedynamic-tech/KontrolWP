@@ -82,6 +82,7 @@ import { HealthOverview } from "./HealthOverview";
 import { LinksTab } from "./LinksTab";
 import { SecurityTab } from "./SecurityTab";
 import { SitemapTab } from "./SitemapTab";
+import { LoginLogoSetting } from "./LoginLogoSetting";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
 
@@ -602,6 +603,7 @@ export function SitePage() {
               on="KontrolWP tests this site with Google PageSpeed Insights when asked and once a week."
               off="KontrolWP does not test this site's speed, and its Performance tab is off."
             />
+            {!isStatic && <LoginLogoSetting site={site} />}
             {!isStatic && (
               <SettingRow
                 title="Magic Login administrator"
