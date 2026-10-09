@@ -1269,11 +1269,17 @@ export interface LoginUrlSettings {
 export const LOGIN_LOGO_SIZES = ["small", "medium", "large"] as const;
 export type LoginLogoSize = (typeof LOGIN_LOGO_SIZES)[number];
 
+/** The site's own logo set in WordPress, or an image uploaded from KontrolWP. */
+export const LOGIN_LOGO_SOURCES = ["site", "upload"] as const;
+export type LoginLogoSource = (typeof LOGIN_LOGO_SOURCES)[number];
+
 /** The logo above a WordPress site's login form (KontrolWP Connect 0.32.0+). */
 export interface LoginLogo {
   enabled: boolean;
+  /** Missing before KontrolWP Connect 0.33.0, which only had uploads. */
+  source?: LoginLogoSource;
   size: LoginLogoSize;
-  /** The uploaded image in the site's media library, or "" when there is none. */
+  /** The logo for the chosen source, or "" when it has none. */
   logo_url: string;
   width: number;
   height: number;
@@ -1281,12 +1287,17 @@ export interface LoginLogo {
   drawn: { width: number; height: number } | null;
   /** In force right now: on, with an image. */
   active: boolean;
+  /** The uploaded image, and the logo set in WordPress (its Site Logo, else its Site Icon). 0.33.0+. */
+  upload_url?: string;
+  site_logo_url?: string;
+  site_logo_kind?: "logo" | "icon" | "";
 }
 
 /** A change to the login logo. `image` is a new PNG, JPEG, GIF or WebP as base64; `remove` deletes the uploaded one. */
 export interface LoginLogoSave {
   enabled: boolean;
   size: LoginLogoSize;
+  source?: LoginLogoSource;
   image?: string;
   remove?: boolean;
 }

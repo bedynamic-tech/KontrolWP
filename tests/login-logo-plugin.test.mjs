@@ -19,15 +19,24 @@ const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwA
 const GIF = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 test("the saved setting is cleaned, with medium as the default size", { skip }, () => {
-  assert.deepEqual(call("clean", null), { enabled: false, size: "medium", attachment: 0, width: 0, height: 0 });
+  assert.deepEqual(call("clean", null), { enabled: false, source: "site", size: "medium", attachment: 0, width: 0, height: 0 });
   assert.deepEqual(call("clean", { enabled: 1, size: "huge", attachment: "12", width: -3, height: "40" }), {
     enabled: true,
+    source: "upload",
     size: "medium",
     attachment: 12,
     width: 0,
     height: 40,
   });
   assert.equal(call("clean", { size: "large" }).size, "large");
+});
+
+test("a setting saved before sources existed keeps its upload; a new one starts with the site's logo", { skip }, () => {
+  assert.equal(call("clean", { enabled: true, attachment: 5 }).source, "upload");
+  assert.equal(call("clean", { enabled: false }).source, "site");
+  assert.equal(call("clean", { source: "site", attachment: 5 }).source, "site");
+  assert.equal(call("clean", { source: "upload" }).source, "upload");
+  assert.equal(call("clean", { source: "other", attachment: 5 }).source, "upload");
 });
 
 test("the logo fits its size's box, keeps its shape and is never enlarged", { skip }, () => {

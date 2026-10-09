@@ -3,8 +3,10 @@
  * Login page logo (0.32.0): show the site's own logo above the WordPress
  * login form instead of the WordPress logo, linking to the site's home page.
  *
- * The image is uploaded from the dashboard and kept in the media library. The
- * only other thing stored is one option, so turning this off or deactivating
+ * The logo is either the one already set in WordPress (the theme's Site Logo,
+ * or the Site Icon when there is none; 0.33.0), or an image uploaded from the
+ * dashboard and kept in the media library. The only other thing stored is one
+ * option, so turning this off or deactivating
  * the plugin puts the WordPress logo back at once. It works on the custom
  * login address too, because that serves the same wp-login.php.
  *
@@ -17,7 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class KontrolWP_Connect_Login_Logo {
 
-	/** Holds array( 'enabled' => bool, 'size' => 'small'|'medium'|'large', 'attachment' => int, 'width' => int, 'height' => int ). */
+	/**
+	 * Holds array( 'enabled' => bool, 'source' => 'upload'|'site', 'size' => 'small'|'medium'|'large',
+	 * 'attachment' => int, 'width' => int, 'height' => int ). The attachment and its size are the uploaded image.
+	 */
 	const OPTION = 'kontrolwp_connect_login_logo';
 
 	/** Marks the media library item this feature uploaded, so it is only ever this one that gets replaced or removed. */
@@ -65,6 +70,10 @@ class KontrolWP_Connect_Login_Logo {
 		$size   = isset( $stored['size'] ) ? (string) $stored['size'] : '';
 		return array(
 			'enabled'    => ! empty( $stored['enabled'] ),
+			// Before 0.33.0 only an upload existed, so a setting without a source keeps its upload.
+			'source'     => isset( $stored['source'] ) && in_array( $stored['source'], array( 'site', 'upload' ), true )
+				? $stored['source']
+				: ( empty( $stored['attachment'] ) ? 'site' : 'upload' ),
 			'size'       => isset( self::BOXES[ $size ] ) ? $size : 'medium',
 			'attachment' => isset( $stored['attachment'] ) ? max( 0, (int) $stored['attachment'] ) : 0,
 			'width'      => isset( $stored['width'] ) ? max( 0, (int) $stored['width'] ) : 0,
@@ -128,19 +137,42 @@ class KontrolWP_Connect_Login_Logo {
 		return self::clean( get_option( self::OPTION, array() ) );
 	}
 
-	/** The uploaded logo's address, or '' when there is none. */
-	private static function logo_url( $settings ) {
-		if ( ! $settings['attachment'] ) {
-			return '';
+	/** The uploaded logo: array( url, width, height ), with '' as the url when there is none. */
+	private static function uploaded( $settings ) {
+		$url = $settings['attachment'] ? wp_get_attachment_url( $settings['attachment'] ) : '';
+		return array( $url ? (string) $url : '', $settings['width'], $settings['height'] );
+	}
+
+	/**
+	 * The logo already set in WordPress: the Site Logo (custom_logo, which block
+	 * themes keep in step with site_logo), else the Site Icon. array( url, width, height, kind ),
+	 * with '' as the url and kind when the site has neither.
+	 */
+	public static function site_logo() {
+		foreach ( array(
+			'logo' => array( (int) get_theme_mod( 'custom_logo' ), (int) get_option( 'site_logo' ) ),
+			'icon' => array( (int) get_option( 'site_icon' ) ),
+		) as $kind => $ids ) {
+			foreach ( $ids as $id ) {
+				$image = $id ? wp_get_attachment_image_src( $id, 'full' ) : false;
+				if ( $image && ! empty( $image[0] ) ) {
+					return array( (string) $image[0], (int) $image[1], (int) $image[2], $kind );
+				}
+			}
 		}
-		$url = wp_get_attachment_url( $settings['attachment'] );
-		return $url ? (string) $url : '';
+		return array( '', 0, 0, '' );
+	}
+
+	/** The logo for the chosen source: array( url, width, height ). */
+	private static function current( $settings ) {
+		return 'site' === $settings['source'] ? array_slice( self::site_logo(), 0, 3 ) : self::uploaded( $settings );
 	}
 
 	/** Whether the logo is in force right now. */
 	public static function active() {
 		$settings = self::settings();
-		return $settings['enabled'] && '' !== self::logo_url( $settings );
+		$logo     = self::current( $settings );
+		return $settings['enabled'] && '' !== $logo[0];
 	}
 
 	public static function boot() {
@@ -154,8 +186,9 @@ class KontrolWP_Connect_Login_Logo {
 
 	public static function print_style() {
 		$settings = self::settings();
-		$size     = self::fit( $settings['width'], $settings['height'], $settings['size'] );
-		echo '<style id="kontrolwp-login-logo">' . self::css( esc_url( self::logo_url( $settings ) ), $size[0], $size[1] ) . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		$logo     = self::current( $settings );
+		$size     = self::fit( $logo[1], $logo[2], $settings['size'] );
+		echo '<style id="kontrolwp-login-logo">' . self::css( esc_url( $logo[0] ), $size[0], $size[1] ) . "</style>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function header_url() {
@@ -168,16 +201,22 @@ class KontrolWP_Connect_Login_Logo {
 
 	public static function report() {
 		$settings = self::settings();
-		$url      = self::logo_url( $settings );
-		$size     = self::fit( $settings['width'], $settings['height'], $settings['size'] );
+		$logo     = self::current( $settings );
+		$upload   = self::uploaded( $settings );
+		$site     = self::site_logo();
+		$size     = self::fit( $logo[1], $logo[2], $settings['size'] );
 		return array(
-			'enabled'  => $settings['enabled'],
-			'size'     => $settings['size'],
-			'logo_url' => $url,
-			'width'    => $url ? $settings['width'] : 0,
-			'height'   => $url ? $settings['height'] : 0,
-			'drawn'    => $url ? array( 'width' => $size[0], 'height' => $size[1] ) : null,
-			'active'   => $settings['enabled'] && '' !== $url,
+			'enabled'        => $settings['enabled'],
+			'source'         => $settings['source'],
+			'size'           => $settings['size'],
+			'logo_url'       => $logo[0],
+			'width'          => $logo[0] ? $logo[1] : 0,
+			'height'         => $logo[0] ? $logo[2] : 0,
+			'drawn'          => $logo[0] ? array( 'width' => $size[0], 'height' => $size[1] ) : null,
+			'active'         => $settings['enabled'] && '' !== $logo[0],
+			'upload_url'     => $upload[0],
+			'site_logo_url'  => $site[0],
+			'site_logo_kind' => $site[3],
 		);
 	}
 
@@ -221,8 +260,8 @@ class KontrolWP_Connect_Login_Logo {
 	}
 
 	/**
-	 * Body: { enabled: bool, size: 'small'|'medium'|'large', image?: base64, remove?: bool }.
-	 * A new image replaces the old one; remove takes it away and turns the logo off.
+	 * Body: { enabled: bool, size: 'small'|'medium'|'large', source?: 'upload'|'site', image?: base64, remove?: bool }.
+	 * A new image replaces the old one and selects it; remove takes it away, and turns the logo off when it was in use.
 	 */
 	public static function save_route( $request ) {
 		$body = $request->get_json_params();
@@ -230,11 +269,23 @@ class KontrolWP_Connect_Login_Logo {
 			return new WP_Error( 'kontrolwp_invalid_login_logo', 'Send enabled as true or false.', array( 'status' => 400 ) );
 		}
 		$old = self::settings();
-		$new = self::clean( array_merge( $old, array( 'enabled' => $body['enabled'], 'size' => isset( $body['size'] ) ? $body['size'] : $old['size'] ) ) );
+		$new = self::clean(
+			array_merge(
+				$old,
+				array(
+					'enabled' => $body['enabled'],
+					'size'    => isset( $body['size'] ) ? $body['size'] : $old['size'],
+					'source'  => isset( $body['source'] ) ? $body['source'] : $old['source'],
+				)
+			)
+		);
 
 		if ( ! empty( $body['remove'] ) ) {
 			self::delete_upload( $old['attachment'] );
-			$new = array_merge( $new, array( 'enabled' => false, 'attachment' => 0, 'width' => 0, 'height' => 0 ) );
+			$new = array_merge( $new, array( 'attachment' => 0, 'width' => 0, 'height' => 0 ) );
+			if ( 'upload' === $new['source'] ) {
+				$new['enabled'] = false;
+			}
 		} elseif ( isset( $body['image'] ) && '' !== $body['image'] ) {
 			$bytes = base64_decode( (string) $body['image'], true );
 			$info  = false === $bytes ? 'The image could not be read. Choose it again.' : self::inspect( $bytes );
@@ -246,11 +297,13 @@ class KontrolWP_Connect_Login_Logo {
 				return $id;
 			}
 			self::delete_upload( $old['attachment'] );
-			$new = array_merge( $new, array( 'attachment' => $id, 'width' => $info['width'], 'height' => $info['height'] ) );
+			$new = array_merge( $new, array( 'source' => 'upload', 'attachment' => $id, 'width' => $info['width'], 'height' => $info['height'] ) );
 		}
 
-		if ( $new['enabled'] && '' === self::logo_url( $new ) ) {
-			return new WP_Error( 'kontrolwp_invalid_login_logo', 'Upload a logo first.', array( 'status' => 400 ) );
+		$logo = self::current( $new );
+		if ( $new['enabled'] && '' === $logo[0] ) {
+			$message = 'site' === $new['source'] ? 'This site has no logo or site icon set in WordPress. Set one, or upload a logo instead.' : 'Upload a logo first.';
+			return new WP_Error( 'kontrolwp_invalid_login_logo', $message, array( 'status' => 400 ) );
 		}
 		update_option( self::OPTION, $new, true );
 		return self::report();
