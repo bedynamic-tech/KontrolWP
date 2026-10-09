@@ -101,7 +101,7 @@ theme updates only.
 Settings, Scheduled updates holds the global policy (`settings` row
 `update_policy`): which of WordPress, plugins and themes to update, how often
 (daily, weekly or monthly), the day and the hour, in the time zone chosen under
-Link checks. A site's Site settings can follow it, use its own schedule
+Link checks. A site's Plugins tab can follow it, use its own schedule
 (`sites.update_policy`) or run none, and both levels can leave individual
 plugins out (by plugin file such as `akismet/akismet.php`); a plugin is left out
 if either level excludes it. A site's own schedule runs even while the global
