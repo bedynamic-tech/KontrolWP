@@ -57,8 +57,8 @@ export function PluginBulkBar(props: {
   /** Deleting needs confirming; this names what goes. */
   deleteTitle: string;
   error?: string | null;
-  /** Shown on the right while not selecting, before Select. */
-  tools?: ReactNode;
+  /** Shown on the left while not selecting. */
+  start?: ReactNode;
   /** A second row inside the bar while not selecting. */
   below?: ReactNode;
 }) {
@@ -100,7 +100,7 @@ export function PluginBulkBar(props: {
       canSelectAll={props.canSelectAll}
       onToggleAll={props.onToggleAll}
       selectAllLabel="Check every plugin"
-      tools={props.tools}
+      start={props.start}
       status={
         busy ? (
           <>

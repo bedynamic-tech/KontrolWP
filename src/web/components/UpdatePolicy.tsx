@@ -58,6 +58,8 @@ function ScheduleFields(props: {
   value: UpdateSchedule;
   onChange: (value: UpdateSchedule) => void;
   disabled: boolean;
+  /** Leave out the WordPress switch, where core updates are set elsewhere. */
+  hideCore?: boolean;
 }) {
   const { value, onChange, disabled } = props;
   const set = (patch: Partial<UpdateSchedule>) => onChange({ ...value, ...patch });
@@ -70,12 +72,14 @@ function ScheduleFields(props: {
             ["plugins", "Plugins"],
             ["themes", "Themes"],
           ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="flex items-center gap-2">
-            <Switch checked={value[key]} disabled={disabled} onCheckedChange={(next) => set({ [key]: next })} />
-            {label}
-          </label>
-        ))}
+        )
+          .filter(([key]) => !(props.hideCore && key === "core"))
+          .map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2">
+              <Switch checked={value[key]} disabled={disabled} onCheckedChange={(next) => set({ [key]: next })} />
+              {label}
+            </label>
+          ))}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select
@@ -384,6 +388,7 @@ export function SiteScheduleFields(props: { siteId: number }) {
     <div className="mt-2 border-t pt-3 pb-1">
       <ScheduleFields
         value={current.schedule}
+        hideCore
         disabled={busy}
         onChange={(schedule) => save.mutate({ ...current, schedule })}
       />

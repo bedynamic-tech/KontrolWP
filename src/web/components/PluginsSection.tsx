@@ -214,7 +214,7 @@ function SitePluginList(props: {
         onRun={(next) => action.mutate(next)}
         pending={action.isPending ? action.variables : null}
         progress={action.isPending ? progress : null}
-        tools={props.showSchedule && <SiteScheduleSelect siteId={siteId} />}
+        start={props.showSchedule && <SiteScheduleSelect siteId={siteId} />}
         below={props.showSchedule && <SiteScheduleFields siteId={siteId} />}
         deleteTitle={selected.length === 1 ? `Delete ${selected[0].name}?` : `Delete ${selected.length} plugins?`}
         error={

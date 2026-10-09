@@ -49,6 +49,8 @@ export function SelectionBar(props: {
   status?: ReactNode;
   /** Right of the bar while selecting, before Cancel. */
   actions?: ReactNode;
+  /** Left of the bar while not selecting. */
+  start?: ReactNode;
   /** Right of the bar while not selecting, before Select. */
   tools?: ReactNode;
   /** Rows under the bar's own, such as progress or errors. */
@@ -72,6 +74,7 @@ export function SelectionBar(props: {
   return (
     <div className={props.className ?? "border-b bg-muted/40 px-4 py-2"}>
       <div className="flex min-h-8 flex-wrap items-center gap-2">
+        {!selecting && props.start}
         {selecting && (
           <div className="mr-auto flex min-h-8 w-full min-w-0 items-center gap-3 sm:w-auto">
             {props.canSelectAll && (
