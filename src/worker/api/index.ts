@@ -53,7 +53,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -147,6 +147,7 @@ import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
 import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
 import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
+import { saveLoginLogo, siteLoginLogo } from "../sites/login-logo.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -294,7 +295,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|login-url|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|login-url|login-logo|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -1269,6 +1270,28 @@ api.put("/sites/:id/login-url", async (c) => {
     .safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid login address" }, 400);
   return redirectsCall(c, (site, credentials) => saveLoginUrl(site, credentials, parsed.data));
+});
+
+/** The logo above a site's login form. */
+api.get("/sites/:id/login-logo", async (c) => redirectsCall(c, (site, credentials) => siteLoginLogo(site, credentials)));
+
+/** A 1 MB image as base64 is about 1.4 million characters; the site checks the bytes themselves. */
+const MAX_LOGIN_LOGO_BASE64 = 1_400_000;
+
+api.put("/sites/:id/login-logo", async (c) => {
+  const parsed = z
+    .object({
+      enabled: z.boolean(),
+      size: z.enum(LOGIN_LOGO_SIZES),
+      image: z.string().max(MAX_LOGIN_LOGO_BASE64).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
+      remove: z.boolean().optional(),
+    })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    const tooLarge = parsed.error.issues.some((issue) => issue.code === "too_big");
+    return c.json({ error: tooLarge ? "The logo can be up to 1 MB." : "Invalid logo" }, 400);
+  }
+  return redirectsCall(c, (site, credentials) => saveLoginLogo(site, credentials, parsed.data));
 });
 
 /** Schema, breadcrumbs, link rules, image alt text and the feed footer for one site. */

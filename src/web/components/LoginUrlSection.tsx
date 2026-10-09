@@ -9,6 +9,7 @@ import type { LoginUrlRedirect, LoginUrlSettings, SiteSummary } from "../../shar
 import { fetchLoginUrl, saveLoginUrl } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
+import { LoginLogoRows } from "./LoginLogoRows";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { Row, Warning } from "./ToolsTab";
@@ -184,6 +185,7 @@ export function LoginUrlSection({ site }: { site: SiteSummary }) {
           </p>
         </div>
       )}
+      <LoginLogoRows site={site} />
     </Section>
   );
 }

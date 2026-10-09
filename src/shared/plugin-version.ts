@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.31.1";
+export const KONTROLWP_CONNECT_VERSION = "0.32.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -93,3 +93,6 @@ export const UPDATE_EMAILS_SINCE = "0.30.0";
 
 /** The custom login URL arrived in this version. */
 export const LOGIN_URL_SINCE = "0.31.0";
+
+/** The login page logo arrived in this version. */
+export const LOGIN_LOGO_SINCE = "0.32.0";
