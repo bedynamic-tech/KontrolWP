@@ -150,8 +150,8 @@ export function BrandingTab({ site }: { site: SiteSummary }) {
         >
           <div className="flex items-center justify-end gap-3">
             {hasLogo && (
-              <div className="mr-auto flex h-16 min-w-0 max-w-48 items-center rounded-md border bg-muted/40 p-2">
-                <img src={logoUrl} alt="Login page logo" className="max-h-12 max-w-full object-contain object-left" />
+              <div className="flex h-16 min-w-0 max-w-48 items-center rounded-md border bg-muted/40 p-2">
+                <img src={logoUrl} alt="Login page logo" className="max-h-12 max-w-full object-contain object-right" />
               </div>
             )}
             {source === "site" ? (
