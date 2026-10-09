@@ -7,7 +7,8 @@ import { compareVersions, USER_MANAGEMENT_SINCE } from "../../shared/plugin-vers
 import type { SiteSummary, SiteUser, UserAction, UserRole } from "../../shared/types";
 import { createUser, fetchUsers, manageUser } from "../api";
 import { plural } from "../format";
-import { SelectBox, type BulkProgress } from "./PluginBulkBar";
+import { type BulkProgress } from "./PluginBulkBar";
+import { SelectBox } from "./SelectionBar";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { AddUserDialog, roleLabel, UserBulkBar } from "./UsersShared";
@@ -77,6 +78,7 @@ function SiteUserList(props: { site: SiteSummary; users: SiteUser[]; roles: User
   const { site } = props;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [selecting, setSelecting] = useState(false);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [errors, setErrors] = useState<Map<number, string>>(new Map());
   const [progress, setProgress] = useState<BulkProgress | null>(null);
@@ -113,6 +115,7 @@ function SiteUserList(props: { site: SiteSummary; users: SiteUser[]; roles: User
       const failed = results.filter((result) => !result.ok);
       setErrors(new Map(failed.map((result) => [result.id, result.error ?? "Failed"])));
       setChecked(new Set(failed.map((result) => result.id)));
+      if (!failed.length) setSelecting(false);
     },
     onSettled: () => {
       setWorking(null);
@@ -120,6 +123,12 @@ function SiteUserList(props: { site: SiteSummary; users: SiteUser[]; roles: User
       queryClient.invalidateQueries({ queryKey: ["fleet-users"] });
     },
   });
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setChecked(new Set());
+    setErrors(new Map());
+  };
 
   const toggle = (id: number) => {
     const next = new Set(checked);
@@ -143,6 +152,9 @@ function SiteUserList(props: { site: SiteSummary; users: SiteUser[]; roles: User
         </div>
       )}
       <UserBulkBar
+        selecting={selecting}
+        onSelect={() => setSelecting(true)}
+        onCancel={stopSelecting}
         selection={selected.length ? `${plural(selected.length, "user")} checked` : null}
         count={selected.length}
         roles={props.roles}
@@ -173,6 +185,7 @@ function SiteUserList(props: { site: SiteSummary; users: SiteUser[]; roles: User
               user={user}
               roles={props.roles}
               magicLogin={site.login_user_id === user.id}
+              selecting={selecting}
               checked={checked.has(user.id)}
               onToggle={() => toggle(user.id)}
               error={errors.get(user.id) ?? null}
@@ -189,6 +202,7 @@ function UserRow(props: {
   user: SiteUser;
   roles: UserRole[];
   magicLogin: boolean;
+  selecting: boolean;
   checked: boolean;
   onToggle: () => void;
   error: string | null;
@@ -198,6 +212,15 @@ function UserRow(props: {
   const name = user.display_name || user.login;
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:items-center">
+      {props.selecting && (
+        <span className="mt-2.5 flex size-4 shrink-0 items-center justify-center sm:mt-0">
+          {props.working ? (
+            <Spinner className="size-4 text-muted-foreground" label={`Changing ${name}`} />
+          ) : (
+            <SelectBox checked={props.checked} onChange={props.onToggle} label={`Check ${name}`} />
+          )}
+        </span>
+      )}
       <span
         className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground"
         aria-hidden="true"
@@ -214,16 +237,6 @@ function UserRow(props: {
         </p>
         {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
       </div>
-      {props.working ? (
-        <Spinner className="mt-1 size-4 text-muted-foreground sm:mt-0" label={`Changing ${name}`} />
-      ) : (
-        <SelectBox
-          className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
-          checked={props.checked}
-          onChange={props.onToggle}
-          label={`Check ${name}`}
-        />
-      )}
     </li>
   );
 }

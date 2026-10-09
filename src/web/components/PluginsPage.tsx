@@ -137,12 +137,19 @@ const TARGETS: Record<BulkAction, (plugin: FleetPlugin) => boolean> = {
   delete: () => true,
 };
 
-/** The fleet's plugins with checkboxes, and one action bar for everything checked. */
+/** The fleet's plugins, with checkboxes after Select and one action bar for everything checked. */
 function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][] }) {
   const queryClient = useQueryClient();
+  const [selecting, setSelecting] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [progress, setProgress] = useState<BulkProgress | null>(null);
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setChecked(new Set());
+    setErrors(new Map());
+  };
 
   // Checked rows that still exist (a sync may have removed some).
   const selected = props.plugins.filter((plugin) => !plugin.protected && checked.has(keyOf(plugin)));
@@ -201,6 +208,7 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
       setErrors(new Map(failed.map((result) => [result.key, result.error ?? "Failed"])));
       // Keep only what failed checked, so trying again is one click.
       setChecked(new Set(failed.map((result) => result.key)));
+      if (!failed.length) setSelecting(false);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -216,6 +224,9 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
   return (
     <>
       <PluginBulkBar
+        selecting={selecting}
+        onSelect={() => setSelecting(true)}
+        onCancel={stopSelecting}
         counts={counts}
         selection={selected.length ? `${plural(files, "plugin")} on ${plural(sites, "site")} checked` : null}
         allChecked={allChecked}
@@ -233,7 +244,14 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
       />
       <ul className="divide-y">
         {props.groups.map((group) => (
-          <PluginGroup key={group[0].file} plugins={group} checked={checked} errors={errors} onToggle={toggle} />
+          <PluginGroup
+            key={group[0].file}
+            plugins={group}
+            selecting={selecting}
+            checked={checked}
+            errors={errors}
+            onToggle={toggle}
+          />
         ))}
       </ul>
     </>
@@ -242,6 +260,7 @@ function FleetPluginList(props: { plugins: FleetPlugin[]; groups: FleetPlugin[][
 
 function PluginGroup(props: {
   plugins: FleetPlugin[];
+  selecting: boolean;
   checked: Set<string>;
   errors: Map<string, string>;
   onToggle: (plugins: FleetPlugin[], on: boolean) => void;
@@ -265,6 +284,18 @@ function PluginGroup(props: {
   return (
     <li>
       <div className="flex items-start gap-3 px-4 py-3 sm:items-center">
+        {props.selecting && (
+          <span className="mt-2.5 flex size-4 shrink-0 items-center justify-center sm:mt-0">
+            {!isProtected && (
+              <SelectBox
+                checked={all}
+                indeterminate={checkedCount > 0}
+                onChange={() => props.onToggle(plugins, !all)}
+                label={`Check ${first.name} on every site`}
+              />
+            )}
+          </span>
+        )}
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <RemoteIcon
             sources={isProtected ? ["/kontrolwp.svg"] : pluginIconSources(first.file, plugins.find((p) => p.icon_url)?.icon_url)}
@@ -302,15 +333,6 @@ function PluginGroup(props: {
             </p>
           </div>
         </div>
-        {!isProtected && (
-          <SelectBox
-            className="mt-1 size-4 shrink-0 accent-primary sm:mt-0"
-            checked={all}
-            indeterminate={checkedCount > 0}
-            onChange={() => props.onToggle(plugins, !all)}
-            label={`Check ${first.name} on every site`}
-          />
-        )}
       </div>
 
       {expanded && (
@@ -319,6 +341,7 @@ function PluginGroup(props: {
             <SiteRow
               key={plugin.site_id}
               plugin={plugin}
+              selecting={props.selecting}
               checked={checked.has(keyOf(plugin))}
               onToggle={() => props.onToggle([plugin], !checked.has(keyOf(plugin)))}
               error={errors.get(keyOf(plugin)) ?? null}
@@ -332,11 +355,28 @@ function PluginGroup(props: {
 
 const JOB_LABELS = { queued: "Update queued", running: "Updating...", done: "Updated", failed: "Update failed" } as const;
 
-function SiteRow(props: { plugin: FleetPlugin; checked: boolean; onToggle: () => void; error: string | null }) {
+function SiteRow(props: {
+  plugin: FleetPlugin;
+  selecting: boolean;
+  checked: boolean;
+  onToggle: () => void;
+  error: string | null;
+}) {
   const { plugin } = props;
   const update = plugin.new_version && !plugin.protected;
   return (
-    <li className="flex items-start gap-3 py-2.5 pr-4 pl-4 sm:pl-16">
+    <li className={cn("flex items-start gap-3 py-2.5 pr-4 pl-4", props.selecting ? "sm:pl-[5.75rem]" : "sm:pl-16")}>
+      {props.selecting && (
+        <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+          {!plugin.protected && (
+            <SelectBox
+              checked={props.checked}
+              onChange={props.onToggle}
+              label={`Check ${plugin.name} on ${plugin.site_name}`}
+            />
+          )}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <Link to={`/sites/${plugin.site_id}`} className="truncate text-sm hover:underline">
@@ -372,14 +412,6 @@ function SiteRow(props: { plugin: FleetPlugin; checked: boolean; onToggle: () =>
         )}
         {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
       </div>
-      {!plugin.protected && (
-        <SelectBox
-          className="mt-0.5 size-4 shrink-0 accent-primary"
-          checked={props.checked}
-          onChange={props.onToggle}
-          label={`Check ${plugin.name} on ${plugin.site_name}`}
-        />
-      )}
     </li>
   );
 }

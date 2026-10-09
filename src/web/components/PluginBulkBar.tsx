@@ -1,5 +1,5 @@
 import { ChevronDownIcon, Loader2Icon } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { PluginAction } from "../../shared/types";
+import { SelectionBar } from "./SelectionBar";
+
+export { SelectBox } from "./SelectionBar";
 
 export type BulkAction = PluginAction | "update";
 
@@ -30,39 +33,15 @@ const PENDING_LABELS: Record<BulkAction, string> = {
   "disable-auto-update": "Turning off auto-updates...",
 };
 
-/** A checkbox that can show "some selected". */
-export function SelectBox(props: {
-  checked: boolean;
-  indeterminate?: boolean;
-  onChange: () => void;
-  label: string;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current)
-      ref.current.indeterminate = !!props.indeterminate && !props.checked;
-  }, [props.indeterminate, props.checked]);
-  return (
-    <input
-      ref={ref}
-      type="checkbox"
-      className={props.className ?? "size-4 shrink-0 accent-primary"}
-      checked={props.checked}
-      onChange={props.onChange}
-      aria-label={props.label}
-      disabled={props.disabled}
-    />
-  );
-}
-
 /**
  * The actions for the checked plugins, at the top of a plugin list. Each
  * action shows only when it applies to something checked; counts say how
- * many it will change.
+ * many it will change. Checkboxes show only after Select.
  */
 export function PluginBulkBar(props: {
+  selecting: boolean;
+  onSelect: () => void;
+  onCancel: () => void;
   /** How many plugins (or plugin and site pairs) each action would change. */
   counts: Record<BulkAction, number>;
   /** "3 plugins on 2 sites", or null when nothing is checked. */
@@ -78,9 +57,9 @@ export function PluginBulkBar(props: {
   /** Deleting needs confirming; this names what goes. */
   deleteTitle: string;
   error?: string | null;
-  /** Shown first in the bar, before the selection. */
-  start?: ReactNode;
-  /** A second row inside the bar. */
+  /** Shown on the right while not selecting, before Select. */
+  tools?: ReactNode;
+  /** A second row inside the bar while not selecting. */
   below?: ReactNode;
 }) {
   const { counts, pending, progress } = props;
@@ -111,81 +90,79 @@ export function PluginBulkBar(props: {
   }, [pending]);
 
   return (
-    <div className="border-b bg-muted/40 px-4 py-2">
-      <div className="flex min-h-8 items-center gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-          {props.start}
-          <span className="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
-            {busy ? (
-              <>
-                <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
-                {PENDING_LABELS[pending]}
-                {progress && progress.total > 1 && ` ${progress.done} of ${progress.total} done`}
-              </>
-            ) : (
-              props.selection
+    <SelectionBar
+      selecting={props.selecting}
+      onSelect={props.onSelect}
+      onCancel={props.onCancel}
+      busy={busy}
+      allChecked={props.allChecked}
+      someChecked={props.someChecked}
+      canSelectAll={props.canSelectAll}
+      onToggleAll={props.onToggleAll}
+      selectAllLabel="Check every plugin"
+      tools={props.tools}
+      status={
+        busy ? (
+          <>
+            <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+            {PENDING_LABELS[pending]}
+            {progress && progress.total > 1 && ` ${progress.done} of ${progress.total} done`}
+          </>
+        ) : (
+          props.selection ?? "Nothing checked"
+        )
+      }
+      actions={
+        props.selection && (
+          <>
+            {show("activate", `Activate (${counts.activate})`)}
+            {show("deactivate", `Deactivate (${counts.deactivate})`)}
+            {show("update", `Update (${counts.update})`)}
+            {autoUpdates > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    loading={pending === "enable-auto-update" || pending === "disable-auto-update"}
+                  >
+                    Auto-updates <ChevronDownIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    disabled={!counts["enable-auto-update"]}
+                    onSelect={() => props.onRun("enable-auto-update")}
+                  >
+                    Enable ({counts["enable-auto-update"]})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!counts["disable-auto-update"]}
+                    onSelect={() => props.onRun("disable-auto-update")}
+                  >
+                    Disable ({counts["disable-auto-update"]})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          </span>
-          {props.selection && (
-            <>
-              {show("activate", `Activate (${counts.activate})`)}
-              {show("deactivate", `Deactivate (${counts.deactivate})`)}
-              {show("update", `Update (${counts.update})`)}
-              {autoUpdates > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      loading={pending === "enable-auto-update" || pending === "disable-auto-update"}
-                    >
-                      Auto-updates <ChevronDownIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      disabled={!counts["enable-auto-update"]}
-                      onSelect={() => props.onRun("enable-auto-update")}
-                    >
-                      Enable ({counts["enable-auto-update"]})
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={!counts["disable-auto-update"]}
-                      onSelect={() => props.onRun("disable-auto-update")}
-                    >
-                      Disable ({counts["disable-auto-update"]})
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {counts.delete > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  disabled={busy}
-                  loading={pending === "delete"}
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  Delete ({counts.delete})
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-        {props.canSelectAll && (
-          <SelectBox
-            className="size-4 shrink-0 accent-primary"
-            checked={props.allChecked}
-            indeterminate={props.someChecked}
-            onChange={props.onToggleAll}
-            label="Check every plugin"
-            disabled={busy}
-          />
-        )}
-      </div>
-      {props.below}
+            {counts.delete > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                disabled={busy}
+                loading={pending === "delete"}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete ({counts.delete})
+              </Button>
+            )}
+          </>
+        )
+      }
+    >
+      {!props.selecting && props.below}
       {busy && progress && progress.total > 1 && (
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-border"
@@ -239,6 +216,6 @@ export function PluginBulkBar(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </SelectionBar>
   );
 }
