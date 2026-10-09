@@ -556,14 +556,24 @@ export function SitePage() {
                 />
               </label>
             )}
-            {analyticsSource.configured && (
-              <FeatureSwitchRow
-                site={site}
-                feature="analytics"
-                title="Enable analytics"
-                on="This site's visitor numbers appear on its Overview and Analytics tab."
-                off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
-              />
+            {analyticsSource.configured ? (
+              <div>
+                <FeatureSwitchRow
+                  site={site}
+                  feature="analytics"
+                  title="Enable analytics"
+                  on="This site's visitor numbers appear on its Overview and Analytics tab."
+                  off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
+                />
+                {/* Where the analytics come from, only while they are on. */}
+                {!site.analytics_excluded && (
+                  <div className="mb-3 ml-1 divide-y border-l pl-4 empty:hidden">
+                    <AnalyticsSourceRows site={site} source={analyticsSource} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <AnalyticsSourceRows site={site} source={analyticsSource} />
             )}
             {!isStatic && (
               <FeatureSwitchRow
@@ -598,7 +608,6 @@ export function SitePage() {
               </SettingRow>
             )}
             {isStatic && <CloudflareRow site={site} />}
-            <AnalyticsSourceRows site={site} source={analyticsSource} />
             {!isStatic && (
               <SettingRow
                 title="Connection key"
