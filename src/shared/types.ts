@@ -38,6 +38,7 @@ export interface SiteSummary {
   analytics_excluded: boolean;
   security_excluded: boolean;
   accessibility_excluded: boolean;
+  performance_excluded: boolean;
   /** WordPress's own core auto-updates, from the last sync; null before KontrolWP Connect 0.7.0. */
   core_auto_update: CoreAutoUpdate | null;
   /** wp-config.php decides core auto-updates, so KontrolWP cannot change them. */
@@ -1263,4 +1264,67 @@ export interface LoginUrlSettings {
   enabled: boolean;
   slug: string;
   redirect: LoginUrlRedirect;
+}
+
+export const PERFORMANCE_STRATEGIES = ["mobile", "desktop"] as const;
+export type PerformanceStrategy = (typeof PERFORMANCE_STRATEGIES)[number];
+
+/** Lighthouse category scores, 0 to 100; null when Lighthouse did not report one. */
+export interface PerformanceScores {
+  performance: number | null;
+  accessibility: number | null;
+  best_practices: number | null;
+  seo: number | null;
+}
+
+/** One Lighthouse lab measurement, in milliseconds except for the layout shift. */
+export interface PerformanceLabMetric {
+  id: "fcp" | "lcp" | "tbt" | "cls" | "si";
+  value: number;
+  display: string;
+}
+
+/** One Chrome user experience (field data) measurement of real visits, when Google has enough of them. */
+export interface PerformanceFieldMetric {
+  id: "lcp" | "inp" | "cls" | "fcp";
+  /** Milliseconds, except for the layout shift. */
+  value: number;
+  category: "good" | "needs-improvement" | "poor";
+}
+
+export interface PerformanceOpportunity {
+  id: string;
+  title: string;
+  /** Estimated milliseconds saved. */
+  savings_ms: number;
+  display: string;
+}
+
+export interface PerformanceResult {
+  scanned_at: number;
+  /** The page that was tested. */
+  url: string;
+  scores: PerformanceScores;
+  lab: PerformanceLabMetric[];
+  field: PerformanceFieldMetric[];
+  /** Whether the real visits are the page's own or, when it has too few, the whole site's. */
+  field_scope?: "page" | "origin" | null;
+  opportunities: PerformanceOpportunity[];
+}
+
+export interface PerformanceStrategyState {
+  result: PerformanceResult | null;
+  /** The reason the latest attempt failed, when it did. */
+  error: string | null;
+  history: ({ scanned_at: number } & PerformanceScores)[];
+}
+
+/** A site's PageSpeed Insights tests. */
+export interface SitePerformance {
+  mobile: PerformanceStrategyState;
+  desktop: PerformanceStrategyState;
+  /** A test is running now. */
+  running: boolean;
+  /** A Google API key is saved in Settings; without one Google allows very few tests. */
+  key_configured: boolean;
 }

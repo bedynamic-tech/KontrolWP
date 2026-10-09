@@ -22,8 +22,11 @@ import {
   saveGoogleClient,
   startGoogleConnect,
   deleteUmamiSettings,
+  deletePagespeedKey,
   deleteWordfenceKey,
+  fetchPagespeedSettings,
   fetchWordfenceSettings,
+  savePagespeedKey,
   saveWordfenceKey,
   fetchCloudflareSettings,
   saveCloudflareSettings,
@@ -49,7 +52,7 @@ const SETTINGS_TABS = [
 ];
 
 // Where a /settings#section link lands.
-const SECTION_TABS: Record<string, string> = { wordfence: "integrations" };
+const SECTION_TABS: Record<string, string> = { wordfence: "integrations", pagespeed: "integrations" };
 
 export function SettingsPage() {
   const { hash } = useLocation();
@@ -88,6 +91,7 @@ export function SettingsPage() {
             <div className="min-w-0">
               <UmamiSettingsSection />
               <WordfenceSettingsSection />
+              <PagespeedSettingsSection />
             </div>
             <div className="min-w-0">
               <CloudflareSettingsSection />
@@ -514,6 +518,100 @@ function WordfenceSettingsSection() {
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
                 {save.isPending ? "Downloading..." : "Save and download"}
+              </Button>
+              {settings.data.configured && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  loading={remove.isPending}
+                  onClick={() => remove.mutate()}
+                >
+                  Remove key
+                </Button>
+              )}
+            </div>
+          </form>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+function PagespeedSettingsSection() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({
+    queryKey: ["settings", "pagespeed"],
+    queryFn: fetchPagespeedSettings,
+    refetchInterval: false,
+  });
+  const [key, setKey] = useState("");
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["site"] });
+  const save = useMutation({
+    mutationFn: () => savePagespeedKey(key.trim()),
+    onSuccess: (result) => {
+      setKey("");
+      queryClient.setQueryData(["settings", "pagespeed"], { configured: result.configured });
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: deletePagespeedKey,
+    onSuccess: (result) => {
+      save.reset();
+      queryClient.setQueryData(["settings", "pagespeed"], result);
+      refresh();
+    },
+  });
+
+  return (
+    <div id="pagespeed" className="scroll-mt-4">
+      <Section
+        title="Google PageSpeed Insights"
+        hint={
+          settings.data?.configured
+            ? "Connected. Each site's Performance tab can run Google's Lighthouse tests, and every site is tested once a week."
+            : "Each site's Performance tab shows Google's Lighthouse scores. Google allows very few tests without an API key, and weekly tests need one."
+        }
+      >
+        {settings.isPending ? (
+          <div className="space-y-3 p-4">
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : settings.error ? (
+          <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
+        ) : (
+          <form
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              save.mutate();
+            }}
+            className="space-y-4 p-4"
+          >
+            <label className="block space-y-1.5">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                API key
+                <HelpTip>
+                  In the Google Cloud console, turn on the PageSpeed Insights API for a project, then create an API key
+                  and copy it here. The key is free to use, stored encrypted and never shown again.
+                </HelpTip>
+              </span>
+              <Input
+                type="password"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder={settings.data.configured ? "Saved; enter a new key to replace it" : "Google API key"}
+                required={!settings.data.configured}
+                autoComplete="off"
+              />
+            </label>
+            {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+            {save.isSuccess && <p className="text-sm text-muted-foreground">Saved.</p>}
+            {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
+                Save key
               </Button>
               {settings.data.configured && (
                 <Button

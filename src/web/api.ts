@@ -34,6 +34,7 @@ import type {
   SeoScore,
   SeoSettings,
   SiteAccessibility,
+  SitePerformance,
   SiteSeoAudit,
   SiteRedirects,
   SiteSeo,
@@ -196,7 +197,7 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
 export const setLinksExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });
 
-export type SiteFeature = "analytics" | "security" | "accessibility";
+export type SiteFeature = "analytics" | "security" | "accessibility" | "performance";
 
 export const setFeatureExcluded = (siteId: number, feature: SiteFeature, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/feature-excluded`, { method: "PUT", json: { feature, excluded } });
@@ -363,6 +364,13 @@ export const fetchSecurity = (siteId: number) => request<SiteSecurity>(`/sites/$
 export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<{ fixes: SecurityFix[] }>(`/sites/${siteId}/security/fixes`, { method: "PUT", json: { ids, enabled } });
 
+export const fetchPerformance = (siteId: number) => request<SitePerformance>(`/sites/${siteId}/performance`);
+export const runPerformance = (siteId: number) =>
+  request<SitePerformance>(`/sites/${siteId}/performance/run`, { method: "POST" });
+export const fetchPagespeedSettings = () => request<{ configured: boolean }>("/settings/pagespeed");
+export const savePagespeedKey = (key: string) =>
+  request<{ configured: boolean }>("/settings/pagespeed", { method: "PUT", json: { key } });
+export const deletePagespeedKey = () => request<{ configured: boolean }>("/settings/pagespeed", { method: "DELETE" });
 export const fetchAccessibility = (siteId: number) => request<SiteAccessibility>(`/sites/${siteId}/accessibility`);
 export const scanAccessibility = (siteId: number) =>
   request<SiteAccessibility>(`/sites/${siteId}/accessibility/scan`, { method: "POST" });

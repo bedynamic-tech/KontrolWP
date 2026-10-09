@@ -70,6 +70,7 @@ import {
 import { SiteUpdatePolicyRow } from "./UpdatePolicy";
 import { UpdateEmailsRow } from "./UpdateEmailsRow";
 import { AccessibilityTab } from "./AccessibilityTab";
+import { PerformanceTab } from "./PerformanceTab";
 import { SiteIcon } from "./SiteIcon";
 import { SiteName } from "./SiteName";
 import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
@@ -98,6 +99,7 @@ const WORDPRESS_TABS = [
   "seo",
   "snippets",
   "accessibility",
+  "performance",
   "domain",
 ];
 const STATIC_TABS = [
@@ -106,6 +108,7 @@ const STATIC_TABS = [
   "pages",
   "seo",
   "accessibility",
+  "performance",
   "domain",
 ];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
@@ -116,6 +119,7 @@ const CLOUDFLARE_TABS = [
   "deployments",
   "seo",
   "accessibility",
+  "performance",
   "domain",
 ];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
@@ -230,7 +234,8 @@ export function SitePage() {
     (requestedTab === "analytics" && analyticsSource.loaded && !analyticsTabOn) ||
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
-    (requestedTab === "accessibility" && data?.site.accessibility_excluded);
+    (requestedTab === "accessibility" && data?.site.accessibility_excluded) ||
+    (requestedTab === "performance" && data?.site.performance_excluded);
   const tab =
     switchedOff || (kind && !tabs.includes(requestedTab))
       ? "overview"
@@ -262,6 +267,7 @@ export function SitePage() {
           { value: "snippets", label: "Code snippets" },
         ]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
+    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "domain", label: "Domain" },
   ];
 
@@ -457,6 +463,9 @@ export function SitePage() {
         <TabsContent value="accessibility" className={TAB_CLASS}>
           <AccessibilityTab site={site} />
         </TabsContent>
+        <TabsContent value="performance" className={TAB_CLASS}>
+          <PerformanceTab site={site} />
+        </TabsContent>
         <TabsContent value="domain" className={TAB_CLASS}>
           <DomainSection site={site} />
         </TabsContent>
@@ -564,6 +573,13 @@ export function SitePage() {
               title="Enable accessibility checks"
               on="KontrolWP scans this site for accessibility problems on a schedule."
               off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
+            />
+            <FeatureSwitchRow
+              site={site}
+              feature="performance"
+              title="Enable performance checks"
+              on="KontrolWP tests this site with Google PageSpeed Insights when asked and once a week."
+              off="KontrolWP does not test this site's speed, and its Performance tab is off."
             />
             {!isStatic && (
               <SettingRow

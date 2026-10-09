@@ -8,7 +8,7 @@ const SUMMARY_COLUMNS = `
   s.id, s.kind, s.name, s.name_custom, s.default_name, s.url, s.status, s.last_error, s.last_synced_at, s.wp_version,
   s.php_version, s.plugin_version, s.theme_name, s.icon_url, s.pending_comments, s.created_at,
   s.login_user_id, s.login_user_name, s.updates_excluded, s.links_excluded,
-  s.analytics_excluded, s.security_excluded, s.accessibility_excluded,
+  s.analytics_excluded, s.security_excluded, s.accessibility_excluded, s.performance_excluded,
   s.core_auto_update, s.core_auto_update_locked, s.plugin_auto_updates, s.umami_website_id, s.analytics_provider, s.analytics_ref, s.gsc_property,
   s.cf_hosted, s.cf_account_id, s.cf_worker, s.cf_error,
   (SELECT MAX(d.created_at) FROM site_deployments d WHERE d.site_id = s.id AND d.type = 'deployment') AS last_deployed_at,
@@ -39,6 +39,7 @@ type SiteFlag =
   | "analytics_excluded"
   | "security_excluded"
   | "accessibility_excluded"
+  | "performance_excluded"
   | "core_auto_update_locked" | "plugin_auto_updates" | "cf_hosted" | "name_custom";
 type SiteRow = Omit<SiteSummary, SiteFlag> & Record<SiteFlag, number>;
 
@@ -49,6 +50,7 @@ const summary = (row: SiteRow): SiteSummary => ({
   analytics_excluded: Boolean(row.analytics_excluded),
   security_excluded: Boolean(row.security_excluded),
   accessibility_excluded: Boolean(row.accessibility_excluded),
+  performance_excluded: Boolean(row.performance_excluded),
   core_auto_update_locked: Boolean(row.core_auto_update_locked),
   plugin_auto_updates: Boolean(row.plugin_auto_updates),
   cf_hosted: Boolean(row.cf_hosted),

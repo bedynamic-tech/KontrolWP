@@ -24,6 +24,10 @@ _Avoid_: Agent, client, worker plugin
 The string (starting `kontrolwp2.`) that pairs one Site with the dashboard. KontrolWP Connect creates it and shows it under Settings, KontrolWP Connect; the owner pastes it into KontrolWP with the Site's address. It carries a key id and the secret, and stops working as soon as the plugin creates a new one.
 _Avoid_: API key, token, password
 
+**PageSpeed test**:
+One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a phone or as a desktop: four scores out of 100, lab measurements, Core Web Vitals from real visits when Google has enough, and the biggest time savings. Shown on the Site's Performance tab; weekly once a Google API key is saved.
+_Avoid_: Speed scan, audit, benchmark
+
 **Sync**:
 One pull of status, available Updates and Pending Comments from a Site, replacing what KontrolWP stored for it. Runs every 6 hours and on Sync now.
 _Avoid_: Refresh, poll, crawl

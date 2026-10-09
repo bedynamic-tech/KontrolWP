@@ -31,6 +31,7 @@ import type {
   SeoTools,
   SiteAccessibility,
   SiteSeoAudit,
+  SitePerformance,
   SiteSeo,
   SiteSummary,
   SiteSecurity,
@@ -149,6 +150,7 @@ import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
+import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance } from "../sites/performance.ts";
 import {
   cleanExcluded,
   globalPolicyView,
@@ -304,10 +306,11 @@ api.use("/sites/:id/*", async (c, next) => {
 });
 
 // A feature the owner turned off for a site answers nothing, whatever asks.
-const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility", string][] = [
+const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility" | "performance", string][] = [
   [/^\/sites\/\d+\/analytics(\/|$)/, "analytics", "Analytics"],
   [/^\/sites\/\d+\/security(\/|$)/, "security", "Security checks"],
   [/^\/sites\/\d+\/accessibility(\/|$)/, "accessibility", "Accessibility checks"],
+  [/^\/sites\/\d+\/performance(\/|$)/, "performance", "Performance checks"],
 ];
 api.use("/sites/:id/*", async (c, next) => {
   const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
@@ -412,6 +415,8 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM accessibility_scans WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM accessibility_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM seo_scans WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM performance_scans WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM performance_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM seo_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
@@ -618,9 +623,9 @@ api.put("/sites/:id/links-excluded", async (c) => {
   return c.json(await getSite(c.env.DB, id));
 });
 
-const featureExcluded = z.object({ feature: z.enum(["analytics", "security", "accessibility"]), excluded: z.boolean() });
+const featureExcluded = z.object({ feature: z.enum(["analytics", "security", "accessibility", "performance"]), excluded: z.boolean() });
 
-/** Turn analytics, security or accessibility checks off for one site, or on again. Results already stored are kept. */
+/** Turn analytics, security, accessibility or performance checks off for one site, or on again. Results already stored are kept. */
 api.put("/sites/:id/feature-excluded", async (c) => {
   const id = siteId(c);
   const parsed = featureExcluded.safeParse(await c.req.json().catch(() => null));
@@ -996,6 +1001,50 @@ api.post("/sites/:id/accessibility/scan", async (c) => {
     return c.json({ error: error.message }, 502);
   }
   return c.json<SiteAccessibility>(await siteAccessibility(c.env, site, await getCredentials(c.env, id)));
+});
+
+/** The site's PageSpeed Insights (Lighthouse) tests, as a phone and as a desktop. */
+api.get("/sites/:id/performance", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  return c.json<SitePerformance>(await sitePerformance(c.env, site));
+});
+
+/** Start a test now. It takes a minute or so, so it runs from the queue and the page checks back. */
+api.post("/sites/:id/performance/run", async (c) => {
+  const id = siteId(c);
+  const site = id && (await getSite(c.env.DB, id));
+  if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (await claimTest(c.env, id)) await c.env.SYNC_QUEUE.send({ type: "performance", siteId: id });
+  return c.json<SitePerformance>(await sitePerformance(c.env, site));
+});
+
+api.get("/settings/pagespeed", async (c) => {
+  try {
+    return c.json({ configured: Boolean(await loadPagespeedKey(c.env)) });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+/** Save the Google API key used for PageSpeed Insights tests. */
+api.put("/settings/pagespeed", async (c) => {
+  const parsed = z.object({ key: z.string().trim().min(8).max(500) }).safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Enter your Google API key" }, 400);
+  try {
+    await savePagespeedKey(c.env, parsed.data.key);
+    return c.json({ configured: true });
+  } catch (error) {
+    if (error instanceof SecretsKeyError) return c.json({ error: error.message }, 500);
+    throw error;
+  }
+});
+
+api.delete("/settings/pagespeed", async (c) => {
+  await deletePagespeedKey(c.env);
+  return c.json({ configured: false });
 });
 
 /** A static site's SEO health check: the latest result and its history. */

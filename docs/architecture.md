@@ -339,6 +339,28 @@ left out. The list is read-only: View opens the permalink, and Edit uses
 Magic Login to open the post's editor, as on the Links tab. Nothing is stored
 in D1, and static sites do not have the tab.
 
+## Performance (PageSpeed Insights)
+
+Every site (WordPress and static) has a Performance tab. `src/worker/sites/performance.ts`
+asks Google's PageSpeed Insights API to run Lighthouse on the home page as a
+phone and as a desktop. Each test keeps the four category scores (Performance,
+Accessibility, Best practices, SEO), the lab measurements (FCP, LCP, TBT, CLS,
+Speed Index), the Core Web Vitals from real Chrome visits (the page's own, or
+the whole site's when the page has too few) and up to six of the biggest time
+savings. Requests carry a `fields` list so Google answers with a few kilobytes
+instead of a megabyte; if Google rejects or ignores it, the Worker asks for the
+full answer from then on.
+
+The latest result per device is in `performance_scans` and the scores per test
+in `performance_history` (last 90 per device). A test takes about half a
+minute, longer than a request may keep working after it answers, so Run test
+claims the site (`running_since`, cleared after five minutes if lost) and sends
+a `performance` message to the queue; the tab polls until it finishes. The
+15-minute cron tests one site not tested in the last week, only when an API key
+is saved in Settings, Integrations (stored encrypted like the Wordfence key):
+without one Google's shared quota refuses most tests. A failed test keeps the
+previous result and shows why.
+
 ## Accessibility
 
 Every site (WordPress and static) has an Accessibility tab. `src/worker/sites/accessibility.ts`
@@ -531,12 +553,12 @@ Content checklist (plugin 0.23.0, `class-kontrolwp-connect-seo-score.php`). Each
 
 SEO caching. SEO reads follow the same pattern as the other modules: the answer is kept in `content_cache` (kind `seo`) for an hour, a sync or any change made from the dashboard clears the site's answers, and an answer past the hour is used only when the site cannot be reached. Kept: the settings (which include Local SEO), the page list, the content settings, the tools settings and previews, the redirect rules (per page and search), the 404 log (five minutes, because it changes with every visitor), and the import list and previews. Always live: every write (settings, page overrides, redirect edits, bulk changes, CSV import, clearing the 404 log, running or deactivating an import), redirect exports, the per-page checklist (it checks unsaved text), and the llms.txt and robots.txt reachability check, which exists to show what a visitor gets right now.
 
-Switching a module off hides it. With SEO Management off (plugin 0.24.0), the SEO tab shows only the Enable switch in Settings, plus Import; the Redirects, 404 log, Content and Tools views and every other settings section are hidden, and the saved values are kept and reappear when it is switched back on. On the site, the verification codes, robots.txt, llms.txt and IndexNow no longer run while SEO Management is off, as the content features, archive settings and page tags already did not. Redirect rules keep running on the site, so turning SEO Management off hides their editor but does not stop them, and Import stays because it is how another plugin's settings are brought in. For the checks in Site settings, switching off update checks hides the Updates section on the overview and the core auto-update row; the Links, Security, Analytics and Accessibility tabs were already hidden when their switch is off, and a link to a hidden tab opens the Overview.
+Switching a module off hides it. With SEO Management off (plugin 0.24.0), the SEO tab shows only the Enable switch in Settings, plus Import; the Redirects, 404 log, Content and Tools views and every other settings section are hidden, and the saved values are kept and reappear when it is switched back on. On the site, the verification codes, robots.txt, llms.txt and IndexNow no longer run while SEO Management is off, as the content features, archive settings and page tags already did not. Redirect rules keep running on the site, so turning SEO Management off hides their editor but does not stop them, and Import stays because it is how another plugin's settings are brought in. For the checks in Site settings, switching off update checks hides the Updates section on the overview and the core auto-update row; the Links, Security, Analytics, Accessibility and Performance tabs were already hidden when their switch is off, and a link to a hidden tab opens the Overview.
 
 
 ## Overview health cards
 
-Every site's Overview starts with a Health section of up to four cards: Links and Security (WordPress only), SEO, Accessibility. Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility and SEO cards only read the last scan; they never start one.
+Every site's Overview starts with a Health section of up to five cards: Links and Security (WordPress only), SEO, Accessibility, Performance. Each reads the same query as its tab (so the data is shared and cached), shows one line of result and one of detail, and opens its tab when selected. A card is left out when the site has that feature switched off. The Accessibility, SEO and Performance cards only read the last scan; they never start one.
 
 ## Analytics providers
 
