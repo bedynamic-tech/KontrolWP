@@ -6,7 +6,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Children, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "./HelpTip";
@@ -479,13 +479,13 @@ export function SitePage() {
       </Tabs>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-xl [&>*]:min-w-0">
+        <DialogContent className="sm:max-w-xl lg:max-w-4xl [&>*]:min-w-0">
           <DialogHeader>
             <DialogTitle>Site settings</DialogTitle>
             <DialogDescription>{site.name}</DialogDescription>
           </DialogHeader>
-          <div className="divide-y border-y">
-            {!isStatic && !site.updates_excluded && <CoreAutoUpdateRow site={site} className="py-3" />}
+          <SettingsColumns>
+            {!isStatic && !site.updates_excluded && <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div
@@ -592,6 +592,7 @@ export function SitePage() {
               <SettingRow
                 title="Magic Login administrator"
                 detail="Magic Login opens wp-admin signed in as this user."
+                stacked
               >
                 <MagicLoginUserSelect site={site} />
               </SettingRow>
@@ -624,7 +625,7 @@ export function SitePage() {
                 Remove
               </Button>
             </SettingRow>
-          </div>
+          </SettingsColumns>
         </DialogContent>
       </Dialog>
 
@@ -855,6 +856,22 @@ function AnalyticsSourceRows(props: {
         </SettingRow>
       )}
     </>
+  );
+}
+
+/**
+ * Settings rows in two balanced columns on wide screens, one column on
+ * phones. Each row keeps its own divider so both columns read as lists.
+ */
+function SettingsColumns(props: { children: ReactNode }) {
+  return (
+    <div className="gap-x-8 border-b lg:columns-2 lg:border-b-0">
+      {Children.toArray(props.children).map((row, i) => (
+        <div key={i} className="break-inside-avoid divide-y border-t empty:hidden">
+          {row}
+        </div>
+      ))}
+    </div>
   );
 }
 
