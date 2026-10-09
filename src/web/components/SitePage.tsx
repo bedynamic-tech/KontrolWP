@@ -132,7 +132,7 @@ const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
  * These sit under the Tools tab with their own row of tabs. Each keeps its own ?tab= value,
  * so links such as ?tab=links still open it, inside Tools.
  */
-const TOOL_TABS = ["links", "snippets", "performance", "seo", "branding"];
+const TOOL_TABS = ["links", "snippets", "performance", "seo", "branding", "security", "accessibility", "domain"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -264,6 +264,9 @@ export function SitePage() {
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "seo", label: "SEO" },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
+    ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
+    ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
+    { value: "domain", label: "Domain" },
   ];
   // ?tab=tools opens the first tool.
   const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;
@@ -282,9 +285,6 @@ export function SitePage() {
           { value: "users", label: "Users" },
         ]),
     { value: "tools", label: "Tools" },
-    ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
-    ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
-    { value: "domain", label: "Domain" },
   ];
 
   return (
@@ -490,16 +490,16 @@ export function SitePage() {
             <TabsContent value="branding" className={TAB_CLASS}>
               {!isStatic && <BrandingTab site={site} />}
             </TabsContent>
+            <TabsContent value="security" className={TAB_CLASS}>
+              <SecurityTab site={site} />
+            </TabsContent>
+            <TabsContent value="accessibility" className={TAB_CLASS}>
+              <AccessibilityTab site={site} />
+            </TabsContent>
+            <TabsContent value="domain" className={TAB_CLASS}>
+              <DomainSection site={site} />
+            </TabsContent>
           </Tabs>
-        </TabsContent>
-        <TabsContent value="security" className={TAB_CLASS}>
-          <SecurityTab site={site} />
-        </TabsContent>
-        <TabsContent value="accessibility" className={TAB_CLASS}>
-          <AccessibilityTab site={site} />
-        </TabsContent>
-        <TabsContent value="domain" className={TAB_CLASS}>
-          <DomainSection site={site} />
         </TabsContent>
       </Tabs>
 
