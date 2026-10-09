@@ -1,35 +1,48 @@
 # KontrolWP
 
-Self-hosted WordPress manager on Cloudflare.
+**One dashboard for all your WordPress sites, self-hosted on Cloudflare.**
 
-KontrolWP is one dashboard for all your WordPress sites. Each site runs the
-**KontrolWP Connect** plugin, and the dashboard pulls in what needs your
-attention: plugin, theme and core updates, and comments waiting for review.
-Update WordPress, plugins and themes and moderate comments without logging
-in to each site.
+Updates, plugins, users, content, SEO and analytics across every site, without
+logging in to each one. It runs entirely in your own Cloudflare account, behind
+Cloudflare Access.
 
-Everything runs in your own Cloudflare account, behind Cloudflare Access.
+[Website and feature tour](https://kontrolwp.com) ·
+[Deployment guide](docs/deployment.md) ·
+[Architecture](docs/architecture.md)
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/bedynamic-tech/KontrolWP)
 
-## What it does today
+## Features
 
-- **Sites.** Install KontrolWP Connect, then add the site with its address and
-  the Connection Key the plugin shows. The name comes from WordPress.
-- **Updates.** Every available core, plugin and theme update across all sites,
-  each queued with one click. Each site installs its updates one at a time.
-  KontrolWP Connect itself updates automatically from the dashboard.
-- **Plugins.** Every plugin across all sites: install, activate, deactivate,
-  delete and auto-updates, on one site or many at once.
-- **Users.** Every user across all sites, grouped by email: add, change role,
-  send a password reset or delete, on one site or many at once.
-- **Links.** Scan a site's published posts and pages for broken and
-  unresponsive links and images, then open each post's editor to fix them.
-- **Comments.** Every pending comment across all sites, with Approve, Spam and
-  Trash.
-- **Background sync.** Every site is re-checked every hour by default; Settings can make it every 15 minutes up to every 6 hours.
+- **Updates.** Core, plugin and theme updates across all sites, queued in one
+  click or on a schedule.
+- **Plugins and users.** Install, activate, update and remove plugins, and
+  manage users, on one site or many at once.
+- **Content and comments.** Posts and pages, custom post types and pending
+  comments for every site.
+- **Analytics.** Umami or Google Analytics, plus Search Console.
+- **Tools.** Per-site link checks, code snippets, PageSpeed performance, SEO
+  (redirects, 404 log, sitemaps, imports), login branding, security,
+  accessibility and domain checks.
+- **Static sites.** Uptime, pages, analytics and Cloudflare Workers
+  deployments for static sites.
+- **Magic Login.** Open any site's admin without a password.
 
-## Built on
+## How it works
 
-Cloudflare Workers, D1, Queues, Cron Triggers and Access. The deployment
-setup follows [Mailroom +](https://github.com/bedynamic-tech/mailroom).
+Each WordPress site runs the **KontrolWP Connect** plugin, paired with the
+dashboard by a Connection Key. The plugin only answers signed requests and
+never calls out on its own. The dashboard is a Cloudflare Worker using D1,
+Queues and Cron Triggers, and re-syncs every site in the background.
+
+## Deploy
+
+Click **Deploy to Cloudflare** above, then follow the dashboard's setup screen
+to turn on Cloudflare Access. To add a site, install KontrolWP Connect and
+enter the site's address with the Connection Key the plugin shows. For manual
+setup and updating your instance, see the
+[deployment guide](docs/deployment.md).
+
+---
+
+Built by Dynamic Technologies LLC.
