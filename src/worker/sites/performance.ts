@@ -10,6 +10,7 @@ import {
   type SitePerformance,
   type SiteSummary,
 } from "../../shared/types.ts";
+import { googleAccessToken, loadGoogleClient, loadGoogleCredential } from "../google.ts";
 import { decryptSetting, encryptSetting } from "./secrets.ts";
 
 /**
@@ -57,6 +58,34 @@ export async function savePagespeedKey(env: Env, key: string): Promise<void> {
 
 export async function deletePagespeedKey(env: Env): Promise<void> {
   await env.DB.prepare("DELETE FROM settings WHERE name = ?").bind(SETTING).run();
+}
+
+/**
+ * How a test is paid for: a saved API key, else the Google account connected
+ * for Search Console and Analytics (its OAuth client's project gets the quota),
+ * else nothing, where Google's small shared quota usually refuses.
+ */
+export type PagespeedAuth = { via: "key"; key: string } | { via: "google"; token: string } | null;
+
+/** Which of the two is set up, without asking Google for a token. */
+export async function pagespeedSource(env: Env): Promise<"key" | "google" | null> {
+  if (await loadPagespeedKey(env).catch(() => null)) return "key";
+  return (await loadGoogleCredential(env).catch(() => null)) ? "google" : null;
+}
+
+export async function pagespeedAuth(env: Env): Promise<PagespeedAuth> {
+  const key = await loadPagespeedKey(env).catch(() => null);
+  if (key) return { via: "key", key };
+  const credential = await loadGoogleCredential(env).catch(() => null);
+  if (!credential) return null;
+  try {
+    const client = credential.kind === "oauth" ? await loadGoogleClient(env) : null;
+    // PageSpeed Insights accepts any token with the openid scope, which every Google sign-in already has.
+    return { via: "google", token: await googleAccessToken(credential, "openid", Date.now(), client) };
+  } catch {
+    // A sign-in Google no longer accepts shows in Settings; the test still tries without it.
+    return null;
+  }
 }
 
 /* ---- Reading Google's answer (pure, tested) ---- */
@@ -172,13 +201,20 @@ export function parsePagespeed(response: unknown, now: number): PerformanceResul
 }
 
 /** What a failed request means for the owner. */
-export function pagespeedFailure(status: number, response: unknown): string {
+export function pagespeedFailure(status: number, response: unknown, via: "key" | "google" | null = "key"): string {
   const error = asObject(asObject(response).error);
   const message = typeof error.message === "string" ? error.message : "";
   if (status === 429) {
-    return "Google's PageSpeed Insights refused the test because too many were asked for. Save a free API key in Settings, Integrations, or try again later.";
+    return via === null
+      ? "Google's PageSpeed Insights refused the test because too many were asked for. Connect Google or save a free API key in Settings, Integrations, or try again later."
+      : "Google's PageSpeed Insights refused the test because too many were asked for. Try again later.";
   }
   if (/api key not valid/i.test(message)) return "Google did not accept the PageSpeed API key. Check the key in Settings, Integrations.";
+  if (via === "google" && (status === 403 || status === 401)) {
+    return /has not been used|is disabled|SERVICE_DISABLED|not enabled/i.test(message)
+      ? "Turn on the PageSpeed Insights API in the Google Cloud project that owns your Google client ID (Settings, Integrations), then try again."
+      : `Google refused the test for the connected Google account${message ? `: ${message}` : ""}`;
+  }
   if (/api key|API_KEY|has not been used|is disabled|not enabled/i.test(message) || status === 403) {
     return "Google did not accept the PageSpeed API key. Check the key in Settings, and that the PageSpeed Insights API is turned on for its Google Cloud project.";
   }
@@ -210,18 +246,21 @@ export function resetFieldsCheck() {
 export async function fetchPagespeed(
   url: string,
   strategy: PerformanceStrategy,
-  key: string | null,
+  auth: PagespeedAuth,
   now: number,
   fetcher: typeof fetch = fetch,
 ): Promise<PerformanceResult> {
   const ask = async (trim: boolean) => {
     const query = new URLSearchParams({ url, strategy: strategy.toUpperCase() });
     for (const category of ["PERFORMANCE", "ACCESSIBILITY", "BEST_PRACTICES", "SEO"]) query.append("category", category);
-    if (key) query.set("key", key);
+    if (auth?.via === "key") query.set("key", auth.key);
     if (trim) query.set("fields", FIELDS);
     let response: Response;
     try {
-      response = await fetcher(`${ENDPOINT}?${query}`, { signal: AbortSignal.timeout(120_000) });
+      response = await fetcher(`${ENDPOINT}?${query}`, {
+        headers: auth?.via === "google" ? { Authorization: `Bearer ${auth.token}` } : {},
+        signal: AbortSignal.timeout(120_000),
+      });
     } catch (error) {
       if (error instanceof Error && error.name === "TimeoutError") {
         throw new PerformanceError("The test took too long. Try again in a few minutes.");
@@ -241,7 +280,7 @@ export async function fetchPagespeed(
       answer = await ask(false);
     }
   }
-  if (!answer.ok) throw new PerformanceError(pagespeedFailure(answer.status, answer.body));
+  if (!answer.ok) throw new PerformanceError(pagespeedFailure(answer.status, answer.body, auth?.via ?? null));
   return parsePagespeed(answer.body, now);
 }
 
@@ -296,16 +335,11 @@ export async function testSite(
   now = Math.floor(Date.now() / 1000),
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  let key: string | null = null;
-  try {
-    key = await loadPagespeedKey(env);
-  } catch {
-    // The key could not be read; Google may still allow a test without one.
-  }
+  const auth = await pagespeedAuth(env);
   await Promise.all(
     PERFORMANCE_STRATEGIES.map(async (strategy) => {
       try {
-        await store(env, site.id, strategy, now, await fetchPagespeed(site.url, strategy, key, now, fetcher));
+        await store(env, site.id, strategy, now, await fetchPagespeed(site.url, strategy, auth, now, fetcher));
       } catch (error) {
         await store(
           env,
@@ -320,13 +354,13 @@ export async function testSite(
   );
 }
 
-/** Test the sites not tested in the last week, one at a time, from the cron. Needs a saved API key. Returns how many were tested. */
+/** Test the sites not tested in the last week, one at a time, from the cron. Needs an API key or a connected Google account. Returns how many were tested. */
 export async function runScheduledPerformance(
   env: Env,
   now = Math.floor(Date.now() / 1000),
   fetcher: typeof fetch = fetch,
 ): Promise<number> {
-  if (!(await loadPagespeedKey(env).catch(() => null))) return 0;
+  if (!(await pagespeedSource(env))) return 0;
   const { results } = await env.DB.prepare(
     `SELECT sites.id, sites.url FROM sites
      LEFT JOIN performance_scans p ON p.site_id = sites.id AND p.strategy = 'mobile'
@@ -354,7 +388,7 @@ type Row = {
 };
 
 export async function sitePerformance(env: Env, site: Pick<SiteSummary, "id">, now = Math.floor(Date.now() / 1000)): Promise<SitePerformance> {
-  const [rows, history, key] = await Promise.all([
+  const [rows, history, source] = await Promise.all([
     env.DB.prepare("SELECT strategy, scanned_at, result, error, running_since FROM performance_scans WHERE site_id = ?")
       .bind(site.id)
       .all<Row>(),
@@ -364,7 +398,7 @@ export async function sitePerformance(env: Env, site: Pick<SiteSummary, "id">, n
     )
       .bind(site.id)
       .all<{ strategy: PerformanceStrategy; scanned_at: number } & PerformanceScores>(),
-    loadPagespeedKey(env).catch(() => null),
+    pagespeedSource(env),
   ]);
   const state = (strategy: PerformanceStrategy): PerformanceStrategyState => {
     const row = rows.results.find((candidate) => candidate.strategy === strategy);
@@ -388,6 +422,7 @@ export async function sitePerformance(env: Env, site: Pick<SiteSummary, "id">, n
     mobile: state("mobile"),
     desktop: state("desktop"),
     running: rows.results.some((row) => row.running_since !== null && row.running_since > now - RUNNING_LIMIT),
-    key_configured: Boolean(key),
+    key_configured: source !== null,
+    source,
   };
 }

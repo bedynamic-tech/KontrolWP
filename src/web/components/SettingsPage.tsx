@@ -571,8 +571,8 @@ function PagespeedSettingsSection() {
         title="Google PageSpeed Insights"
         hint={
           settings.data?.configured
-            ? "Connected. Each site's Performance tab can run Google's Lighthouse tests, and every site is tested once a week."
-            : "Each site's Performance tab shows Google's Lighthouse scores. Google allows very few tests without an API key, and weekly tests need one."
+            ? "Saved. Each site's Performance tab runs Google's Lighthouse tests with this key, and every site is tested once a week."
+            : "Optional. When Google is connected below, PageSpeed Insights tests use that account and no key is needed; turn on the PageSpeed Insights API in the Google Cloud project that owns your client ID. A key here is used instead when saved."
         }
       >
         {settings.isPending ? (

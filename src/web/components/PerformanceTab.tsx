@@ -204,9 +204,9 @@ export function PerformanceTab(props: { site: SiteSummary }) {
         )}
         {!data.key_configured && !result && !testing && (
           <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
-            Google allows very few tests without an API key.{" "}
-            <Link to="/settings#pagespeed" className="underline underline-offset-4">
-              Add a free key in Settings
+            Google allows very few tests without your own Google account or API key.{" "}
+            <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+              Connect Google or add a key in Settings
             </Link>{" "}
             to avoid refused tests and to test every site once a week.
           </p>

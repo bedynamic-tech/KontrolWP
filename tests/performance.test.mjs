@@ -125,7 +125,11 @@ test("a page Lighthouse could not load is an error, not a score of nothing", () 
 });
 
 test("Google's refusals read as something the owner can act on", () => {
-  assert.match(pagespeedFailure(429, {}), /API key in Settings/);
+  assert.match(pagespeedFailure(429, {}, null), /Connect Google or save a free API key/);
+  assert.match(
+    pagespeedFailure(403, { error: { message: "PageSpeed Insights API has not been used in project 1 before or it is disabled." } }, "google"),
+    /owns your Google client ID/,
+  );
   assert.match(pagespeedFailure(400, { error: { message: "API key not valid. Please pass a valid API key." } }), /did not accept/);
   assert.match(
     pagespeedFailure(403, { error: { message: "PageSpeed Insights API has not been used in project 1 before or it is disabled." } }),
@@ -141,7 +145,7 @@ test("a test asks for both devices' categories, the key and a trimmed answer", a
     asked.push(new URL(url));
     return Response.json(answer());
   };
-  await fetchPagespeed("https://a.test/", "mobile", "secret-key", 1, fetcher);
+  await fetchPagespeed("https://a.test/", "mobile", { via: "key", key: "secret-key" }, 1, fetcher);
   const url = asked[0];
   assert.equal(url.searchParams.get("url"), "https://a.test/");
   assert.equal(url.searchParams.get("strategy"), "MOBILE");
@@ -219,6 +223,22 @@ test("a test stores both devices, keeps a history and blocks a second test while
   const after = await sitePerformance(env, site, 2001);
   assert.equal(after.mobile.result.scanned_at, 1000);
   assert.match(after.mobile.error, /too many/);
+  assert.match(after.mobile.error, /Connect Google/);
+});
+
+test("a connected Google account signs the test when no key is saved", async () => {
+  resetFieldsCheck();
+  const headers = [];
+  const fetcher = async (url, init) => {
+    headers.push([new URL(url).searchParams.get("key"), new Headers(init?.headers).get("Authorization")]);
+    return Response.json(answer());
+  };
+  await fetchPagespeed("https://a.test/", "mobile", { via: "google", token: "tok" }, 1, fetcher);
+  await fetchPagespeed("https://a.test/", "mobile", null, 1, fetcher);
+  assert.deepEqual(headers, [
+    [null, "Bearer tok"],
+    [null, null],
+  ]);
 });
 
 test("weekly tests need a saved key, skip switched off sites and take the oldest first", async () => {

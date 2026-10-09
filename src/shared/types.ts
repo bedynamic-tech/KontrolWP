@@ -1325,6 +1325,8 @@ export interface SitePerformance {
   desktop: PerformanceStrategyState;
   /** A test is running now. */
   running: boolean;
-  /** A Google API key is saved in Settings; without one Google allows very few tests. */
+  /** An API key is saved or a Google account is connected in Settings; without either Google allows very few tests. */
   key_configured: boolean;
+  /** What pays for the tests: a saved API key, or the connected Google account. */
+  source?: "key" | "google" | null;
 }

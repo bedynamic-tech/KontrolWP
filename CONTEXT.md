@@ -25,7 +25,7 @@ The string (starting `kontrolwp2.`) that pairs one Site with the dashboard. Kont
 _Avoid_: API key, token, password
 
 **PageSpeed test**:
-One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a phone or as a desktop: four scores out of 100, lab measurements, Core Web Vitals from real visits when Google has enough, and the biggest time savings. Shown on the Site's Performance tab; weekly once a Google API key is saved.
+One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a phone or as a desktop: four scores out of 100, lab measurements, Core Web Vitals from real visits when Google has enough, and the biggest time savings. Shown on the Site's Performance tab; weekly once Google is connected or an API key is saved.
 _Avoid_: Speed scan, audit, benchmark
 
 **Sync**:
