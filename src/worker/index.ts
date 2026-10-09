@@ -10,6 +10,7 @@ import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
+import { runScheduledPerformance } from "./sites/performance.ts";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", requireWebAccess);
@@ -28,6 +29,7 @@ export default {
           runScheduledUpdates(env),
           synced ? 0 : runScheduledScans(env),
           synced ? 0 : runScheduledSeoScans(env),
+          synced ? 0 : runScheduledPerformance(env),
         ]);
       }),
     );
