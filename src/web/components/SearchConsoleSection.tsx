@@ -44,7 +44,7 @@ export function SearchConsoleSection(props: {
   site: SiteSummary;
   /** The Overview version: the stats and clicks trend, with a link to the full section. */
   onOpen?: () => void;
-  /** The Analytics module beside this one already shows the date range, which changes both. */
+  /** The Analytics module beside this one already shows the date range, which changes both. Left out, the range sits in this heading. */
   linked?: boolean;
 }) {
   const { site, onOpen, linked } = props;
@@ -77,7 +77,10 @@ export function SearchConsoleSection(props: {
   if (google.isPending || google.error) return null;
   if (!google.data.configured) {
     return (
-      <Section title="Search Console">
+      <Section
+        title="Search Console"
+        action={linked || onOpen ? undefined : <RangeSelect range={sharedRange} onChange={chooseRange} />}
+      >
         <EmptyRow>
           Connect Google in{" "}
           <Link

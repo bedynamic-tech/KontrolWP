@@ -8,7 +8,6 @@ import { hostname } from "../format";
 import {
   AnalyticsFooter,
   count,
-  RangeSelect,
   StatsRow,
   TopList,
   TrendChart,
@@ -64,15 +63,12 @@ const CARDS: {
 export function AnalyticsTab(props: { site: SiteSummary }) {
   const { site } = props;
   const source = useAnalyticsProvider(site);
-  const [range, chooseRange] = useAnalyticsRange();
   return (
     <>
-      <div className="flex justify-end">
-        <RangeSelect range={range} onChange={chooseRange} />
-      </div>
-      <div id="site-search-console" className="mt-3">
+      {/* The date range sits in the Search Console heading and changes the analytics below too. */}
+      <div id="site-search-console" className="[&>section:first-child]:mt-6">
         <ErrorBoundary label="Search Console">
-          <SearchConsoleSection site={site} linked />
+          <SearchConsoleSection site={site} />
         </ErrorBoundary>
       </div>
       <div id="site-analytics">
