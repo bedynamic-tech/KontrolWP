@@ -341,38 +341,6 @@ export function SitePage() {
 
       <ConnectionBanner site={site} className="mt-4" />
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {isStatic ? (
-          <>
-            <Fact
-              label="Type"
-              value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
-            />
-            {onCloudflare && (
-              <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
-            )}
-            {onCloudflare && (
-              <Fact
-                label="Last deployed"
-                value={
-                  site.last_deployed_at
-                    ? timeAgo(site.last_deployed_at)
-                    : "No deployments"
-                }
-              />
-            )}
-            <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
-          </>
-        ) : (
-          <>
-            <Fact label="WordPress" value={site.wp_version} />
-            <Fact label="KontrolWP Connect" value={site.plugin_version} />
-            <Fact label="Theme" value={site.theme_name} />
-            <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
-          </>
-        )}
-      </dl>
-
       <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
         <ResponsiveTabsList tabs={tabItems} value={tab} onChange={setTab} label="Section" />
         <TabsContent value="overview" className={TAB_CLASS}>
@@ -381,6 +349,39 @@ export function SitePage() {
               <ErrorBoundary label="Search Console">
                 <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
               </ErrorBoundary>
+            );
+            const facts = (
+          <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {isStatic ? (
+              <>
+                <Fact
+                  label="Type"
+                  value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
+                />
+                {onCloudflare && (
+                  <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
+                )}
+                {onCloudflare && (
+                  <Fact
+                    label="Last deployed"
+                    value={
+                      site.last_deployed_at
+                        ? timeAgo(site.last_deployed_at)
+                        : "No deployments"
+                    }
+                  />
+                )}
+                <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
+              </>
+            ) : (
+              <>
+                <Fact label="WordPress" value={site.wp_version} />
+                <Fact label="KontrolWP Connect" value={site.plugin_version} />
+                <Fact label="Theme" value={site.theme_name} />
+                <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
+              </>
+            )}
+          </dl>
             );
             const health = <HealthOverview site={site} onOpen={setTab} />;
             const main = isStatic ? (
@@ -406,7 +407,7 @@ export function SitePage() {
               </>
             );
             // Two columns only when there is analytics to put on the right.
-            return twoColumns && main ? (
+            const content = twoColumns && main ? (
               <div className="grid items-start gap-x-6 lg:grid-cols-2">
                 <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                 <div className={`min-w-0 ${TAB_CLASS}`}>
@@ -419,6 +420,12 @@ export function SitePage() {
                 {searchConsole}
                 {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
                 {main}
+              </>
+            );
+            return (
+              <>
+                {facts}
+                {content}
               </>
             );
           })()}
