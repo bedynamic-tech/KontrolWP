@@ -1,19 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { AUTO_UPDATES_SINCE, compareVersions } from "../../shared/plugin-version";
 import type { CoreAutoUpdate, SiteSummary } from "../../shared/types";
-import { bulkCoreAutoUpdate, setCoreAutoUpdate } from "../api";
-import { SitePicker } from "./SitePicker";
+import { setCoreAutoUpdate } from "../api";
 import { Spinner } from "./Spinner";
 
 export const CORE_AUTO_UPDATE_LABELS: Record<CoreAutoUpdate, string> = {
@@ -92,93 +81,5 @@ export function CoreAutoUpdateRow(props: { site: SiteSummary; className?: string
         />
       </div>
     </div>
-  );
-}
-
-/** Set WordPress core auto-updates on the sites chosen here. */
-export function CoreAutoUpdateDialog(props: { sites: SiteSummary[]; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const queryClient = useQueryClient();
-  const [mode, setMode] = useState<CoreAutoUpdate>("minor");
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const sites = props.sites.filter((site) => autoUpdatesSupported(site.plugin_version) && !site.core_auto_update_locked);
-  const skipped = props.sites.length - sites.length;
-  const chosen = sites.filter((site) => selected.has(site.id)).map((site) => site.id);
-  const names = new Map(sites.map((site) => [site.id, site.name]));
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const { results } = await bulkCoreAutoUpdate(chosen, mode);
-      const failed = results.filter((result) => !result.ok);
-      if (failed.length) {
-        setSelected(new Set(failed.map((result) => result.site_id)));
-        const done = results.length - failed.length;
-        throw new Error(
-          [
-            ...(done ? [`Changed on ${done} ${done === 1 ? "site" : "sites"}. These failed:`] : []),
-            ...failed.map((result) => `${names.get(result.site_id) ?? `Site ${result.site_id}`}: ${result.error}`),
-          ].join("\n"),
-        );
-      }
-    },
-    onSuccess: () => close(false),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["overview"] });
-      queryClient.invalidateQueries({ queryKey: ["site"] });
-    },
-  });
-
-  const close = (open: boolean) => {
-    props.onOpenChange(open);
-    if (!open) {
-      setSelected(new Set());
-      save.reset();
-    }
-  };
-
-  return (
-    <Dialog open={props.open} onOpenChange={(open) => !save.isPending && close(open)}>
-      <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
-        <form
-          className="min-w-0 space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Automatic WordPress updates</DialogTitle>
-            <DialogDescription>
-              Sets WordPress's own auto-update setting on each site, as its Updates screen does.
-            </DialogDescription>
-          </DialogHeader>
-          <label className="block space-y-1.5">
-            <span className="block text-sm font-medium">Update WordPress automatically to</span>
-            <ModeSelect value={mode} onChange={setMode} />
-          </label>
-          <SitePicker
-            sites={sites}
-            loading={false}
-            selected={selected}
-            onChange={setSelected}
-            detail={(site) => (site.core_auto_update ? CORE_AUTO_UPDATE_LABELS[site.core_auto_update] : null)}
-          />
-          {skipped > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {skipped === 1 ? "1 site is" : `${skipped} sites are`} not listed: they need KontrolWP Connect{" "}
-              {AUTO_UPDATES_SINCE} or set this in wp-config.php.
-            </p>
-          )}
-          {save.error && <p className="whitespace-pre-line text-sm text-destructive">{save.error.message}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => close(false)} disabled={save.isPending}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!chosen.length} loading={save.isPending}>
-              {save.isPending ? "Saving..." : "Apply"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

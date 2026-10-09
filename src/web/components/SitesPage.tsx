@@ -1,11 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Link } from "react-router";
 import { fetchOverview } from "../api";
 import { hostname, plural, timeAgo } from "../format";
 import { AddSiteDialog } from "./AddSiteDialog";
-import { CoreAutoUpdateDialog } from "./CoreAutoUpdate";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
 import { SiteIcon } from "./SiteIcon";
@@ -13,7 +10,6 @@ import { ConnectionBanner } from "./ConnectionBanner";
 
 export function SitesPage() {
   const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
-  const [autoUpdates, setAutoUpdates] = useState(false);
   if (isPending) return <PageSkeleton />;
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
   if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
@@ -22,14 +18,7 @@ export function SitesPage() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Sites</h1>
-        <div className="flex items-center gap-2">
-          {data.sites.some((site) => site.kind === "wordpress") && (
-            <Button size="sm" variant="outline" onClick={() => setAutoUpdates(true)}>
-              WordPress auto-updates
-            </Button>
-          )}
-          <AddSiteDialog />
-        </div>
+        <AddSiteDialog />
       </div>
       <div className="mt-6 overflow-hidden rounded-xl border bg-background">
         {data.sites.length === 0 ? (
@@ -78,11 +67,6 @@ export function SitesPage() {
           </ul>
         )}
       </div>
-      <CoreAutoUpdateDialog
-        sites={data.sites.filter((site) => site.kind === "wordpress")}
-        open={autoUpdates}
-        onOpenChange={setAutoUpdates}
-      />
     </div>
   );
 }
