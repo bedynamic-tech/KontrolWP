@@ -523,11 +523,10 @@ export function SitePage() {
                     <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />
                   )}
                   {!site.updates_excluded && <SiteUpdatePolicyRow site={site} />}
-                  {/* WordPress's own emails, so this applies with update checks off too. */}
-                  <UpdateEmailsRow site={site} />
                 </SubSettings>
               </div>
             )}
+            {!isStatic && <UpdateEmailsRow site={site} />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div
