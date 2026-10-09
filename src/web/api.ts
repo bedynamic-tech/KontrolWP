@@ -277,9 +277,6 @@ export function installPluginOnSites(siteIds: number[], install: PluginInstall) 
 export const setCoreAutoUpdate = (siteId: number, mode: CoreAutoUpdate) =>
   request<SiteSummary>(`/sites/${siteId}/core-auto-update`, { method: "PUT", json: { mode } });
 
-export const bulkCoreAutoUpdate = (siteIds: number[], mode: CoreAutoUpdate) =>
-  request<{ results: BulkPluginResult[] }>("/core-auto-update", { method: "POST", json: { mode, site_ids: siteIds } });
-
 export const fetchUmamiSettings = () => request<UmamiSettings>("/settings/umami");
 
 export type UmamiInput =
