@@ -161,7 +161,7 @@ test("when Google rejects or ignores the trimmed field list, the full answer is 
     const trimmed = new URL(url).searchParams.has("fields");
     asked.push(trimmed);
     return trimmed
-      ? Response.json({ error: { message: "Invalid field selection lighthouseResult" } }, { status: 400 })
+      ? Response.json({ error: { message: "Request contains an invalid argument.", status: "INVALID_ARGUMENT" } }, { status: 400 })
       : Response.json(answer());
   };
   const result = await fetchPagespeed("https://a.test/", "desktop", null, 1, rejecting);
