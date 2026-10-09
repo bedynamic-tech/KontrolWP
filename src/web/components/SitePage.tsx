@@ -95,21 +95,23 @@ const WORDPRESS_TABS = [
   "content",
   "plugins",
   "users",
+  "tools",
   "links",
-  "security",
-  "seo",
   "snippets",
-  "accessibility",
   "performance",
+  "seo",
+  "security",
+  "accessibility",
   "domain",
 ];
 const STATIC_TABS = [
   "overview",
   "analytics",
   "pages",
+  "tools",
+  "performance",
   "seo",
   "accessibility",
-  "performance",
   "domain",
 ];
 /** Deployments come from Cloudflare, so only a static site hosted there has them. */
@@ -118,12 +120,18 @@ const CLOUDFLARE_TABS = [
   "analytics",
   "pages",
   "deployments",
+  "tools",
+  "performance",
   "seo",
   "accessibility",
-  "performance",
   "domain",
 ];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
+/**
+ * These sit under the Tools tab with their own row of tabs. Each keeps its own ?tab= value,
+ * so links such as ?tab=links still open it, inside Tools.
+ */
+const TOOL_TABS = ["links", "snippets", "performance", "seo"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -237,7 +245,7 @@ export function SitePage() {
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded) ||
     (requestedTab === "performance" && data?.site.performance_excluded);
-  const tab =
+  const chosenTab =
     switchedOff || (kind && !tabs.includes(requestedTab))
       ? "overview"
       : requestedTab;
@@ -249,6 +257,15 @@ export function SitePage() {
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
+  const toolItems: TabItem[] = [
+    ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links" }] : []),
+    ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
+    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
+    { value: "seo", label: "SEO" },
+  ];
+  // ?tab=tools opens the first tool.
+  const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;
+  const topTab = TOOL_TABS.includes(tab) ? "tools" : tab;
   const tabItems: TabItem[] = [
     { value: "overview", label: "Overview" },
     ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics" }] : []),
@@ -256,19 +273,15 @@ export function SitePage() {
       ? [
           { value: "pages", label: "Pages" },
           ...(onCloudflare ? [{ value: "deployments", label: "Deployments" }] : []),
-          { value: "seo", label: "SEO" },
         ]
       : [
           { value: "content", label: "Posts and pages" },
           { value: "plugins", label: "Plugins" },
           { value: "users", label: "Users" },
-          ...(site.links_excluded ? [] : [{ value: "links", label: "Links" }]),
-          ...(site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
-          { value: "seo", label: "SEO" },
-          { value: "snippets", label: "Code snippets" },
         ]),
+    { value: "tools", label: "Tools" },
+    ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
-    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "domain", label: "Domain" },
   ];
 
@@ -342,8 +355,8 @@ export function SitePage() {
 
       <ConnectionBanner site={site} className="mt-4" />
 
-      <Tabs value={tab} onValueChange={setTab} className="mt-8 gap-0">
-        <ResponsiveTabsList tabs={tabItems} value={tab} onChange={setTab} label="Section" />
+      <Tabs value={topTab} onValueChange={setTab} className="mt-8 gap-0">
+        <ResponsiveTabsList tabs={tabItems} value={topTab} onChange={setTab} label="Section" />
         <TabsContent value="overview" className={TAB_CLASS}>
           {(() => {
             const searchConsole = searchConsoleOn && (
@@ -454,25 +467,30 @@ export function SitePage() {
         <TabsContent value="users" className={TAB_CLASS}>
           <UsersSection site={site} />
         </TabsContent>
-        <TabsContent value="links" className={TAB_CLASS}>
-          <LinksTab site={site} />
+        <TabsContent value="tools">
+          <Tabs value={tab} onValueChange={setTab} className="mt-6 gap-0">
+            <ResponsiveTabsList tabs={toolItems} value={tab} onChange={setTab} label="Tool" />
+            <TabsContent value="links" className={TAB_CLASS}>
+              <LinksTab site={site} />
+            </TabsContent>
+            <TabsContent value="snippets" className={TAB_CLASS}>
+              {!isStatic && <SnippetsTab site={site} />}
+            </TabsContent>
+            <TabsContent value="performance" className={TAB_CLASS}>
+              <PerformanceTab site={site} />
+            </TabsContent>
+            <TabsContent value="seo" className={TAB_CLASS}>
+              <ErrorBoundary label="The SEO tab">
+                {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
+              </ErrorBoundary>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="security" className={TAB_CLASS}>
           <SecurityTab site={site} />
         </TabsContent>
-        <TabsContent value="seo" className={TAB_CLASS}>
-          <ErrorBoundary label="The SEO tab">
-            {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
-          </ErrorBoundary>
-        </TabsContent>
-        <TabsContent value="snippets" className={TAB_CLASS}>
-          {!isStatic && <SnippetsTab site={site} />}
-        </TabsContent>
         <TabsContent value="accessibility" className={TAB_CLASS}>
           <AccessibilityTab site={site} />
-        </TabsContent>
-        <TabsContent value="performance" className={TAB_CLASS}>
-          <PerformanceTab site={site} />
         </TabsContent>
         <TabsContent value="domain" className={TAB_CLASS}>
           <DomainSection site={site} />
