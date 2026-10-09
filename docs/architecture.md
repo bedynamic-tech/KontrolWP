@@ -357,8 +357,11 @@ minute, longer than a request may keep working after it answers, so Run test
 claims the site (`running_since`, cleared after five minutes if lost) and sends
 a `performance` message to the queue; the tab polls until it finishes. The
 15-minute cron tests one site not tested in the last week, only when an API key
-is saved in Settings, Integrations (stored encrypted like the Wordfence key):
-without one Google's shared quota refuses most tests. A failed test keeps the
+is saved in Settings, Integrations (stored encrypted like the Wordfence key) or
+Google is connected there: without either, Google's shared quota refuses most
+tests. A saved key wins; otherwise the test carries the connected account's
+access token (the `openid` scope every sign-in has), so the quota is the OAuth
+client's Google Cloud project, which needs the PageSpeed Insights API turned on. A failed test keeps the
 previous result and shows why.
 
 ## Accessibility
