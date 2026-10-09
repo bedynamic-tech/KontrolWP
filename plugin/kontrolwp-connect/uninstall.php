@@ -18,3 +18,6 @@ delete_option( 'kontrolwp_connect_login_url' );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
 KontrolWP_Connect_Login::delete_all();
+
+require_once __DIR__ . '/includes/class-kontrolwp-connect-login-logo.php';
+KontrolWP_Connect_Login_Logo::delete_all();

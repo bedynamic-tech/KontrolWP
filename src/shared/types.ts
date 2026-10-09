@@ -1266,6 +1266,31 @@ export interface LoginUrlSettings {
   redirect: LoginUrlRedirect;
 }
 
+export const LOGIN_LOGO_SIZES = ["small", "medium", "large"] as const;
+export type LoginLogoSize = (typeof LOGIN_LOGO_SIZES)[number];
+
+/** The logo above a WordPress site's login form (KontrolWP Connect 0.32.0+). */
+export interface LoginLogo {
+  enabled: boolean;
+  size: LoginLogoSize;
+  /** The uploaded image in the site's media library, or "" when there is none. */
+  logo_url: string;
+  width: number;
+  height: number;
+  /** The size it is drawn at on the login page. */
+  drawn: { width: number; height: number } | null;
+  /** In force right now: on, with an image. */
+  active: boolean;
+}
+
+/** A change to the login logo. `image` is a new PNG, JPEG, GIF or WebP as base64; `remove` deletes the uploaded one. */
+export interface LoginLogoSave {
+  enabled: boolean;
+  size: LoginLogoSize;
+  image?: string;
+  remove?: boolean;
+}
+
 export const PERFORMANCE_STRATEGIES = ["mobile", "desktop"] as const;
 export type PerformanceStrategy = (typeof PERFORMANCE_STRATEGIES)[number];
 

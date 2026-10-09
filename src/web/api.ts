@@ -27,6 +27,8 @@ import type {
   Snippets,
   SnippetsSettings,
   UpdateEmails,
+  LoginLogo,
+  LoginLogoSave,
   LoginUrl,
   LoginUrlSettings,
   SeoToolsSettings,
@@ -463,6 +465,10 @@ export const saveUpdateEmails = (siteId: number, disabled: boolean) =>
 export const fetchLoginUrl = (siteId: number) => request<LoginUrl>(`/sites/${siteId}/login-url`);
 export const saveLoginUrl = (siteId: number, settings: LoginUrlSettings) =>
   request<LoginUrl>(`/sites/${siteId}/login-url`, { method: "PUT", json: settings });
+
+export const fetchLoginLogo = (siteId: number) => request<LoginLogo>(`/sites/${siteId}/login-logo`);
+export const saveLoginLogo = (siteId: number, settings: LoginLogoSave) =>
+  request<LoginLogo>(`/sites/${siteId}/login-logo`, { method: "PUT", json: settings });
 export const fetchSnippets = (siteId: number) => request<Snippets>(`/sites/${siteId}/snippets`);
 export const saveSnippets = (siteId: number, settings: SnippetsSettings) =>
   request<Snippets>(`/sites/${siteId}/snippets`, { method: "PUT", json: settings });
