@@ -102,11 +102,34 @@ export function accessSetupError(error: unknown): ApiError | null {
   return error instanceof ApiError && error.code && ACCESS_SETUP_CODES.includes(error.code) ? error : null;
 }
 
+const SIGN_IN_RELOAD_KEY = "kontrolwp:sign-in-reload";
+
+/**
+ * Sends the browser back through Cloudflare Access by reloading the page, at
+ * most once a minute so a sign-in that keeps failing cannot loop.
+ */
+function signInAgain(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(SIGN_IN_RELOAD_KEY) ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem(SIGN_IN_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // Without storage there is no loop guard, so leave reloading to the user.
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
+
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
   let res: Response;
   try {
     res = await fetch(`/api${path}`, {
+      // The API never redirects. A redirect is Cloudflare Access sending an
+      // expired sign-in to its login page on another origin, which a followed
+      // fetch reports as a dropped connection.
+      redirect: "manual",
       ...rest,
       ...(json === undefined ? {} : { body: JSON.stringify(json), headers: { "Content-Type": "application/json" } }),
     });
@@ -114,6 +137,14 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     // The browser's own text for a dropped connection ("Failed to fetch", "Load failed") says nothing useful.
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new ApiError("KontrolWP could not be reached. Check your connection and try again.", 0);
+  }
+  if (res.type === "opaqueredirect") {
+    const reloading = signInAgain();
+    throw new ApiError(
+      reloading ? "Your sign-in has expired. Signing you in again." : "Your sign-in has expired. Reload the page to sign in again.",
+      401,
+      "signed_out",
+    );
   }
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
