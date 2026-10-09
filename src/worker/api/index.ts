@@ -1134,9 +1134,58 @@ const seoLocationBody = z.object({
   latitude: seoText(30),
   longitude: seoText(30),
   price_range: seoText(200),
-  hours: z.record(z.string(), z.object({ open: seoText(5), close: seoText(5) })),
+  // An empty PHP array arrives as [] rather than {}.
+  hours: z.preprocess(
+    (value) => (Array.isArray(value) && value.length === 0 ? {} : value),
+    z.record(z.string(), z.object({ open: seoText(5), close: seoText(5) })),
+  ),
   same_as: z.array(seoText(2000)).max(20),
 });
+const SEO_FIELD_NAMES: Record<string, string> = {
+  separator: "Title separator",
+  title_template: "Page title template",
+  home_title: "Home page title",
+  home_description: "Home page description",
+  og_image: "Default social image",
+  twitter_card: "Twitter card style",
+  twitter_site: "Twitter or X handle",
+  hidden_taxonomies: "Hidden taxonomies",
+  hidden_types: "Hidden content types",
+  author_archives: "Author archives",
+  type_templates: "Content type templates",
+  seo_title: "SEO title",
+  description: "Description",
+  image: "Social image",
+  keyword: "Focus keyword",
+  page_id: "page",
+  price_range: "price range",
+  same_as: "profile links",
+  hours: "opening hours",
+};
+
+/** Which SEO field failed and why, so the dashboard can say more than "Invalid SEO settings". */
+function seoInvalid(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Invalid SEO settings.";
+  const path = issue.path.map(String);
+  let field: string;
+  if (path[0] === "local" && path[1] === "locations" && path.length >= 3) {
+    const key = path[3];
+    field = `Location ${Number(path[2]) + 1}${key ? ` ${SEO_FIELD_NAMES[key] ?? key.replace(/_/g, " ")}` : ""}`;
+  } else if (path[0] === "type_templates" && path[1]) {
+    field = `The ${path[2] ?? "template"} template for ${path[1]}`;
+  } else {
+    field = SEO_FIELD_NAMES[path[0] ?? ""] ?? (path[0] ? path[0].replace(/_/g, " ") : "The request");
+  }
+  let reason: string;
+  if (issue.code === "too_big" && issue.origin === "string") reason = `is longer than ${issue.maximum} characters`;
+  else if (issue.code === "too_big" && issue.origin === "array") reason = `has more than ${issue.maximum} entries`;
+  else if (issue.code === "invalid_value") reason = "has a value that is not one of the choices";
+  else if (issue.code === "invalid_type") reason = `is missing or not a ${issue.expected}`;
+  else reason = "is not valid";
+  return `Invalid SEO settings: ${field} ${reason}.`;
+}
+
 const seoLocalBody = z.object({ enabled: z.boolean(), locations: z.array(seoLocationBody).max(MAX_SEO_LOCATIONS) });
 const seoSettingsBody = z.object({
   local: seoLocalBody,
@@ -1168,7 +1217,7 @@ api.put("/sites/:id/seo", async (c) => {
   const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
   if (!site) return c.json({ error: "Site not found" }, 404);
   const parsed = seoSettingsBody.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  if (!parsed.success) return c.json({ error: seoInvalid(parsed.error) }, 400);
   return seoResponse(c, async () => c.json<SiteSeo>(await saveSeoSettings(c.env, site, credentials, parsed.data)));
 });
 
@@ -1197,7 +1246,7 @@ api.put("/sites/:id/seo/pages/:pageId", async (c) => {
   const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
   if (!site || !Number.isInteger(pageId) || pageId < 1) return c.json({ error: "Site not found" }, 404);
   const parsed = seoPageBody.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  if (!parsed.success) return c.json({ error: seoInvalid(parsed.error) }, 400);
   return seoResponse(c, async () => {
     await saveSeoPage(c.env, site, credentials, pageId, parsed.data);
     return c.json({ ok: true });
@@ -1217,7 +1266,7 @@ api.post("/sites/:id/seo/pages/:pageId/score", async (c) => {
   const [site, credentials] = id ? await Promise.all([getSite(c.env.DB, id), getCredentials(c.env, id)]) : [null, null];
   if (!site || !Number.isInteger(pageId) || pageId < 1) return c.json({ error: "Site not found" }, 404);
   const parsed = seoScoreBody.safeParse((await c.req.json().catch(() => null)) ?? {});
-  if (!parsed.success) return c.json({ error: "Invalid SEO settings" }, 400);
+  if (!parsed.success) return c.json({ error: seoInvalid(parsed.error) }, 400);
   return seoResponse(c, async () => c.json<SeoScore>(await scoreSeoPage(site, credentials, pageId, parsed.data)));
 });
 

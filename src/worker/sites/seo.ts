@@ -28,7 +28,15 @@ export function normalizeSeo(report: SiteSeo): SiteSeo {
     ...report,
     settings: {
       ...report.settings,
-      local: { enabled: !!local.enabled, locations: locations.map((item) => ({ ...emptyLocation(), ...item })) },
+      local: {
+        enabled: !!local.enabled,
+        // PHP sends a location with no opening hours as [] rather than {}, which the save would refuse.
+        locations: locations.map((item) => ({
+          ...emptyLocation(),
+          ...item,
+          hours: item.hours && !Array.isArray(item.hours) ? item.hours : {},
+        })),
+      },
       // A site on an older plugin reports none of these; they then change nothing.
       noindex_attachment: !!report.settings?.noindex_attachment,
       noindex_author_single: !!report.settings?.noindex_author_single,

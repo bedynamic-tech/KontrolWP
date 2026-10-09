@@ -183,3 +183,15 @@ test("the page checklist is sent the unsaved values and needs a plugin that has 
     },
   );
 });
+
+test("a location with no opening hours comes back as an object, so it can be saved again", async () => {
+  const env = setup();
+  const location = { id: "loc1", name: "Shop", hours: [] };
+  await withSite(
+    () => ({ settings: { ...settings, local: { enabled: true, locations: [location] } }, conflict: "", site_name: "A" }),
+    async () => {
+      const seo = await siteSeo(env, site(), credentials);
+      assert.deepEqual(seo.settings.local.locations[0].hours, {});
+    },
+  );
+});
