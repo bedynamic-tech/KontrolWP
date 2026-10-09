@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   AccessibilityIcon,
+  GaugeIcon,
   Link2Icon,
   SearchIcon,
   ShieldCheckIcon,
@@ -8,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { scoreBand, type ScoreBand } from "../../shared/accessibility";
+import { performanceBand, type PerformanceBand } from "../../shared/performance";
 import {
   compareVersions,
   LINK_CHECK_SINCE,
@@ -17,6 +19,7 @@ import type { SiteSummary } from "../../shared/types";
 import {
   fetchAccessibility,
   fetchLinks,
+  fetchPerformance,
   fetchSecurity,
   fetchSeo,
   fetchSeoAudit,
@@ -309,6 +312,57 @@ function AccessibilityCard(props: {
   );
 }
 
+const PERFORMANCE_TONE: Record<PerformanceBand, Tone> = {
+  good: "good",
+  fair: "warn",
+  poor: "bad",
+};
+
+function PerformanceCard(props: {
+  site: SiteSummary;
+  onOpen: (tab: string) => void;
+}) {
+  const { site } = props;
+  const performance = useQuery({
+    queryKey: ["site", site.id, "performance"],
+    queryFn: () => fetchPerformance(site.id),
+    staleTime: 30_000,
+    refetchInterval: false,
+  });
+  let summary: Summary | null = null;
+  if (performance.error)
+    summary = { value: "Unavailable", detail: "Open the tab for details" };
+  else if (performance.data) {
+    const { mobile, desktop } = performance.data;
+    const score = mobile.result?.scores.performance ?? null;
+    const desktopScore = desktop.result?.scores.performance ?? null;
+    const tested = mobile.result ?? desktop.result;
+    summary =
+      tested && (score !== null || desktopScore !== null)
+        ? {
+            value:
+              score !== null
+                ? `${score} on mobile`
+                : `${desktopScore} on desktop`,
+            detail: `${score !== null && desktopScore !== null ? `${desktopScore} on desktop, ` : ""}${timeAgo(tested.scanned_at)}`,
+            tone: PERFORMANCE_TONE[performanceBand(score ?? desktopScore!)],
+          }
+        : {
+            value: "Not tested yet",
+            detail: mobile.error ?? "Open the tab to run a test",
+          };
+  }
+  return (
+    <HealthCard
+      icon={<GaugeIcon />}
+      title="Performance"
+      tab="performance"
+      summary={summary}
+      onOpen={props.onOpen}
+    />
+  );
+}
+
 /** A basic summary of each health area the site has switched on, each opening its tab. */
 export function HealthOverview(props: {
   site: SiteSummary;
@@ -323,6 +377,7 @@ export function HealthOverview(props: {
       compareVersions(site.plugin_version, LINK_CHECK_SINCE) >= 0);
   const security = wordpress && !site.security_excluded;
   const accessibility = !site.accessibility_excluded;
+  const performance = !site.performance_excluded;
   return (
     <section className="mt-8">
       <h2 className="mb-3 text-sm font-medium">Health</h2>
@@ -331,6 +386,7 @@ export function HealthOverview(props: {
         {security && <SecurityCard site={site} onOpen={onOpen} />}
         <SeoCard site={site} onOpen={onOpen} />
         {accessibility && <AccessibilityCard site={site} onOpen={onOpen} />}
+        {performance && <PerformanceCard site={site} onOpen={onOpen} />}
       </div>
     </section>
   );

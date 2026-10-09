@@ -150,7 +150,7 @@ import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
-import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance, testSite } from "../sites/performance.ts";
+import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance } from "../sites/performance.ts";
 import {
   cleanExcluded,
   globalPolicyView,
@@ -1011,12 +1011,12 @@ api.get("/sites/:id/performance", async (c) => {
   return c.json<SitePerformance>(await sitePerformance(c.env, site));
 });
 
-/** Start a test now. It takes a minute or so, so it runs in the background and the page checks back. */
+/** Start a test now. It takes a minute or so, so it runs from the queue and the page checks back. */
 api.post("/sites/:id/performance/run", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
-  if (await claimTest(c.env, id)) c.executionCtx.waitUntil(testSite(c.env, site));
+  if (await claimTest(c.env, id)) await c.env.SYNC_QUEUE.send({ type: "performance", siteId: id });
   return c.json<SitePerformance>(await sitePerformance(c.env, site));
 });
 

@@ -1307,6 +1307,8 @@ export interface PerformanceResult {
   scores: PerformanceScores;
   lab: PerformanceLabMetric[];
   field: PerformanceFieldMetric[];
+  /** Whether the real visits are the page's own or, when it has too few, the whole site's. */
+  field_scope?: "page" | "origin" | null;
   opportunities: PerformanceOpportunity[];
 }
 

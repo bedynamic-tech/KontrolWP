@@ -92,6 +92,15 @@ function ScoreTile(props: { label: string; score: number | null }) {
   );
 }
 
+/** Google's assessment: LCP, INP and CLS all good. INP is left out when Google has too little data for it. */
+function corePassed(field: PerformanceFieldMetric[]): boolean | null {
+  const lcp = field.find((metric) => metric.id === "lcp");
+  const cls = field.find((metric) => metric.id === "cls");
+  const inp = field.find((metric) => metric.id === "inp");
+  if (!lcp || !cls) return null;
+  return lcp.category === "good" && cls.category === "good" && (!inp || inp.category === "good");
+}
+
 /** One small line chart of the performance score over time. */
 function Trend(props: { points: { scanned_at: number; performance: number | null }[] }) {
   const points = props.points.filter((point): point is { scanned_at: number; performance: number } => point.performance !== null);
@@ -227,16 +236,31 @@ export function PerformanceTab(props: { site: SiteSummary }) {
         <>
           <Section
             title="Real visitors (Core Web Vitals)"
-            hint="Measured by Chrome on real visits to the page over the last 28 days, when Google has enough of them. The lab numbers below come from one simulated visit, so the two can differ."
+            hint="Measured by Chrome on real visits to the page over the last 28 days, when Google has enough of them. When the page alone has too few, Google reports the whole site. The lab numbers below come from one simulated visit, so the two can differ."
           >
+            {result.field.length > 0 && (
+              <p className="border-b px-4 py-2.5 text-sm">
+                {(() => {
+                  const passed = corePassed(result.field);
+                  return passed === null ? null : (
+                    <span className={cn("font-medium", BAND_TEXT[passed ? "good" : "poor"])}>
+                      {passed ? "Passes" : "Fails"} the Core Web Vitals assessment
+                    </span>
+                  );
+                })()}
+                {result.field_scope === "origin" && (
+                  <span className="text-muted-foreground"> (whole site; too few visits to this page alone)</span>
+                )}
+              </p>
+            )}
             {result.field.length ? (
               <ul className="divide-y">
                 {result.field.map((metric) => (
                   <li key={metric.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                     <span className="font-medium">{FIELD_LABELS[metric.id]}</span>
-                    <span className="flex items-center gap-3 tabular-nums">
-                      {formatMetric(metric.id, metric.value)}
-                      <span className={cn("w-36 text-right text-xs", BAND_TEXT[FIELD_BAND[metric.category]])}>
+                    <span className="flex shrink-0 items-center gap-3 tabular-nums">
+                      <span className="whitespace-nowrap">{formatMetric(metric.id, metric.value)}</span>
+                      <span className={cn("w-24 text-right text-xs sm:w-36", BAND_TEXT[FIELD_BAND[metric.category]])}>
                         {FIELD_WORDS[metric.category]}
                       </span>
                     </span>
@@ -289,8 +313,43 @@ export function PerformanceTab(props: { site: SiteSummary }) {
           </Section>
 
           {state.history.length > 1 && (
-            <Section title="Performance history">
+            <Section title="History">
               <Trend points={state.history} />
+              <div className="overflow-x-auto border-t">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="px-4 py-2 text-left font-normal">Tested</th>
+                      {SCORE_LABELS.map(([id, label]) => (
+                        <th key={id} className="px-4 py-2 text-right font-normal">
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y tabular-nums">
+                    {[...state.history]
+                      .reverse()
+                      .slice(0, 10)
+                      .map((point) => (
+                        <tr key={point.scanned_at}>
+                          <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">{timeAgo(point.scanned_at)}</td>
+                          {SCORE_LABELS.map(([id]) => {
+                            const score = point[id];
+                            return (
+                              <td
+                                key={id}
+                                className={cn("px-4 py-2 text-right", score !== null && BAND_TEXT[performanceBand(score)])}
+                              >
+                                {score ?? "-"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </Section>
           )}
         </>

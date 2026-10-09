@@ -10,7 +10,8 @@ import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
-import { runScheduledPerformance } from "./sites/performance.ts";
+import { runScheduledPerformance, testSite } from "./sites/performance.ts";
+import { getSite } from "./sites/store.ts";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", requireWebAccess);
@@ -49,6 +50,10 @@ export default {
             if (await checkLinks(env, siteId, body.scanId)) {
               await env.SYNC_QUEUE.send({ type: "links-check", siteId, scanId: body.scanId });
             }
+          } else if (body.type === "performance") {
+            // A test can take a minute, longer than a request may keep working after it answers.
+            const site = await getSite(env.DB, siteId);
+            if (site) await testSite(env, site);
           } else if (body.type === "update") {
             const step = await runNextUpdate(env, siteId);
             if (step.next === "continue") await env.SYNC_QUEUE.send({ type: "update", siteId });

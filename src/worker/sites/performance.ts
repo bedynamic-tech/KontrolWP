@@ -17,8 +17,8 @@ import { decryptSetting, encryptSetting } from "./secrets.ts";
  * a phone and as a desktop, and reports the category scores, the lab
  * measurements, the Chrome user experience data (real visits) when Google has
  * enough of it, and what would save the most time. The tests are slow (about
- * half a minute each), so a test started from the dashboard runs in the
- * background while the page waits for it.
+ * half a minute each), so a test started from the dashboard runs from the
+ * queue while the page checks back for it.
  */
 
 const ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
@@ -30,6 +30,15 @@ const RUNNING_LIMIT = 300;
 /** One site per cron run, so tests never pile up. */
 const TESTS_PER_RUN = 1;
 const MAX_OPPORTUNITIES = 6;
+
+/**
+ * Only the parts the dashboard shows, so an answer is a few kilobytes instead
+ * of a megabyte of screenshots and page details.
+ */
+export const FIELDS =
+  "id,loadingExperience,originLoadingExperience," +
+  "lighthouseResult(finalDisplayedUrl,runtimeError,categories," +
+  "audits/*(title,score,scoreDisplayMode,displayValue,numericValue,metricSavings,details/type,details/overallSavingsMs))";
 
 export class PerformanceError extends Error {}
 
@@ -105,7 +114,11 @@ export function parsePagespeed(response: unknown, now: number): PerformanceResul
     if (value !== null) lab.push({ id, value, display: typeof found.displayValue === "string" ? found.displayValue : "" });
   }
 
-  const metrics = asObject(asObject(body.loadingExperience).metrics);
+  // Google falls back to the whole site's visits when the page alone has too few.
+  const page = asObject(body.loadingExperience);
+  const pageMetrics = asObject(page.metrics);
+  const usePage = Object.keys(pageMetrics).length > 0 && page.origin_fallback !== true;
+  const metrics = usePage ? pageMetrics : asObject(asObject(body.originLoadingExperience).metrics);
   const field: PerformanceFieldMetric[] = [];
   for (const [id, key] of FIELD_METRICS) {
     const found = asObject(metrics[key]);
@@ -115,21 +128,37 @@ export function parsePagespeed(response: unknown, now: number): PerformanceResul
     if (percentile !== null && category) field.push({ id, value: id === "cls" ? percentile / 100 : percentile, category });
   }
 
+  // Older Lighthouse versions report savings on "opportunity" audits; newer ones on insights, as metric savings.
   const opportunities: PerformanceOpportunity[] = [];
+  const titles = new Set<string>();
   for (const [id, raw] of Object.entries(audits)) {
     const audit = asObject(raw);
     const details = asObject(audit.details);
-    const savings = asNumber(details.overallSavingsMs);
-    if (details.type === "opportunity" && savings !== null && savings > 0 && typeof audit.title === "string") {
-      opportunities.push({
-        id,
-        title: audit.title,
-        savings_ms: Math.round(savings),
-        display: typeof audit.displayValue === "string" ? audit.displayValue : "",
-      });
-    }
+    const metricSavings = asObject(audit.metricSavings);
+    const score = asNumber(audit.score);
+    const savings =
+      details.type === "opportunity"
+        ? asNumber(details.overallSavingsMs)
+        : score !== null && score < 0.9
+          ? (asNumber(metricSavings.LCP) ?? asNumber(metricSavings.FCP))
+          : null;
+    if (savings === null || savings <= 0 || typeof audit.title !== "string" || titles.has(audit.title)) continue;
+    titles.add(audit.title);
+    opportunities.push({
+      id,
+      title: audit.title,
+      savings_ms: Math.round(savings),
+      display: typeof audit.displayValue === "string" ? audit.displayValue : "",
+    });
   }
   opportunities.sort((a, b) => b.savings_ms - a.savings_ms);
+
+  const runtime = asObject(lighthouse.runtimeError);
+  if (typeof runtime.code === "string" && runtime.code !== "NO_ERROR" && scores.performance === null) {
+    throw new PerformanceError(
+      `Google could not test the page: ${typeof runtime.message === "string" && runtime.message ? runtime.message : runtime.code}`,
+    );
+  }
 
   return {
     scanned_at: now,
@@ -137,6 +166,7 @@ export function parsePagespeed(response: unknown, now: number): PerformanceResul
     scores,
     lab,
     field,
+    field_scope: field.length ? (usePage ? "page" : "origin") : null,
     opportunities: opportunities.slice(0, MAX_OPPORTUNITIES),
   };
 }
@@ -148,11 +178,32 @@ export function pagespeedFailure(status: number, response: unknown): string {
   if (status === 429) {
     return "Google's PageSpeed Insights refused the test because too many were asked for. Save a free API key in Settings, Integrations, or try again later.";
   }
+  if (/api key not valid/i.test(message)) return "Google did not accept the PageSpeed API key. Check the key in Settings, Integrations.";
   if (/api key|API_KEY|has not been used|is disabled|not enabled/i.test(message) || status === 403) {
     return "Google did not accept the PageSpeed API key. Check the key in Settings, and that the PageSpeed Insights API is turned on for its Google Cloud project.";
   }
   const reason = message.replace(/^Lighthouse returned error: ?/i, "").trim();
   return `Google could not test the page${reason ? `: ${reason}` : ` (HTTP ${status})`}`;
+}
+
+/** Whether Google still has what the dashboard reads after trimming the answer to FIELDS. */
+function complete(response: unknown): boolean {
+  const lighthouse = asObject(asObject(response).lighthouseResult);
+  const code = asObject(lighthouse.runtimeError).code;
+  if (typeof code === "string" && code !== "NO_ERROR") return true;
+  const audits = asObject(lighthouse.audits);
+  return (
+    asNumber(asObject(audits["largest-contentful-paint"]).numericValue) !== null &&
+    asNumber(asObject(asObject(lighthouse.categories).performance).score) !== null
+  );
+}
+
+/** Whether Google accepts FIELDS; learned once per Worker instance, so a change on Google's side costs one extra test. */
+let trimAnswers = true;
+
+/** For tests: assume FIELDS works again. */
+export function resetFieldsCheck() {
+  trimAnswers = true;
 }
 
 /** Ask Google to test a page. */
@@ -163,21 +214,35 @@ export async function fetchPagespeed(
   now: number,
   fetcher: typeof fetch = fetch,
 ): Promise<PerformanceResult> {
-  const query = new URLSearchParams({ url, strategy });
-  for (const category of ["PERFORMANCE", "ACCESSIBILITY", "BEST_PRACTICES", "SEO"]) query.append("category", category);
-  if (key) query.set("key", key);
-  let response: Response;
-  try {
-    response = await fetcher(`${ENDPOINT}?${query}`, { signal: AbortSignal.timeout(120_000) });
-  } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
-      throw new PerformanceError("The test took too long. Try again in a few minutes.");
+  const ask = async (trim: boolean) => {
+    const query = new URLSearchParams({ url, strategy: strategy.toUpperCase() });
+    for (const category of ["PERFORMANCE", "ACCESSIBILITY", "BEST_PRACTICES", "SEO"]) query.append("category", category);
+    if (key) query.set("key", key);
+    if (trim) query.set("fields", FIELDS);
+    let response: Response;
+    try {
+      response = await fetcher(`${ENDPOINT}?${query}`, { signal: AbortSignal.timeout(120_000) });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new PerformanceError("The test took too long. Try again in a few minutes.");
+      }
+      throw new PerformanceError("Google's PageSpeed Insights could not be reached.");
     }
-    throw new PerformanceError("Google's PageSpeed Insights could not be reached.");
+    const body: unknown = await response.json().catch(() => null);
+    return { ok: response.ok, status: response.status, body };
+  };
+
+  let answer = await ask(trimAnswers);
+  if (trimAnswers) {
+    const message = String(asObject(asObject(answer.body).error).message ?? "");
+    const rejected = answer.status === 400 && /field/i.test(message);
+    if (rejected || (answer.ok && !complete(answer.body))) {
+      trimAnswers = false;
+      answer = await ask(false);
+    }
   }
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) throw new PerformanceError(pagespeedFailure(response.status, body));
-  return parsePagespeed(body, now);
+  if (!answer.ok) throw new PerformanceError(pagespeedFailure(answer.status, answer.body));
+  return parsePagespeed(answer.body, now);
 }
 
 /* ---- Storing and reading tests ---- */
