@@ -53,7 +53,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -1283,6 +1283,7 @@ api.put("/sites/:id/login-logo", async (c) => {
     .object({
       enabled: z.boolean(),
       size: z.enum(LOGIN_LOGO_SIZES),
+      source: z.enum(LOGIN_LOGO_SOURCES).optional(),
       image: z.string().max(MAX_LOGIN_LOGO_BASE64).regex(/^[A-Za-z0-9+/]*={0,2}$/).optional(),
       remove: z.boolean().optional(),
     })
