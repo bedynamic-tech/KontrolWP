@@ -23,7 +23,7 @@ import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
-import { useSitePluginSchedule } from "./UpdatePolicy";
+import { SiteScheduleFields, SiteScheduleSelect, useSitePluginSchedule } from "./UpdatePolicy";
 
 function supported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, PLUGIN_MANAGEMENT_SINCE) >= 0;
@@ -203,6 +203,8 @@ function SitePluginList(props: {
         onRun={(next) => action.mutate(next)}
         pending={action.isPending ? action.variables : null}
         progress={action.isPending ? progress : null}
+        start={props.showSchedule && <SiteScheduleSelect siteId={siteId} />}
+        below={props.showSchedule && <SiteScheduleFields siteId={siteId} />}
         deleteTitle={selected.length === 1 ? `Delete ${selected[0].name}?` : `Delete ${selected.length} plugins?`}
         error={
           action.error?.message ??
@@ -226,7 +228,7 @@ function SitePluginList(props: {
                     on: schedule.pending?.file === plugin.file ? schedule.pending.on : schedule.included(plugin.file),
                     disabled: !schedule.active || schedule.lockedOut(plugin.file) || schedule.pending !== null,
                     reason: !schedule.active
-                      ? "This site has no schedule that updates plugins. Choose one under Scheduled updates below."
+                      ? "This site has no schedule that updates plugins. Choose one in the bar above the list."
                       : schedule.lockedOut(plugin.file)
                         ? "Left out of scheduled updates on every site, in Settings."
                         : null,

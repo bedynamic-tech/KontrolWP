@@ -1,5 +1,5 @@
 import { ChevronDownIcon, Loader2Icon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,6 +78,10 @@ export function PluginBulkBar(props: {
   /** Deleting needs confirming; this names what goes. */
   deleteTitle: string;
   error?: string | null;
+  /** Shown first in the bar, before the selection. */
+  start?: ReactNode;
+  /** A second row inside the bar. */
+  below?: ReactNode;
 }) {
   const { counts, pending, progress } = props;
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -110,6 +114,7 @@ export function PluginBulkBar(props: {
     <div className="border-b bg-muted/40 px-4 py-2">
       <div className="flex min-h-8 items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          {props.start}
           <span className="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
             {busy ? (
               <>
@@ -180,6 +185,7 @@ export function PluginBulkBar(props: {
           />
         )}
       </div>
+      {props.below}
       {busy && progress && progress.total > 1 && (
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-border"
