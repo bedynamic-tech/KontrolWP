@@ -29,31 +29,6 @@ Everything runs in your own Cloudflare account, behind Cloudflare Access.
   Trash.
 - **Background sync.** Every site is re-checked every hour by default; Settings can make it every 15 minutes up to every 6 hours.
 
-## Get started
-
-1. **Deploy.** Click **Deploy to Cloudflare** above. The database, queue and
-   migrations are set up for you.
-2. **Secure.** The setup screen walks you through turning on Cloudflare Access.
-3. **Connect.** Install KontrolWP Connect on the site, then select **Add site**
-   and enter the site's address and the Connection Key from Settings,
-   KontrolWP Connect.
-
-Prefer to set things up by hand? Follow the
-[manual deployment guide](docs/deployment.md#manual-deployment).
-
-## Develop
-
-```sh
-npm install
-npm run db:migrate:local
-npm run dev        # http://localhost:5173, no Access locally
-npm run check      # typecheck
-npm test           # unit tests, plus PHP interop tests when php is installed
-```
-
-See [docs/architecture.md](docs/architecture.md) for how the pieces fit and
-how the plugin authenticates the dashboard.
-
 ## Built on
 
 Cloudflare Workers, D1, Queues, Cron Triggers and Access. The deployment
