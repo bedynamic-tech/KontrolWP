@@ -7,6 +7,7 @@ import type {
   GlobalUpdatePolicy,
   SiteSummary,
   SiteUpdatePolicy,
+  SiteUpdatePolicyView,
   UpdateFrequency,
   UpdateRun,
   UpdateSchedule,
@@ -333,7 +334,7 @@ export function UpdatePolicySettingsSection() {
   );
 }
 
-/** A site's Plugins tab: follow the global schedule, use the site's own, or none, and leave plugins out here. */
+/** A site's Plugins tab: follow the global schedule, use the site's own, or none. Each plugin row has its own switch. */
 export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
@@ -343,7 +344,6 @@ export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
     mutationFn: (policy: SiteUpdatePolicy) => saveSiteUpdatePolicy(site.id, policy),
     onSuccess: (data) => queryClient.setQueryData(key, data),
   });
-  const { choices } = usePluginChoices(site.id);
   const data = view.data;
   const current: SiteUpdatePolicy | undefined = save.isPending ? save.variables : data?.policy;
   const busy = view.isPending || save.isPending;
@@ -378,21 +378,6 @@ export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
             {data && data.effective !== "off" && (
               <p className="text-xs text-muted-foreground">{nextRun(data.next_run_at, data.time_zone)}</p>
             )}
-            {current.mode !== "off" && (
-              <div>
-                <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
-                  Plugins to update
-                  <HelpTip>Uncheck a plugin to leave it out of scheduled updates on this site.</HelpTip>
-                </p>
-                <PluginPicker
-                  plugins={choices}
-                  excluded={current.excluded_plugins}
-                  locked={data?.global.excluded_plugins}
-                  disabled={busy}
-                  onChange={(excluded_plugins) => save.mutate({ ...current, excluded_plugins })}
-                />
-              </div>
-            )}
           </>
         )}
         {data && <RunsList runs={data.runs} showSite={false} />}
@@ -400,4 +385,35 @@ export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
       </div>
     </Section>
   );
+}
+
+/**
+ * Which of a site's plugins its scheduled updates cover, for the switch on
+ * each plugin row. A plugin is in unless this site or the global policy
+ * leaves it out.
+ */
+export function useSitePluginSchedule(siteId: number) {
+  const queryClient = useQueryClient();
+  const key = ["site", siteId, "update-policy"];
+  const view = useQuery({ queryKey: key, queryFn: () => fetchSiteUpdatePolicy(siteId), refetchInterval: false });
+  const save = useMutation({
+    mutationFn: (args: { file: string; on: boolean }) => {
+      // The latest saved policy, so a change made in the section above is kept.
+      const policy = queryClient.getQueryData<SiteUpdatePolicyView>(key)!.policy;
+      const rest = policy.excluded_plugins.filter((file) => file !== args.file);
+      return saveSiteUpdatePolicy(siteId, { ...policy, excluded_plugins: args.on ? rest : [...rest, args.file] });
+    },
+    onSuccess: (data) => queryClient.setQueryData(key, data),
+  });
+  const data = view.data;
+  const schedule = data?.effective === "custom" ? data.policy.schedule : data?.global;
+  return {
+    /** The site has a schedule that updates plugins. */
+    active: !!data && data.effective !== "off" && !!schedule?.plugins,
+    lockedOut: (file: string) => !!data?.global.excluded_plugins.includes(file),
+    included: (file: string) =>
+      !!data && !data.global.excluded_plugins.includes(file) && !data.policy.excluded_plugins.includes(file),
+    set: save.mutateAsync,
+    pending: save.isPending ? save.variables : null,
+  };
 }

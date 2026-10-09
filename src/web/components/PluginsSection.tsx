@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
+import { useSitePluginSchedule } from "./UpdatePolicy";
 
 function supported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, PLUGIN_MANAGEMENT_SINCE) >= 0;
@@ -61,6 +63,7 @@ export function PluginsSection(props: { site: SiteSummary; updates: SiteUpdate[]
         canModify={canModify}
         autoUpdates={plugins.data.auto_updates}
         updates={props.updates}
+        showSchedule={!site.updates_excluded}
       />
     );
   }
@@ -99,9 +102,13 @@ function SitePluginList(props: {
   /** Undefined before KontrolWP Connect 0.7.0; false when the site turns plugin auto-updates off in code. */
   autoUpdates: boolean | undefined;
   updates: SiteUpdate[];
+  /** Update checks are on, so each plugin gets a scheduled updates switch. */
+  showSchedule: boolean;
 }) {
   const { siteId } = props;
   const queryClient = useQueryClient();
+  const schedule = useSitePluginSchedule(siteId);
+  const [scheduleErrors, setScheduleErrors] = useState<Map<string, string>>(new Map());
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [progress, setProgress] = useState<BulkProgress | null>(null);
@@ -161,6 +168,22 @@ function SitePluginList(props: {
     },
   });
 
+  // Scheduled updates replace WordPress's own auto-updates, so turning one on turns the other off.
+  const setScheduled = async (plugin: InstalledPlugin, on: boolean) => {
+    const next = new Map(scheduleErrors);
+    next.delete(plugin.file);
+    setScheduleErrors(next);
+    try {
+      await schedule.set({ file: plugin.file, on });
+      if (on && autoUpdatable(plugin) && plugin.auto_update) {
+        await managePlugin(siteId, plugin.file, "disable-auto-update");
+        await queryClient.invalidateQueries({ queryKey: ["site", siteId, "plugins"] });
+      }
+    } catch (err) {
+      setScheduleErrors((errs) => new Map(errs).set(plugin.file, (err as Error).message));
+    }
+  };
+
   const toggle = (file: string) => {
     const next = new Set(checked);
     if (next.has(file)) next.delete(file);
@@ -195,8 +218,22 @@ function SitePluginList(props: {
             update={offers.get(plugin.file) ?? props.updates.find((u) => u.kind === "plugin" && u.slug === plugin.file) ?? null}
             checked={checked.has(plugin.file)}
             onToggle={() => toggle(plugin.file)}
-            error={errors.get(plugin.file) ?? null}
+            error={errors.get(plugin.file) ?? scheduleErrors.get(plugin.file) ?? null}
             working={action.isPending && working === plugin.file}
+            schedule={
+              props.showSchedule && !plugin.protected
+                ? {
+                    on: schedule.pending?.file === plugin.file ? schedule.pending.on : schedule.included(plugin.file),
+                    disabled: !schedule.active || schedule.lockedOut(plugin.file) || schedule.pending !== null,
+                    reason: !schedule.active
+                      ? "This site has no schedule that updates plugins. Choose one under Scheduled updates below."
+                      : schedule.lockedOut(plugin.file)
+                        ? "Left out of scheduled updates on every site, in Settings."
+                        : null,
+                    onChange: (on) => setScheduled(plugin, on),
+                  }
+                : null
+            }
           />
         ))}
       </ul>
@@ -213,6 +250,8 @@ function PluginRow(props: {
   error: string | null;
   /** A bulk action is changing this plugin right now. */
   working: boolean;
+  /** The scheduled updates switch; null hides it. */
+  schedule: { on: boolean; disabled: boolean; reason: string | null; onChange: (on: boolean) => void } | null;
 }) {
   const { plugin, update } = props;
   const jobActive = update?.job_status === "queued" || update?.job_status === "running";
@@ -254,6 +293,20 @@ function PluginRow(props: {
           {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}
         </div>
       </div>
+      {props.schedule && (
+        <label
+          className="mt-0.5 flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:mt-0"
+          title={props.schedule.reason ?? undefined}
+        >
+          <span className="hidden sm:inline">Scheduled updates</span>
+          <Switch
+            aria-label={`Scheduled updates for ${plugin.name}`}
+            checked={props.schedule.on}
+            disabled={props.schedule.disabled}
+            onCheckedChange={props.schedule.onChange}
+          />
+        </label>
+      )}
       {props.working ? (
         <Spinner className="mt-1 size-4 text-muted-foreground sm:mt-0" label={`Changing ${plugin.name}`} />
       ) : !plugin.protected && (
