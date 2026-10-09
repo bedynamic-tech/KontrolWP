@@ -485,44 +485,49 @@ export function SitePage() {
             <DialogDescription>{site.name}</DialogDescription>
           </DialogHeader>
           <SettingsColumns>
-            {!isStatic && !site.updates_excluded && <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />}
             {!isStatic && (
-              <label className="flex cursor-pointer items-center gap-3 py-3">
-                <div
-                  className={`min-w-0 flex-1 ${site.updates_excluded ? "opacity-60" : ""}`}
-                >
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    Enable update checks
-                    <HelpTip>
-                      {site.updates_excluded
-                        ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
-                        : "KontrolWP lists this site's WordPress, plugin and theme updates."}
-                    </HelpTip>
-                  </p>
-                  {excludeUpdates.error && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {excludeUpdates.error.message}
+              <div>
+                <label className="flex cursor-pointer items-center gap-3 py-3">
+                  <div
+                    className={`min-w-0 flex-1 ${site.updates_excluded ? "opacity-60" : ""}`}
+                  >
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      Enable update checks
+                      <HelpTip>
+                        {site.updates_excluded
+                          ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
+                          : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                      </HelpTip>
                     </p>
+                    {excludeUpdates.error && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {excludeUpdates.error.message}
+                      </p>
+                    )}
+                  </div>
+                  {excludeUpdates.isPending && (
+                    <Spinner className="size-4 text-muted-foreground" />
                   )}
-                </div>
-                {excludeUpdates.isPending && (
-                  <Spinner className="size-4 text-muted-foreground" />
-                )}
-                <Switch
-                  checked={
-                    excludeUpdates.isPending
-                      ? excludeUpdates.variables === false
-                      : !site.updates_excluded
-                  }
-                  disabled={excludeUpdates.isPending}
-                  onCheckedChange={(value) => excludeUpdates.mutate(!value)}
-                />
-              </label>
+                  <Switch
+                    checked={
+                      excludeUpdates.isPending
+                        ? excludeUpdates.variables === false
+                        : !site.updates_excluded
+                    }
+                    disabled={excludeUpdates.isPending}
+                    onCheckedChange={(value) => excludeUpdates.mutate(!value)}
+                  />
+                </label>
+                <SubSettings>
+                  {!site.updates_excluded && (
+                    <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />
+                  )}
+                  {!site.updates_excluded && <SiteUpdatePolicyRow site={site} />}
+                  {/* WordPress's own emails, so this applies with update checks off too. */}
+                  <UpdateEmailsRow site={site} />
+                </SubSettings>
+              </div>
             )}
-            {!isStatic && !site.updates_excluded && (
-              <SiteUpdatePolicyRow site={site} />
-            )}
-            {!isStatic && <UpdateEmailsRow site={site} />}
             {!isStatic && (
               <label className="flex cursor-pointer items-center gap-3 py-3">
                 <div
@@ -567,9 +572,9 @@ export function SitePage() {
                 />
                 {/* Where the analytics come from, only while they are on. */}
                 {!site.analytics_excluded && (
-                  <div className="mb-3 ml-1 divide-y border-l pl-4 empty:hidden">
+                  <SubSettings>
                     <AnalyticsSourceRows site={site} source={analyticsSource} />
-                  </div>
+                  </SubSettings>
                 )}
               </div>
             ) : (
@@ -880,6 +885,15 @@ function SettingsColumns(props: { children: ReactNode }) {
           {row}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Settings that belong to the toggle above them, indented under it. */
+function SubSettings(props: { children: ReactNode }) {
+  return (
+    <div className="mb-3 ml-1 divide-y border-l pl-4 empty:hidden">
+      {props.children}
     </div>
   );
 }
