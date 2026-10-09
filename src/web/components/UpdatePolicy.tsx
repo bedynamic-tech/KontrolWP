@@ -333,8 +333,8 @@ export function UpdatePolicySettingsSection() {
   );
 }
 
-/** Site settings: follow the global schedule, use the site's own, or none, and leave plugins out here. */
-export function SiteUpdatePolicyRow(props: { site: SiteSummary }) {
+/** A site's Plugins tab: follow the global schedule, use the site's own, or none, and leave plugins out here. */
+export function SiteUpdatePolicySection(props: { site: SiteSummary }) {
   const { site } = props;
   const queryClient = useQueryClient();
   const key = ["site", site.id, "update-policy"];
@@ -349,58 +349,55 @@ export function SiteUpdatePolicyRow(props: { site: SiteSummary }) {
   const busy = view.isPending || save.isPending;
   const globalSummary = data?.global.enabled ? describeSchedule(data.global) : "no schedule is set";
   return (
-    <div className="space-y-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            Scheduled updates
-            <HelpTip>{data ? `The global setting: ${globalSummary}.` : "Loading..."}</HelpTip>
-          </p>
-        </div>
-        {save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
-      </div>
-      {current && (
-        <>
-          <select
-            aria-label="Scheduled updates for this site"
-            className={`${SELECT_CLASS} w-full`}
-            value={current.mode}
-            disabled={busy}
-            onChange={(event) => save.mutate({ ...current, mode: event.target.value as SiteUpdatePolicy["mode"] })}
-          >
-            <option value="inherit">Follow the global setting</option>
-            <option value="custom">Use a schedule for this site</option>
-            <option value="off">No scheduled updates for this site</option>
-          </select>
-          {current.mode === "custom" && (
-            <ScheduleFields
-              value={current.schedule}
+    <Section
+      title="Scheduled updates"
+      hint={data ? `The global setting: ${globalSummary}.` : "Loading..."}
+      action={save.isPending && <Spinner className="size-4 text-muted-foreground" label="Saving" />}
+    >
+      <div className="space-y-3 p-4">
+        {current && (
+          <>
+            <select
+              aria-label="Scheduled updates for this site"
+              className={`${SELECT_CLASS} w-full sm:max-w-xs`}
+              value={current.mode}
               disabled={busy}
-              onChange={(schedule) => save.mutate({ ...current, schedule })}
-            />
-          )}
-          {data && data.effective !== "off" && (
-            <p className="text-xs text-muted-foreground">{nextRun(data.next_run_at, data.time_zone)}</p>
-          )}
-          {current.mode !== "off" && (
-            <div>
-              <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
-                Plugins to update
-                <HelpTip>Uncheck a plugin to leave it out of scheduled updates on this site.</HelpTip>
-              </p>
-              <PluginPicker
-                plugins={choices}
-                excluded={current.excluded_plugins}
-                locked={data?.global.excluded_plugins}
+              onChange={(event) => save.mutate({ ...current, mode: event.target.value as SiteUpdatePolicy["mode"] })}
+            >
+              <option value="inherit">Follow the global setting</option>
+              <option value="custom">Use a schedule for this site</option>
+              <option value="off">No scheduled updates for this site</option>
+            </select>
+            {current.mode === "custom" && (
+              <ScheduleFields
+                value={current.schedule}
                 disabled={busy}
-                onChange={(excluded_plugins) => save.mutate({ ...current, excluded_plugins })}
+                onChange={(schedule) => save.mutate({ ...current, schedule })}
               />
-            </div>
-          )}
-        </>
-      )}
-      {data && <RunsList runs={data.runs} showSite={false} />}
-      {(view.error || save.error) && <p className="text-xs text-destructive">{(view.error ?? save.error)!.message}</p>}
-    </div>
+            )}
+            {data && data.effective !== "off" && (
+              <p className="text-xs text-muted-foreground">{nextRun(data.next_run_at, data.time_zone)}</p>
+            )}
+            {current.mode !== "off" && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
+                  Plugins to update
+                  <HelpTip>Uncheck a plugin to leave it out of scheduled updates on this site.</HelpTip>
+                </p>
+                <PluginPicker
+                  plugins={choices}
+                  excluded={current.excluded_plugins}
+                  locked={data?.global.excluded_plugins}
+                  disabled={busy}
+                  onChange={(excluded_plugins) => save.mutate({ ...current, excluded_plugins })}
+                />
+              </div>
+            )}
+          </>
+        )}
+        {data && <RunsList runs={data.runs} showSite={false} />}
+        {(view.error || save.error) && <p className="text-xs text-destructive">{(view.error ?? save.error)!.message}</p>}
+      </div>
+    </Section>
   );
 }

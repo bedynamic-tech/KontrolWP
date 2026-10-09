@@ -59,6 +59,7 @@ import {
 import { AnalyticsTab } from "./AnalyticsTab";
 import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
+import { SiteUpdatePolicySection } from "./UpdatePolicy";
 import { UsersSection } from "./UsersSection";
 import { SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
@@ -67,7 +68,6 @@ import {
   KONTROLWP_CONNECT_VERSION,
   SELF_UPDATING_SINCE,
 } from "../../shared/plugin-version";
-import { SiteUpdatePolicyRow } from "./UpdatePolicy";
 import { UpdateEmailsRow } from "./UpdateEmailsRow";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { PerformanceTab } from "./PerformanceTab";
@@ -450,6 +450,7 @@ export function SitePage() {
         </TabsContent>
         <TabsContent value="plugins" className={TAB_CLASS}>
           <PluginsSection site={site} updates={updates} />
+          {!site.updates_excluded && <SiteUpdatePolicySection site={site} />}
         </TabsContent>
         <TabsContent value="users" className={TAB_CLASS}>
           <UsersSection site={site} />
@@ -523,7 +524,6 @@ export function SitePage() {
                   {!site.updates_excluded && (
                     <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />
                   )}
-                  {!site.updates_excluded && <SiteUpdatePolicyRow site={site} />}
                 </SubSettings>
               </div>
             )}
