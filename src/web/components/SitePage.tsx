@@ -68,6 +68,7 @@ import {
   SELF_UPDATING_SINCE,
 } from "../../shared/plugin-version";
 import { UpdateEmailsRow } from "./UpdateEmailsRow";
+import { MaintenanceBanner, MaintenanceTab } from "./MaintenanceTab";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { PerformanceTab } from "./PerformanceTab";
 import { SiteIcon } from "./SiteIcon";
@@ -100,6 +101,7 @@ const WORDPRESS_TABS = [
   "performance",
   "seo",
   "branding",
+  "maintenance",
   "security",
   "accessibility",
   "domain",
@@ -263,6 +265,7 @@ export function SitePage() {
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "seo", label: "SEO", ...(isStatic ? {} : { children: seoViews }) },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
+    ...(isStatic ? [] : [{ value: "maintenance", label: "Maintenance" }]),
     ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
     { value: "domain", label: "Domain" },
@@ -354,6 +357,10 @@ export function SitePage() {
       <SelfUpdateNote site={site} />
 
       <ConnectionBanner site={site} className="mt-4" />
+
+      {!isStatic && tab !== "maintenance" && (
+        <MaintenanceBanner site={site} onOpen={() => setTab("maintenance")} className="mt-4" />
+      )}
 
       <div className="mt-8 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
         <SectionNav groups={navGroups} value={tab} view={seoView} onChange={setTab} label="Site sections" />
@@ -508,6 +515,11 @@ export function SitePage() {
           {tab === "branding" && (
             <div className={TAB_CLASS}>
               {!isStatic && <BrandingTab site={site} />}
+            </div>
+          )}
+          {tab === "maintenance" && (
+            <div className={TAB_CLASS}>
+              {!isStatic && <MaintenanceTab site={site} />}
             </div>
           )}
           {tab === "security" && (

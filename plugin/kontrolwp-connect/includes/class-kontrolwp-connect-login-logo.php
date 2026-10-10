@@ -138,7 +138,7 @@ class KontrolWP_Connect_Login_Logo {
 	}
 
 	/** The uploaded logo: array( url, width, height ), with '' as the url when there is none. */
-	private static function uploaded( $settings ) {
+	public static function uploaded( $settings ) {
 		$url = $settings['attachment'] ? wp_get_attachment_url( $settings['attachment'] ) : '';
 		return array( $url ? (string) $url : '', $settings['width'], $settings['height'] );
 	}

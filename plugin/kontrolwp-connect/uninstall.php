@@ -15,6 +15,7 @@ delete_option( 'kontrolwp_connect_snippets' );
 delete_option( 'kontrolwp_connect_snippets_active' );
 delete_option( 'kontrolwp_connect_update_emails' );
 delete_option( 'kontrolwp_connect_login_url' );
+delete_option( 'kontrolwp_connect_maintenance' );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
 KontrolWP_Connect_Login::delete_all();
