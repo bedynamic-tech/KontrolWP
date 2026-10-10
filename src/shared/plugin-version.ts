@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.34.0";
+export const KONTROLWP_CONNECT_VERSION = "0.35.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -102,3 +102,6 @@ export const LOGIN_LOGO_SITE_SINCE = "0.33.0";
 
 /** Maintenance mode arrived in this version. */
 export const MAINTENANCE_SINCE = "0.34.0";
+
+/** Database cleanup (sizes, revisions, trash, spam, expired transients, optimizing tables) arrived in this version. */
+export const DATABASE_CLEANUP_SINCE = "0.35.0";

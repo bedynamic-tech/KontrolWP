@@ -2,7 +2,7 @@
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.34.0
+Stable tag: 0.35.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,7 +13,7 @@ Connects this site to your self-hosted KontrolWP dashboard.
 KontrolWP is a WordPress site manager that runs in your own Cloudflare account.
 KontrolWP Connect lets the dashboard read this site's available updates and
 pending comments, apply core, plugin and theme updates, install, activate, deactivate and delete
-plugins, turn WordPress auto-updates on or off, and moderate comments. Magic Login
+plugins, turn WordPress auto-updates on or off, moderate comments, and clean up the database (revisions, trash, spam and expired transients). Magic Login
 lets the dashboard open wp-admin as the administrator you choose in KontrolWP,
 through a link that works once, for one minute.
 

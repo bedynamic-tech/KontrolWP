@@ -1,4 +1,7 @@
 import type {
+  DatabaseCleanup,
+  DatabaseCleanupResult,
+  DatabaseReport,
   BuildLog,
   CloudflareSettings,
   CloudflareWorker,
@@ -474,6 +477,9 @@ export const saveLoginUrl = (siteId: number, settings: LoginUrlSettings) =>
 export const fetchLoginLogo = (siteId: number) => request<LoginLogo>(`/sites/${siteId}/login-logo`);
 export const saveLoginLogo = (siteId: number, settings: LoginLogoSave) =>
   request<LoginLogo>(`/sites/${siteId}/login-logo`, { method: "PUT", json: settings });
+export const fetchDatabase = (siteId: number) => request<DatabaseReport>(`/sites/${siteId}/database`);
+export const cleanDatabase = (siteId: number, cleanup: DatabaseCleanup) =>
+  request<DatabaseCleanupResult>(`/sites/${siteId}/database/clean`, { method: "POST", json: cleanup });
 export const fetchSnippets = (siteId: number) => request<Snippets>(`/sites/${siteId}/snippets`);
 export const saveSnippets = (siteId: number, settings: SnippetsSettings) =>
   request<Snippets>(`/sites/${siteId}/snippets`, { method: "PUT", json: settings });

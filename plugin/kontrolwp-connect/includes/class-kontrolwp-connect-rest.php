@@ -96,6 +96,7 @@ class KontrolWP_Connect_Rest {
 		KontrolWP_Connect_Login_URL::register_routes( $auth );
 		KontrolWP_Connect_Login_Logo::register_routes( $auth );
 		KontrolWP_Connect_Maintenance::register_routes( $auth );
+		KontrolWP_Connect_Database::register_routes( $auth );
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/admins',
