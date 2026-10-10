@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { compareVersions, SEO_ARCHIVES_SINCE, SEO_INDEXING_SINCE, SEO_SCORE_SINCE, SEO_SINCE } from "../../shared/plugin-version";
 import {
@@ -33,7 +32,6 @@ import { MigrateTab } from "./MigrateTab";
 import { NotFoundTab, RedirectsTab } from "./RedirectsTab";
 import { SeoContentTab } from "./SeoContentTab";
 import { ToolsTab } from "./ToolsTab";
-import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
 import { TwoColumns } from "./TwoColumns";
@@ -1307,7 +1305,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
 /** Views that are hidden while SEO Management is off. */
 const SEO_NEEDS_SEO = ["redirects", "404", "content", "tools"];
 
-const SEO_VIEWS = [
+export const SEO_VIEWS = [
   { value: "settings", label: "Settings" },
   { value: "redirects", label: "Redirects" },
   { value: "404", label: "404 log" },
@@ -1316,40 +1314,35 @@ const SEO_VIEWS = [
   { value: "migrate", label: "Import" },
 ];
 
-/** The SEO tab: site-wide settings and page overrides, and redirects. */
-export function SeoTab(props: { site: SiteSummary }) {
-  const [view, setView] = useState("settings");
+/**
+ * The SEO views this site has. Redirects, the 404 log, Content and Tools belong to KontrolWP SEO,
+ * so they are hidden until SEO Management is on. Import stays: it is how a site brings another
+ * plugin's settings in.
+ */
+export function useSeoViews(site: SiteSummary | undefined) {
   // The same read the Settings view makes, so this costs nothing extra.
   const seo = useQuery({
-    queryKey: ["site", props.site.id, "seo"],
-    queryFn: () => fetchSeo(props.site.id),
-    enabled: compareVersions(props.site.plugin_version ?? "0", SEO_SINCE) >= 0,
+    queryKey: ["site", site?.id, "seo"],
+    queryFn: () => fetchSeo(site!.id),
+    enabled: !!site && site.kind !== "static" && compareVersions(site.plugin_version ?? "0", SEO_SINCE) >= 0,
   });
-  // Redirects, the 404 log, Content and Tools belong to KontrolWP SEO, so they are hidden until SEO Management is on.
-  // Import stays: it is how a site brings another plugin's settings in.
-  const views = seo.data?.settings.enabled ? SEO_VIEWS : SEO_VIEWS.filter((item) => !SEO_NEEDS_SEO.includes(item.value));
-  const shown = views.some((item) => item.value === view) ? view : "settings";
-  return (
-    <Tabs value={shown} onValueChange={setView} className="mt-6 gap-0">
-      <ResponsiveTabsList tabs={views} value={shown} onChange={setView} label="SEO section" />
-      <TabsContent value="settings">
-        <SeoSettingsPanel site={props.site} onMigrate={() => setView("migrate")} />
-      </TabsContent>
-      <TabsContent value="redirects">
-        <RedirectsTab site={props.site} />
-      </TabsContent>
-      <TabsContent value="404">
-        <NotFoundTab site={props.site} />
-      </TabsContent>
-      <TabsContent value="content">
-        <SeoContentTab site={props.site} />
-      </TabsContent>
-      <TabsContent value="tools">
-        <ToolsTab site={props.site} />
-      </TabsContent>
-      <TabsContent value="migrate">
-        <MigrateTab site={props.site} />
-      </TabsContent>
-    </Tabs>
-  );
+  return seo.data?.settings.enabled ? SEO_VIEWS : SEO_VIEWS.filter((item) => !SEO_NEEDS_SEO.includes(item.value));
+}
+
+/** The SEO tab: site-wide settings and page overrides, and redirects. The site page's menu picks the view. */
+export function SeoTab(props: { site: SiteSummary; view: string; onView: (view: string) => void }) {
+  switch (props.view) {
+    case "redirects":
+      return <RedirectsTab site={props.site} />;
+    case "404":
+      return <NotFoundTab site={props.site} />;
+    case "content":
+      return <SeoContentTab site={props.site} />;
+    case "tools":
+      return <ToolsTab site={props.site} />;
+    case "migrate":
+      return <MigrateTab site={props.site} />;
+    default:
+      return <SeoSettingsPanel site={props.site} onMigrate={() => props.onView("migrate")} />;
+  }
 }
