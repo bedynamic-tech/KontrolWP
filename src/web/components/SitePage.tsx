@@ -11,7 +11,6 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "./HelpTip";
 import { ANALYTICS_PROVIDERS, type AnalyticsProvider, type SiteSummary } from "../../shared/types";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -44,9 +43,9 @@ import {
 import { ErrorBoundary } from "./ErrorBoundary";
 import { SnippetsTab } from "./SnippetsTab";
 import { SearchConsoleSection } from "./SearchConsoleSection";
-import { ResponsiveTabsList, type TabItem } from "./ResponsiveTabsList";
+import { SectionNav, type NavGroup, type NavItem } from "./SectionNav";
 import { SeoAuditTab } from "./SeoAuditTab";
-import { SeoTab } from "./SeoTab";
+import { SeoTab, useSeoViews } from "./SeoTab";
 import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import {
   AnalyticsSection,
@@ -128,11 +127,6 @@ const CLOUDFLARE_TABS = [
   "domain",
 ];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
-/**
- * These sit under the Tools tab with their own row of tabs. Each keeps its own ?tab= value,
- * so links such as ?tab=links still open it, inside Tools.
- */
-const TOOL_TABS = ["links", "snippets", "performance", "seo", "branding", "security", "accessibility", "domain"];
 
 export function SitePage() {
   const id = Number(useParams().siteId);
@@ -141,10 +135,12 @@ export function SitePage() {
   const requestedTab = TABS.includes(searchParams.get("tab") ?? "")
     ? searchParams.get("tab")!
     : "overview";
-  const setTab = (next: string) =>
-    setSearchParams(next === "overview" ? {} : { tab: next }, {
-      replace: true,
-    });
+  // A section with views, such as SEO, keeps the open view in ?view=; its first view leaves it out.
+  const setTab = (next: string, view?: string) =>
+    setSearchParams(
+      next === "overview" ? {} : view && view !== "settings" ? { tab: next, view } : { tab: next },
+      { replace: true },
+    );
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { hash } = useLocation();
@@ -251,6 +247,9 @@ export function SitePage() {
       ? "overview"
       : requestedTab;
 
+  const seoViews = useSeoViews(data?.site);
+  const seoView = seoViews.find((item) => item.value === searchParams.get("view"))?.value ?? "settings";
+
   if (isPending) return <PageSkeleton />;
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
   if (!data)
@@ -258,11 +257,11 @@ export function SitePage() {
   const { site, updates, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
-  const toolItems: TabItem[] = [
+  const toolItems: NavItem[] = [
     ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links" }] : []),
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
-    { value: "seo", label: "SEO" },
+    { value: "seo", label: "SEO", ...(isStatic ? {} : { children: seoViews }) },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
     ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
@@ -270,8 +269,7 @@ export function SitePage() {
   ];
   // ?tab=tools opens the first tool.
   const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;
-  const topTab = TOOL_TABS.includes(tab) ? "tools" : tab;
-  const tabItems: TabItem[] = [
+  const siteItems: NavItem[] = [
     { value: "overview", label: "Overview" },
     ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics" }] : []),
     ...(isStatic
@@ -284,8 +282,8 @@ export function SitePage() {
           { value: "plugins", label: "Plugins" },
           { value: "users", label: "Users" },
         ]),
-    { value: "tools", label: "Tools" },
   ];
+  const navGroups: NavGroup[] = [{ items: siteItems }, { label: "Tools", items: toolItems }];
 
   return (
     <div>
@@ -357,151 +355,178 @@ export function SitePage() {
 
       <ConnectionBanner site={site} className="mt-4" />
 
-      <Tabs value={topTab} onValueChange={setTab} className="mt-8 gap-0">
-        <ResponsiveTabsList tabs={tabItems} value={topTab} onChange={setTab} label="Section" />
-        <TabsContent value="overview" className={TAB_CLASS}>
-          {(() => {
-            const searchConsole = searchConsoleOn && (
-              <ErrorBoundary label="Search Console">
-                <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
-              </ErrorBoundary>
-            );
-            const facts = (
-          <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {isStatic ? (
-              <>
-                <Fact
-                  label="Type"
-                  value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
-                />
-                {onCloudflare && (
-                  <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
+      <div className="mt-8 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
+        <SectionNav groups={navGroups} value={tab} view={seoView} onChange={setTab} label="Site sections" />
+        <div className="min-w-0">
+          {tab === "overview" && (
+            <div className={TAB_CLASS}>
+              {(() => {
+                const searchConsole = searchConsoleOn && (
+                  <ErrorBoundary label="Search Console">
+                    <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
+                  </ErrorBoundary>
+                );
+                const facts = (
+              <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {isStatic ? (
+                  <>
+                    <Fact
+                      label="Type"
+                      value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
+                    />
+                    {onCloudflare && (
+                      <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
+                    )}
+                    {onCloudflare && (
+                      <Fact
+                        label="Last deployed"
+                        value={
+                          site.last_deployed_at
+                            ? timeAgo(site.last_deployed_at)
+                            : "No deployments"
+                        }
+                      />
+                    )}
+                    <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
+                  </>
+                ) : (
+                  <>
+                    <Fact label="WordPress" value={site.wp_version} />
+                    <Fact label="KontrolWP Connect" value={site.plugin_version} />
+                    <Fact label="Theme" value={site.theme_name} />
+                    <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
+                  </>
                 )}
-                {onCloudflare && (
-                  <Fact
-                    label="Last deployed"
-                    value={
-                      site.last_deployed_at
-                        ? timeAgo(site.last_deployed_at)
-                        : "No deployments"
-                    }
-                  />
-                )}
-                <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
-              </>
-            ) : (
-              <>
-                <Fact label="WordPress" value={site.wp_version} />
-                <Fact label="KontrolWP Connect" value={site.plugin_version} />
-                <Fact label="Theme" value={site.theme_name} />
-                <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
-              </>
-            )}
-          </dl>
-            );
-            const health = <HealthOverview site={site} onOpen={setTab} />;
-            const main = isStatic ? (
-              <>
-                {health}
-                {onCloudflare && (
-                  <DeploymentsSection
-                    site={site}
-                    compact
-                    onChooseWorker={() => setSettingsOpen(true)}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                {health}
-                <SiteUpdatesSection site={site} updates={updates} />
-                <Section
-                  title={`Comments awaiting review (${site.pending_comments})`}
-                >
-                  <CommentsList comments={comments} showSite={false} />
-                </Section>
-              </>
-            );
-            // Two columns only when there is analytics to put on the right.
-            const content = twoColumns && main ? (
-              <div className="grid items-start gap-x-6 lg:grid-cols-2">
-                <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
-                <div className={`min-w-0 ${TAB_CLASS}`}>
-                  {searchConsole}
-                  {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
-                </div>
-              </div>
-            ) : (
-              <>
-                {searchConsole}
-                {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
-                {main}
-              </>
-            );
-            return (
-              <>
-                {facts}
-                {content}
-              </>
-            );
-          })()}
-        </TabsContent>
-        <TabsContent value="analytics">
-          <AnalyticsTab site={site} />
-        </TabsContent>
-        <TabsContent value="pages" className={TAB_CLASS}>
-          {isStatic && <SitemapTab site={site} />}
-        </TabsContent>
-        <TabsContent value="deployments" className={TAB_CLASS}>
-          {onCloudflare && (
-            <DeploymentsSection
-              site={site}
-              onChooseWorker={() => setSettingsOpen(true)}
-            />
+              </dl>
+                );
+                const health = <HealthOverview site={site} onOpen={setTab} />;
+                const main = isStatic ? (
+                  <>
+                    {health}
+                    {onCloudflare && (
+                      <DeploymentsSection
+                        site={site}
+                        compact
+                        onChooseWorker={() => setSettingsOpen(true)}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {health}
+                    <SiteUpdatesSection site={site} updates={updates} />
+                    <Section
+                      title={`Comments awaiting review (${site.pending_comments})`}
+                    >
+                      <CommentsList comments={comments} showSite={false} />
+                    </Section>
+                  </>
+                );
+                // Two columns only when there is analytics to put on the right.
+                const content = twoColumns && main ? (
+                  <div className="grid items-start gap-x-6 lg:grid-cols-2">
+                    <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
+                    <div className={`min-w-0 ${TAB_CLASS}`}>
+                      {searchConsole}
+                      {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {searchConsole}
+                    {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
+                    {main}
+                  </>
+                );
+                return (
+                  <>
+                    {facts}
+                    {content}
+                  </>
+                );
+              })()}
+            </div>
           )}
-        </TabsContent>
-        <TabsContent value="content" className={TAB_CLASS}>
-          <ContentTab site={site} />
-        </TabsContent>
-        <TabsContent value="plugins" className={TAB_CLASS}>
-          <PluginsSection site={site} updates={updates} />
-          {!site.updates_excluded && <SiteScheduleRuns siteId={site.id} />}
-        </TabsContent>
-        <TabsContent value="users" className={TAB_CLASS}>
-          <UsersSection site={site} />
-        </TabsContent>
-        <TabsContent value="tools">
-          <Tabs value={tab} onValueChange={setTab} className="mt-6 gap-0">
-            <ResponsiveTabsList tabs={toolItems} value={tab} onChange={setTab} label="Tool" />
-            <TabsContent value="links" className={TAB_CLASS}>
+          {tab === "analytics" && (
+            <div>
+              <AnalyticsTab site={site} />
+            </div>
+          )}
+          {tab === "pages" && (
+            <div className={TAB_CLASS}>
+              {isStatic && <SitemapTab site={site} />}
+            </div>
+          )}
+          {tab === "deployments" && (
+            <div className={TAB_CLASS}>
+              {onCloudflare && (
+                <DeploymentsSection
+                  site={site}
+                  onChooseWorker={() => setSettingsOpen(true)}
+                />
+              )}
+            </div>
+          )}
+          {tab === "content" && (
+            <div className={TAB_CLASS}>
+              <ContentTab site={site} />
+            </div>
+          )}
+          {tab === "plugins" && (
+            <div className={TAB_CLASS}>
+              <PluginsSection site={site} updates={updates} />
+              {!site.updates_excluded && <SiteScheduleRuns siteId={site.id} />}
+            </div>
+          )}
+          {tab === "users" && (
+            <div className={TAB_CLASS}>
+              <UsersSection site={site} />
+            </div>
+          )}
+          {tab === "links" && (
+            <div className={TAB_CLASS}>
               <LinksTab site={site} />
-            </TabsContent>
-            <TabsContent value="snippets" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "snippets" && (
+            <div className={TAB_CLASS}>
               {!isStatic && <SnippetsTab site={site} />}
-            </TabsContent>
-            <TabsContent value="performance" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "performance" && (
+            <div className={TAB_CLASS}>
               <PerformanceTab site={site} />
-            </TabsContent>
-            <TabsContent value="seo" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "seo" && (
+            <div className={TAB_CLASS}>
               <ErrorBoundary label="The SEO tab">
-                {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} />}
+                {isStatic ? <SeoAuditTab site={site} /> : <SeoTab site={site} view={seoView} onView={(view) => setTab("seo", view)} />}
               </ErrorBoundary>
-            </TabsContent>
-            <TabsContent value="branding" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "branding" && (
+            <div className={TAB_CLASS}>
               {!isStatic && <BrandingTab site={site} />}
-            </TabsContent>
-            <TabsContent value="security" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "security" && (
+            <div className={TAB_CLASS}>
               <SecurityTab site={site} />
-            </TabsContent>
-            <TabsContent value="accessibility" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "accessibility" && (
+            <div className={TAB_CLASS}>
               <AccessibilityTab site={site} />
-            </TabsContent>
-            <TabsContent value="domain" className={TAB_CLASS}>
+            </div>
+          )}
+          {tab === "domain" && (
+            <div className={TAB_CLASS}>
               <DomainSection site={site} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+        </div>
+      </div>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-xl lg:max-w-4xl [&>*]:min-w-0">

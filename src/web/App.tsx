@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes } from "react-router";
+import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
@@ -19,6 +19,7 @@ export function App() {
   // The overview doubles as the Access check: every page needs the API.
   const overview = useQuery({ queryKey: ["overview"], queryFn: fetchOverview, retry: false });
   useSaveTimeZoneOnce(overview.isSuccess);
+  const collapsed = !!useMatch("/sites/:siteId");
   const setupError = accessSetupError(overview.error);
   if (setupError) {
     return (
@@ -32,27 +33,40 @@ export function App() {
   return (
     <div className="flex min-h-dvh bg-canvas text-foreground">
       <ActivityBar />
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col overflow-y-auto border-r bg-sidebar px-3 py-4 md:flex">
-        <div className="flex items-center justify-between">
-          <Brand />
-          <ThemeToggle />
-        </div>
-        <nav className="mt-6 space-y-1">
-          <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
-          <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
-          <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
-          <NavItem to="/users" icon={<UsersIcon />} label="Users" />
-          <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
-        </nav>
-        <a
-          href={PLUGIN_ZIP_URL}
-          download
-          className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+      {/* A site's page has its own section menu on the left, so there the sidebar folds to its
+          icons and opens over the page on hover or keyboard focus. Its contents keep their full
+          width, so folding only clips them and hides the labels. */}
+      <div className={`sticky top-0 z-40 hidden h-dvh shrink-0 md:block ${collapsed ? "w-14" : "w-56"}`}>
+        <aside
+          className={`absolute inset-y-0 left-0 overflow-x-hidden overflow-y-auto border-r bg-sidebar px-3 py-4 ${
+            collapsed
+              ? "w-14 transition-[width,box-shadow] duration-150 hover:w-56 hover:shadow-2xl hover:delay-100 focus-within:w-56 focus-within:shadow-2xl [&_span]:transition-opacity [&:not(:hover):not(:focus-within)_span]:opacity-0"
+              : "w-56"
+          }`}
         >
-          <DownloadIcon />
-          <span>KontrolWP Connect</span>
-        </a>
-      </aside>
+          <div className="flex min-h-full w-50 flex-col whitespace-nowrap">
+            <div className="flex items-center justify-between">
+              <Brand />
+              <ThemeToggle />
+            </div>
+            <nav className="mt-6 space-y-1">
+              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
+              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
+              <NavItem to="/users" icon={<UsersIcon />} label="Users" />
+              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
+            </nav>
+            <a
+              href={PLUGIN_ZIP_URL}
+              download
+              className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+            >
+              <DownloadIcon />
+              <span>KontrolWP Connect</span>
+            </a>
+          </div>
+        </aside>
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
           <Brand compact />
