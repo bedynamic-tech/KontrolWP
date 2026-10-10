@@ -43,6 +43,7 @@ import type {
   SiteAccessibility,
   SitePerformance,
   SiteUptime,
+  SslCertificate,
   SiteSeoAudit,
   SiteRedirects,
   SiteSeo,
@@ -403,6 +404,8 @@ export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean
 export const fetchPerformance = (siteId: number) => request<SitePerformance>(`/sites/${siteId}/performance`);
 export const runPerformance = (siteId: number) =>
   request<SitePerformance>(`/sites/${siteId}/performance/run`, { method: "POST" });
+export const fetchSsl = (siteId: number, refresh = false) =>
+  request<{ ssl: SslCertificate | null }>(`/sites/${siteId}/ssl${refresh ? "?refresh=1" : ""}`);
 export const fetchUptime = (siteId: number) => request<SiteUptime>(`/sites/${siteId}/uptime`);
 export const checkUptime = (siteId: number) =>
   request<SiteUptime>(`/sites/${siteId}/uptime/check`, { method: "POST" });

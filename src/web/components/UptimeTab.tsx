@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { certificateState, formatDuration, formatRatio } from "../../shared/uptime";
-import type { SiteSummary, SslCertificate, UptimeCheck, UptimeDay } from "../../shared/types";
+import { formatDuration, formatRatio } from "../../shared/uptime";
+import type { SiteSummary, UptimeCheck, UptimeDay } from "../../shared/types";
 import { checkUptime, fetchUptime } from "../api";
 import { plural, timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
@@ -118,8 +118,6 @@ export function UptimeTab(props: { site: SiteSummary }) {
           <DayStrip days={data.days} />
         </Section>
       )}
-
-      {data.ssl && <CertificateSection cert={data.ssl} />}
 
       {latest && (
         <Section title={data.incidents.length ? `Outages (${data.incidents.length})` : "Outages"}>
@@ -244,52 +242,6 @@ function DayStrip(props: { days: UptimeDay[] }) {
         <span>30 days ago</span>
         <span>Today</span>
       </div>
-    </div>
-  );
-}
-
-function CertificateSection(props: { cert: SslCertificate }) {
-  const { cert } = props;
-  const state = certificateState(cert);
-  const banner =
-    state.kind === "expired" || state.kind === "mismatch"
-      ? "bg-destructive/5 text-destructive"
-      : state.kind === "expiring"
-        ? "bg-amber-500/10 text-amber-800 dark:text-amber-300"
-        : null;
-  return (
-    <Section
-      title="SSL certificate"
-      hint="Read once a day from the site's own TLS handshake. When the server cannot be asked directly, such as a site behind Cloudflare, KontrolWP reads the newest certificate for the address from the public Certificate Transparency logs instead."
-    >
-      {banner && <p className={cn("border-b px-4 py-2.5 text-sm font-medium", banner)}>{state.message}</p>}
-      {state.kind === "unknown" ? (
-        <EmptyRow>{state.message}</EmptyRow>
-      ) : (
-        <dl className="divide-y text-sm">
-          <Row
-            label="Expires"
-            value={`${formatDate(cert.expires_at!)}${state.days >= 0 ? ` (in ${plural(state.days, "day")})` : ""}`}
-            tone={state.kind === "ok" ? undefined : state.kind === "expiring" ? WARN : BAD}
-          />
-          <Row label="Issued by" value={cert.issuer || "Unknown"} />
-          <Row label="Valid from" value={cert.valid_from ? formatDate(cert.valid_from) : "Unknown"} />
-          <Row label="Covers" value={cert.names.length ? cert.names.join("\n") : "Unknown"} />
-          <Row
-            label="Checked"
-            value={`${timeAgo(cert.checked_at)}${cert.source === "ct" ? ", from the certificate logs" : ""}`}
-          />
-        </dl>
-      )}
-    </Section>
-  );
-}
-
-function Row(props: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="grid gap-1 px-4 py-2.5 sm:grid-cols-[10rem_1fr] sm:gap-4">
-      <dt className="text-muted-foreground">{props.label}</dt>
-      <dd className={cn("min-w-0 break-words whitespace-pre-line", props.tone)}>{props.value}</dd>
     </div>
   );
 }

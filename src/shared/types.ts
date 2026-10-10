@@ -1493,7 +1493,7 @@ export interface SslCertificate {
   error: string | null;
 }
 
-/** A site's uptime monitoring: the latest check, the last 30 days and its certificate. */
+/** A site's uptime monitoring: the latest check and the last 30 days. */
 export interface SiteUptime {
   latest: UptimeCheck | null;
   /** When the site last went up or down, or the first check. */
@@ -1508,5 +1508,4 @@ export interface SiteUptime {
   days: UptimeDay[];
   /** Downtime in the last 30 days, newest first. */
   incidents: UptimeIncident[];
-  ssl: SslCertificate | null;
 }

@@ -29,7 +29,7 @@ One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a 
 _Avoid_: Speed scan, audit, benchmark
 
 **Uptime check**:
-One load of a Site's home page by KontrolWP, every 15 minutes: up when it answers with a 2xx status (after a second try), down otherwise, with the time to the first answer. Kept for 30 days and shown on the Site's Uptime tab with its outages and its SSL certificate, read once a day. Separate from Sync: a Site can be up while KontrolWP Connect cannot be reached.
+One load of a Site's home page by KontrolWP, every 15 minutes: up when it answers with a 2xx status (after a second try), down otherwise, with the time to the first answer. Kept for 30 days and shown on the Site's Uptime tab with its outages. The Site's SSL certificate is read once a day too, and shown on its Domain & SSL tab. Separate from Sync: a Site can be up while KontrolWP Connect cannot be reached.
 _Avoid_: Ping, heartbeat, health check
 
 **Sync**:
