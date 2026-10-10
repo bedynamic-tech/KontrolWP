@@ -61,7 +61,7 @@ import { CoreAutoUpdateRow } from "./CoreAutoUpdate";
 import { PluginsSection } from "./PluginsSection";
 import { SiteScheduleRuns } from "./UpdatePolicy";
 import { UsersSection } from "./UsersSection";
-import { SiteUpdatesSection } from "./SiteUpdatesSection";
+import { rollbacksActive, SiteUpdatesSection } from "./SiteUpdatesSection";
 import { Section } from "./Section";
 import {
   compareVersions,
@@ -186,7 +186,7 @@ export function SitePage() {
     queryFn: () => fetchSite(id),
     refetchInterval: (query) => {
       const job = query.state.data?.site.self_update_status;
-      return job === "queued" || job === "running"
+      return job === "queued" || job === "running" || rollbacksActive(query.state.data?.rollbacks)
         ? 3_000
         : updatesRefetchInterval(query.state.data?.updates);
     },
@@ -263,7 +263,7 @@ export function SitePage() {
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
   if (!data)
     return <p className="text-sm text-destructive">{error?.message}</p>;
-  const { site, updates, comments } = data;
+  const { site, updates, rollbacks, comments } = data;
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
   const toolItems: NavItem[] = [
@@ -430,7 +430,7 @@ export function SitePage() {
                 ) : (
                   <>
                     {health}
-                    <SiteUpdatesSection site={site} updates={updates} />
+                    <SiteUpdatesSection site={site} updates={updates} rollbacks={rollbacks} />
                     <Section
                       title={`Comments awaiting review (${site.pending_comments})`}
                     >

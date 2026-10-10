@@ -44,6 +44,10 @@ _Avoid_: Upgrade, patch
 The Updates the owner asked KontrolWP to install on one Site, run one at a time in the order they were queued. An Update in it is Queued, Updating, Updated (until the next Sync) or failed.
 _Avoid_: Job list, batch
 
+**Previous version**:
+The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme for 30 days. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
+_Avoid_: Backup, snapshot, downgrade
+
 **Pending Comment**:
 A comment held for moderation on a Site. KontrolWP shows the newest 50 per Site and can approve, spam or trash each one.
 _Avoid_: Unapproved comment, queue item

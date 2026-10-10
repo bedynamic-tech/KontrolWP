@@ -1,5 +1,5 @@
 import { compareVersions, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
-import type { SiteDeployment, FleetLinks, FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
+import type { SiteDeployment, FleetLinks, FleetPlugin, FleetPlugins, FleetUser, FleetUsers, PendingComment, SiteRollback, SiteSummary, SiteUpdate, UserRole } from "../../shared/types.ts";
 import type { SiteCredentials } from "./client.ts";
 import { SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { decryptSecret } from "./secrets.ts";
@@ -16,7 +16,7 @@ const SUMMARY_COLUMNS = `
   (SELECT COUNT(*) FROM site_updates u WHERE u.site_id = s.id) AS update_count`;
 
 const SELF_UPDATE_JOIN = `LEFT JOIN update_jobs j
-  ON j.site_id = s.id AND j.kind = 'plugin' AND j.slug = '${SELF_UPDATE.slug}'`;
+  ON j.site_id = s.id AND j.kind = 'plugin' AND j.slug = '${SELF_UPDATE.slug}' AND j.action = 'update'`;
 
 export async function listSites(db: D1Database): Promise<SiteSummary[]> {
   const { results } = await db
@@ -91,16 +91,34 @@ export async function listUpdates(db: D1Database, siteId?: number): Promise<Site
   const statement = db.prepare(
     `SELECT u.site_id, s.name AS site_name, s.url AS site_url, u.kind, u.slug, u.name, u.current_version, u.new_version,
             u.icon_url, j.status AS job_status, j.error AS job_error,
-            (j.status IN ('queued', 'running') OR (j.status = 'done' AND j.started_at > unixepoch() - ?)) AS job_active
+            (j.status IN ('queued', 'running') OR (j.status = 'done' AND j.started_at > unixepoch() - ?)) AS job_active,
+            EXISTS (SELECT 1 FROM update_holds h WHERE h.site_id = u.site_id AND h.kind = u.kind AND h.slug = u.slug
+                      AND h.version = u.new_version) AS held
      FROM site_updates u JOIN sites s ON s.id = u.site_id
-     LEFT JOIN update_jobs j ON j.site_id = u.site_id AND j.kind = u.kind AND j.slug = u.slug ${where}
+     LEFT JOIN update_jobs j ON j.site_id = u.site_id AND j.kind = u.kind AND j.slug = u.slug AND j.action = 'update' ${where}
      ORDER BY CASE u.kind WHEN 'core' THEN 0 WHEN 'plugin' THEN 1 ELSE 2 END,
               s.name COLLATE NOCASE, u.name COLLATE NOCASE`,
   );
   const { results } = await (siteId === undefined ? statement.bind(settle) : statement.bind(settle, siteId)).all<
-    Omit<SiteUpdate, "job_active"> & { job_active: number | null }
+    Omit<SiteUpdate, "job_active" | "held"> & { job_active: number | null; held: number }
   >();
-  return results.map((row) => ({ ...row, job_active: Boolean(row.job_active) }));
+  return results.map((row) => ({ ...row, job_active: Boolean(row.job_active), held: Boolean(row.held) }));
+}
+
+/** The previous versions a site kept, with any revert the owner asked for. */
+export async function listRollbacks(db: D1Database, siteId: number): Promise<SiteRollback[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT r.site_id, r.kind, r.slug, r.name, r.version, r.current_version, r.created_at,
+              j.status AS job_status, j.error AS job_error
+       FROM site_rollbacks r
+       LEFT JOIN update_jobs j ON j.site_id = r.site_id AND j.kind = r.kind AND j.slug = r.slug AND j.action = 'rollback'
+       WHERE r.site_id = ?
+       ORDER BY r.created_at DESC, r.name COLLATE NOCASE`,
+    )
+    .bind(siteId)
+    .all<SiteRollback>();
+  return results;
 }
 
 export async function listComments(db: D1Database, siteId?: number, limit = 100): Promise<PendingComment[]> {
@@ -150,7 +168,7 @@ export async function listFleetPlugins(db: D1Database): Promise<FleetPlugins> {
                 u.new_version, COALESCE(NULLIF(u.icon_url, ''), NULLIF(p.icon_url, '')) AS icon_url, j.status AS job_status, j.error AS job_error
          FROM site_plugins p JOIN sites s ON s.id = p.site_id
          LEFT JOIN site_updates u ON u.site_id = p.site_id AND u.kind = 'plugin' AND u.slug = p.file
-         LEFT JOIN update_jobs j ON j.site_id = p.site_id AND j.kind = 'plugin' AND j.slug = p.file
+         LEFT JOIN update_jobs j ON j.site_id = p.site_id AND j.kind = 'plugin' AND j.slug = p.file AND j.action = 'update'
          ORDER BY p.name COLLATE NOCASE, s.name COLLATE NOCASE`,
       )
       .all<Record<string, unknown>>(),

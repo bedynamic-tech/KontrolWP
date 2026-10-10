@@ -125,6 +125,7 @@ async function runSync(
         siteId,
       ),
     env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
+    env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ?").bind(siteId),
     env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(siteId),
     // Finished updates are gone from the fresh list, so their jobs are too.
     // KontrolWP Connect's own job stays: its start time spaces out retries.
@@ -156,6 +157,30 @@ async function runSync(
       );
     }
   }
+
+  const insertRollback = env.DB.prepare(
+    `INSERT OR REPLACE INTO site_rollbacks (site_id, kind, slug, name, version, current_version, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const item of (updates.rollbacks ?? []).slice(0, 500)) {
+    if (item.kind !== "plugin" && item.kind !== "theme") continue;
+    statements.push(
+      insertRollback.bind(
+        siteId, item.kind, text(item.slug), text(item.name), text(item.version), text(item.current_version),
+        Math.trunc(Number(item.created_at)) || now,
+      ),
+    );
+  }
+  // A reverted version stops being skipped once a newer one is offered.
+  statements.push(
+    env.DB
+      .prepare(
+        `DELETE FROM update_holds WHERE site_id = ? AND EXISTS (
+           SELECT 1 FROM site_updates u WHERE u.site_id = update_holds.site_id AND u.kind = update_holds.kind
+             AND u.slug = update_holds.slug AND u.new_version != update_holds.version)`,
+      )
+      .bind(siteId),
+  );
 
   const insertComment = env.DB.prepare(
     `INSERT OR REPLACE INTO site_comments

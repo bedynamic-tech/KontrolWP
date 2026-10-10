@@ -102,9 +102,26 @@ export interface SiteUpdate {
    * finished and the sync that clears the row has not landed yet.
    */
   job_active: boolean;
+  /** The owner reverted this version, so scheduled updates skip it. */
+  held: boolean;
 }
 
 export type UpdateJobStatus = "queued" | "running" | "done" | "failed";
+
+/** A previous version of a plugin or theme that KontrolWP Connect kept on the site before updating it. */
+export interface SiteRollback {
+  site_id: number;
+  kind: "plugin" | "theme";
+  slug: string;
+  name: string;
+  /** The kept version, and the one installed now. */
+  version: string;
+  current_version: string;
+  created_at: number;
+  /** The owner's request to revert, if any. `done` lasts until the next sync. */
+  job_status: UpdateJobStatus | null;
+  job_error: string | null;
+}
 
 export interface PendingComment {
   site_id: number;
@@ -152,6 +169,7 @@ export interface FleetLinks {
 export interface SiteDetail {
   site: SiteSummary;
   updates: SiteUpdate[];
+  rollbacks: SiteRollback[];
   comments: PendingComment[];
 }
 
@@ -174,6 +192,15 @@ export interface PluginUpdates {
   core: { current: string; new_version: string; icon_url?: string } | null;
   plugins: Array<{ slug: string; name: string; current_version: string; new_version: string; icon_url?: string }>;
   themes: Array<{ slug: string; name: string; current_version: string; new_version: string; icon_url?: string }>;
+  /** KontrolWP Connect 0.36.0+: the previous versions it kept before updating, which can be put back. */
+  rollbacks?: Array<{
+    kind: "plugin" | "theme";
+    slug: string;
+    name: string;
+    version: string;
+    current_version: string;
+    created_at: number;
+  }>;
 }
 
 export interface PluginComments {

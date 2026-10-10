@@ -2,7 +2,7 @@
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.35.0
+Stable tag: 0.36.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,11 @@ pending comments, apply core, plugin and theme updates, install, activate, deact
 plugins, turn WordPress auto-updates on or off, moderate comments, and clean up the database (revisions, trash, spam and expired transients). Magic Login
 lets the dashboard open wp-admin as the administrator you choose in KontrolWP,
 through a link that works once, for one minute.
+
+Before KontrolWP updates a plugin or theme, the plugin keeps a zip of the
+installed version in wp-content/kontrolwp-rollback (blocked from being served),
+so you can revert the update from the dashboard. One copy per plugin or theme is
+kept for 30 days.
 
 The plugin creates this site's Connection Key. KontrolWP signs every request
 with the secret in that key, which only this site and your dashboard know. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back; when you switch on SEO in KontrolWP, it adds title, description, social and robots tags to your pages' head, and switching it off removes them; when you switch on maintenance mode in KontrolWP, visitors who are not signed in see a "back soon" page until you switch it off);

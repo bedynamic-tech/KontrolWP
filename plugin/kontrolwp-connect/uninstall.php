@@ -22,3 +22,6 @@ KontrolWP_Connect_Login::delete_all();
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login-logo.php';
 KontrolWP_Connect_Login_Logo::delete_all();
+
+require_once __DIR__ . '/includes/class-kontrolwp-connect-rollback.php';
+KontrolWP_Connect_Rollback::delete_all();

@@ -200,7 +200,12 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
   const failed = status === "failed";
   const busy = status === "queued" || status === "running" || status === "done";
   const error = requestError ?? (failed ? update.job_error : null);
-  const note = status === "queued" ? update.job_error : null;
+  const note =
+    status === "queued"
+      ? update.job_error
+      : !status && update.held
+        ? "Reverted on this site, so scheduled updates skip this version."
+        : null;
 
   const button = (
     <UpdateButton

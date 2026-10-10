@@ -198,3 +198,16 @@ test("the site view says which schedule applies and keeps a plain site unstored"
   assert.equal(view.effective, "off");
   assert.equal(view.next_run_at, null);
 });
+
+test("scheduled updates skip a version the owner reverted, but not a newer one", async () => {
+  const { env, db, site, update, jobs } = setup();
+  site(1);
+  update(1, "plugin", "akismet/akismet.php", "Akismet", "5.3");
+  update(1, "plugin", "woo/woo.php", "Woo", "9.0");
+  db.sqlite.exec(
+    `INSERT INTO update_holds (site_id, kind, slug, version) VALUES (1, 'plugin', 'akismet/akismet.php', '5.3'), (1, 'plugin', 'woo/woo.php', '8.9')`,
+  );
+  await saveGlobalPolicy(env, { ...weekly, enabled: true });
+  assert.equal(await runScheduledUpdates(env, sunday), 1);
+  assert.deepEqual(jobs(1), [{ kind: "plugin", slug: "woo/woo.php", version: null, status: "queued" }]);
+});
