@@ -53,7 +53,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -146,6 +146,7 @@ import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
 import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
+import { saveMaintenance, siteMaintenance } from "../sites/maintenance.ts";
 import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
 import { saveLoginLogo, siteLoginLogo } from "../sites/login-logo.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
@@ -295,7 +296,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|login-url|login-logo|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|maintenance|login-url|login-logo|links-excluded|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -1308,6 +1309,24 @@ api.put("/sites/:id/update-emails", async (c) => {
   const parsed = z.object({ disabled: z.boolean() }).safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid setting" }, 400);
   return redirectsCall(c, (site, credentials) => saveUpdateEmails(site, credentials, parsed.data.disabled));
+});
+
+/** A site's maintenance mode and its page. */
+api.get("/sites/:id/maintenance", async (c) => redirectsCall(c, (site, credentials) => siteMaintenance(site, credentials)));
+
+api.put("/sites/:id/maintenance", async (c) => {
+  const parsed = z
+    .object({
+      enabled: z.boolean(),
+      headline: z.string().max(120).optional(),
+      message: z.string().max(1000).optional(),
+      logo: z.enum(MAINTENANCE_LOGOS).optional(),
+      background: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/)]).optional(),
+      accent: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/)]).optional(),
+    })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid maintenance settings" }, 400);
+  return redirectsCall(c, (site, credentials) => saveMaintenance(site, credentials, parsed.data));
 });
 
 /** A site's custom login address. */

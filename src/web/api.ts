@@ -27,6 +27,8 @@ import type {
   Snippets,
   SnippetsSettings,
   UpdateEmails,
+  Maintenance,
+  MaintenanceSave,
   LoginLogo,
   LoginLogoSave,
   LoginUrl,
@@ -459,6 +461,9 @@ export const deactivateMigrationSource = (siteId: number, source: string) =>
     method: "POST",
     json: { source, confirm: true },
   });
+export const fetchMaintenance = (siteId: number) => request<Maintenance>(`/sites/${siteId}/maintenance`);
+export const saveMaintenance = (siteId: number, settings: MaintenanceSave) =>
+  request<Maintenance>(`/sites/${siteId}/maintenance`, { method: "PUT", json: settings });
 export const fetchUpdateEmails = (siteId: number) => request<UpdateEmails>(`/sites/${siteId}/update-emails`);
 export const saveUpdateEmails = (siteId: number, disabled: boolean) =>
   request<UpdateEmails>(`/sites/${siteId}/update-emails`, { method: "PUT", json: { disabled } });

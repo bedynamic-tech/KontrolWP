@@ -1241,6 +1241,41 @@ export interface UpdateEmails {
   disabled: boolean;
 }
 
+/** A WordPress site's maintenance mode (KontrolWP Connect 0.34.0+). Empty headline or message means the default. */
+export interface Maintenance {
+  enabled: boolean;
+  headline: string;
+  message: string;
+  /** When it was turned on, while it is on. */
+  since: string | null;
+  /** Which logo the page shows: the site's own, the login page logo uploaded in Branding, or none. */
+  logo: MaintenanceLogo;
+  /** #rrggbb for the page behind the card, or "" to follow light or dark. */
+  background: string;
+  /** #rrggbb for the bar along the card's top edge, or "" for none. */
+  accent: string;
+  default_headline: string;
+  default_message: string;
+  /** The site's logo, or its site icon, or "" when it has neither. */
+  site_logo_url: string;
+  /** The login page logo uploaded in Branding, or "" when there is none. */
+  login_logo_url: string;
+  /** Shows the page even while maintenance mode is off. */
+  preview_url: string;
+}
+
+export const MAINTENANCE_LOGOS = ["site", "login", "none"] as const;
+export type MaintenanceLogo = (typeof MAINTENANCE_LOGOS)[number];
+
+export interface MaintenanceSave {
+  enabled: boolean;
+  headline?: string;
+  message?: string;
+  logo?: MaintenanceLogo;
+  background?: string;
+  accent?: string;
+}
+
 export const LOGIN_URL_REDIRECTS = ["404", "home"] as const;
 export type LoginUrlRedirect = (typeof LOGIN_URL_REDIRECTS)[number];
 
