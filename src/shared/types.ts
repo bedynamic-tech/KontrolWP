@@ -1401,3 +1401,46 @@ export interface SitePerformance {
   /** What pays for the tests: a saved API key, or the connected Google account. */
   source?: "key" | "google" | null;
 }
+
+/** What the Database tool can delete, in the order it lists them. */
+export const DATABASE_ITEMS = [
+  "revisions",
+  "auto_drafts",
+  "trash_posts",
+  "spam_comments",
+  "trash_comments",
+  "expired_transients",
+] as const;
+export type DatabaseItem = (typeof DATABASE_ITEMS)[number];
+
+export interface DatabaseTable {
+  name: string;
+  /** MySQL's estimate for InnoDB tables. */
+  rows: number;
+  /** Data plus indexes. */
+  bytes: number;
+  /** Free space inside the table that optimizing can give back. */
+  overhead: number;
+  engine: string;
+}
+
+/** A site's database: its size, its largest tables and the leftovers that can be deleted. */
+export interface DatabaseReport {
+  tables: { size: number; overhead: number; count: number; largest: DatabaseTable[] };
+  /** How many of each there are and roughly how many bytes of content they hold. */
+  items: Record<DatabaseItem, { count: number; bytes: number }>;
+}
+
+export interface DatabaseCleanup {
+  items: DatabaseItem[];
+  optimize: boolean;
+}
+
+export interface DatabaseCleanupResult {
+  deleted: Partial<Record<DatabaseItem, number>>;
+  /** Tables optimized. */
+  optimized: number;
+  /** The time ran out before everything chosen was deleted; another run picks up the rest. */
+  unfinished: boolean;
+  report: DatabaseReport;
+}

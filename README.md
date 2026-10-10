@@ -21,7 +21,7 @@ Cloudflare Access.
 - **Content and comments.** Posts and pages, custom post types and pending
   comments for every site.
 - **Analytics.** Umami or Google Analytics, plus Search Console.
-- **Tools.** Per-site link checks, code snippets, PageSpeed performance, SEO
+- **Tools.** Per-site link checks, code snippets, database cleanup, PageSpeed performance, SEO
   (redirects, 404 log, sitemaps, imports), login branding, security,
   accessibility and domain checks.
 - **Static sites.** Uptime, pages, analytics and Cloudflare Workers

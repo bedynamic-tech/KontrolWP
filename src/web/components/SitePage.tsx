@@ -42,6 +42,7 @@ import {
 } from "./MagicLogin";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { SnippetsTab } from "./SnippetsTab";
+import { DatabaseTab } from "./DatabaseTab";
 import { SearchConsoleSection } from "./SearchConsoleSection";
 import { SectionNav, type NavGroup, type NavItem } from "./SectionNav";
 import { SeoAuditTab } from "./SeoAuditTab";
@@ -98,6 +99,7 @@ const WORDPRESS_TABS = [
   "tools",
   "links",
   "snippets",
+  "database",
   "performance",
   "seo",
   "branding",
@@ -262,6 +264,7 @@ export function SitePage() {
   const toolItems: NavItem[] = [
     ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links" }] : []),
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
+    ...(isStatic ? [] : [{ value: "database", label: "Database" }]),
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "seo", label: "SEO", ...(isStatic ? {} : { children: seoViews }) },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
@@ -498,6 +501,11 @@ export function SitePage() {
           {tab === "snippets" && (
             <div className={TAB_CLASS}>
               {!isStatic && <SnippetsTab site={site} />}
+            </div>
+          )}
+          {tab === "database" && (
+            <div className={TAB_CLASS}>
+              {!isStatic && <DatabaseTab site={site} />}
             </div>
           )}
           {tab === "performance" && (

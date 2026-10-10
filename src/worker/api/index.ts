@@ -53,7 +53,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, DATABASE_ITEMS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -145,6 +145,7 @@ import {
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
 import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
+import { cleanDatabase, siteDatabase } from "../sites/database.ts";
 import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
 import { saveMaintenance, siteMaintenance } from "../sites/maintenance.ts";
 import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
@@ -1300,6 +1301,19 @@ api.put("/sites/:id/snippets", async (c) => {
   const parsed = snippetsBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid snippets" }, 400);
   return redirectsCall(c, (site, credentials) => saveSnippets(c.env, site, credentials, parsed.data));
+});
+
+/** A site's database size and the leftovers that can be deleted. */
+api.get("/sites/:id/database", async (c) => redirectsCall(c, (site, credentials) => siteDatabase(site, credentials)));
+
+const databaseCleanupBody = z
+  .object({ items: z.array(z.enum(DATABASE_ITEMS)).max(DATABASE_ITEMS.length), optimize: z.boolean() })
+  .refine((body) => body.items.length > 0 || body.optimize);
+
+api.post("/sites/:id/database/clean", async (c) => {
+  const parsed = databaseCleanupBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose something to clean up." }, 400);
+  return redirectsCall(c, (site, credentials) => cleanDatabase(c.env, site, credentials, parsed.data));
 });
 
 /** Whether a site's update emails are switched off. */
