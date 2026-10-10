@@ -76,7 +76,14 @@ export function useMaintenance(site: SiteSummary) {
   const query = useQuery({ queryKey: key, queryFn: () => fetchMaintenance(site.id), enabled: supported });
   const save = useMutation({
     mutationFn: (settings: MaintenanceSave) => saveMaintenance(site.id, settings),
-    onSuccess: (data: Maintenance) => queryClient.setQueryData(key, data),
+    onSuccess: (data: Maintenance) => {
+      queryClient.setQueryData(key, data);
+      // The sites list shows a badge while it is on.
+      if (data.enabled !== site.maintenance) {
+        queryClient.invalidateQueries({ queryKey: ["site", site.id], exact: true });
+        queryClient.invalidateQueries({ queryKey: ["overview"] });
+      }
+    },
   });
   return { supported, query, save };
 }

@@ -34,7 +34,17 @@ export function SitesPage() {
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <SiteIcon site={site} className="size-9 text-sm" />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{site.name}</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-sm font-medium">{site.name}</p>
+                        {site.kind !== "static" && site.maintenance && (
+                          <span
+                            className="shrink-0 rounded-full border border-amber-600/25 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-400/25 dark:text-amber-300"
+                            title="Visitors see the maintenance page instead of the site"
+                          >
+                            Maintenance
+                          </span>
+                        )}
+                      </div>
                       <p className="truncate text-xs text-muted-foreground">{hostname(site.url)}</p>
                     </div>
                   </div>

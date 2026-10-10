@@ -25,8 +25,20 @@ async function call(credentials: SiteCredentials, path: string, body: unknown): 
   }
 }
 
-export const siteMaintenance = (site: SiteSummary, credentials: SiteCredentials | null) =>
-  call(requireSupported(site, credentials), "/maintenance", {});
+/** Keeps the sites list's maintenance badge in step with what the site just reported. */
+async function remember(db: D1Database, site: SiteSummary, result: Maintenance): Promise<Maintenance> {
+  if (result.enabled !== site.maintenance) {
+    await db.prepare("UPDATE sites SET maintenance = ? WHERE id = ?").bind(result.enabled ? 1 : 0, site.id).run();
+  }
+  return result;
+}
 
-export const saveMaintenance = (site: SiteSummary, credentials: SiteCredentials | null, settings: MaintenanceSave) =>
-  call(requireSupported(site, credentials), "/maintenance/save", settings);
+export const siteMaintenance = async (db: D1Database, site: SiteSummary, credentials: SiteCredentials | null) =>
+  remember(db, site, await call(requireSupported(site, credentials), "/maintenance", {}));
+
+export const saveMaintenance = async (
+  db: D1Database,
+  site: SiteSummary,
+  credentials: SiteCredentials | null,
+  settings: MaintenanceSave,
+) => remember(db, site, await call(requireSupported(site, credentials), "/maintenance/save", settings));

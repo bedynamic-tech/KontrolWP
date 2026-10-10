@@ -61,6 +61,7 @@ interface SiteRow {
   uptime_up: number | null;
   uptime_since: number | null;
   uptime_checked_at: number | null;
+  maintenance: number;
 }
 
 /**
@@ -74,7 +75,7 @@ export async function checkSite(
   now = Math.floor(Date.now() / 1000),
   deps: UptimeDeps & { refreshCertificate?: boolean } = {},
 ): Promise<void> {
-  const site = await env.DB.prepare("SELECT id, url, uptime_up, uptime_since, uptime_checked_at FROM sites WHERE id = ?")
+  const site = await env.DB.prepare("SELECT id, url, uptime_up, uptime_since, uptime_checked_at, maintenance FROM sites WHERE id = ?")
     .bind(siteId)
     .first<SiteRow>();
   if (!site) return;
@@ -86,6 +87,8 @@ export async function checkSite(
     const again = await probe(site.url, deps.fetcher);
     if (again.up) result = again;
   }
+  // The maintenance page answers 503 on purpose, so a site in maintenance mode is not down.
+  if (!result.up && site.maintenance && result.status_code === 503) result = { ...result, up: true, error: null };
   const up = result.up ? 1 : 0;
   const since = site.uptime_up === up && site.uptime_since ? site.uptime_since : now;
   await env.DB.batch([
