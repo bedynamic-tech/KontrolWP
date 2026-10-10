@@ -268,7 +268,9 @@ A site's Links tab finds broken links and images in its published content
 (every public post type except media). Scan now writes a new `scan_id` to
 `link_scans` and queues a `links-collect` message. Each one asks the site for
 50 posts (`POST /links`) and stores every http(s) address in `site_links` and
-where it appears in `site_link_refs`; the last page drops addresses no longer
+where it appears in `site_link_refs` (rewritten only for posts whose links
+changed; `link_scans.posts_seen` lists the posts read so far, and the last
+page forgets posts no longer listed); the last page drops addresses no longer
 in the content and queues `links-check`. Each `links-check` checks 10
 addresses, five at a time, and queues the next until none are left, so one
 run stays well under Cloudflare's subrequest limit and the site itself does

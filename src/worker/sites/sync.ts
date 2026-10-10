@@ -17,6 +17,7 @@ import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
 import { clearContentCache } from "../content-cache.ts";
+import { siteRowChanges } from "../db/site-rows.ts";
 import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
 
@@ -124,53 +125,57 @@ async function runSync(
         ...coreAutoUpdate(status),
         siteId,
       ),
-    env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(siteId),
-    env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ?").bind(siteId),
-    env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(siteId),
     // Finished updates are gone from the fresh list, so their jobs are too.
     // KontrolWP Connect's own job stays: its start time spaces out retries.
     env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status = 'done' AND slug != ?").bind(siteId, SELF_UPDATE.slug),
   ];
 
-  const insertUpdate = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_updates (site_id, kind, slug, name, current_version, new_version, icon_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
+  const offered: (string | null)[][] = [];
   // An offer of the version already installed is stale data from the site
   // (KontrolWP Connect before 0.5.1 could report one after a core update).
   if (updates.core && text(updates.core.new_version) !== text(updates.core.current)) {
-    statements.push(
-      insertUpdate.bind(
-        siteId, "core", "wordpress", "WordPress", text(updates.core.current), text(updates.core.new_version),
-        iconUrl(updates.core.icon_url),
-      ),
-    );
+    offered.push([
+      "core", "wordpress", "WordPress", text(updates.core.current), text(updates.core.new_version),
+      iconUrl(updates.core.icon_url),
+    ]);
   }
   for (const [kind, items] of [["plugin", updates.plugins], ["theme", updates.themes]] as const) {
     for (const item of (items ?? []).slice(0, 500)) {
       if (text(item.new_version) === text(item.current_version)) continue;
-      statements.push(
-        insertUpdate.bind(
-          siteId, kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version),
-          iconUrl(item.icon_url),
-        ),
-      );
+      offered.push([
+        kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version),
+        iconUrl(item.icon_url),
+      ]);
     }
   }
-
-  const insertRollback = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_rollbacks (site_id, kind, slug, name, version, current_version, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  // Only rows that changed are written: most syncs find the same lists as the last one.
+  statements.push(
+    ...(await siteRowChanges(env.DB, {
+      table: "site_updates",
+      siteId,
+      key: ["kind", "slug"],
+      columns: ["kind", "slug", "name", "current_version", "new_version", "icon_url"],
+      rows: offered,
+    })),
   );
+
+  const rollbacks: (string | number)[][] = [];
   for (const item of (updates.rollbacks ?? []).slice(0, 500)) {
     if (item.kind !== "plugin" && item.kind !== "theme") continue;
-    statements.push(
-      insertRollback.bind(
-        siteId, item.kind, text(item.slug), text(item.name), text(item.version), text(item.current_version),
-        Math.trunc(Number(item.created_at)) || now,
-      ),
-    );
+    rollbacks.push([
+      item.kind, text(item.slug), text(item.name), text(item.version), text(item.current_version),
+      Math.trunc(Number(item.created_at)) || now,
+    ]);
   }
+  statements.push(
+    ...(await siteRowChanges(env.DB, {
+      table: "site_rollbacks",
+      siteId,
+      key: ["kind", "slug"],
+      columns: ["kind", "slug", "name", "version", "current_version", "created_at"],
+      rows: rollbacks,
+    })),
+  );
   // A reverted version stops being skipped once a newer one is offered.
   statements.push(
     env.DB
@@ -182,26 +187,28 @@ async function runSync(
       .bind(siteId),
   );
 
-  const insertComment = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_comments
-       (site_id, comment_id, author, author_email, content, post_title, post_url, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
+  const pending: (string | number | null)[][] = [];
   for (const comment of (comments.comments ?? []).slice(0, 100)) {
     const created = Date.parse(`${comment.date_gmt.replace(" ", "T")}Z`);
-    statements.push(
-      insertComment.bind(
-        siteId,
-        Math.trunc(Number(comment.id)),
-        text(comment.author),
-        text(comment.author_email),
-        text(comment.content).slice(0, 2000),
-        text(comment.post_title),
-        webUrl(comment.post_url),
-        Number.isFinite(created) ? Math.floor(created / 1000) : now,
-      ),
-    );
+    pending.push([
+      Math.trunc(Number(comment.id)),
+      text(comment.author),
+      text(comment.author_email),
+      text(comment.content).slice(0, 2000),
+      text(comment.post_title),
+      webUrl(comment.post_url),
+      Number.isFinite(created) ? Math.floor(created / 1000) : now,
+    ]);
   }
+  statements.push(
+    ...(await siteRowChanges(env.DB, {
+      table: "site_comments",
+      siteId,
+      key: ["comment_id"],
+      columns: ["comment_id", "author", "author_email", "content", "post_title", "post_url", "created_at"],
+      rows: pending,
+    })),
+  );
 
   await env.DB.batch(statements);
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
@@ -233,27 +240,26 @@ async function storePlugins(env: Env, site: SiteCredentials, pluginVersion: stri
     if (error instanceof SiteRequestError) return;
     throw error;
   }
-  const insert = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_plugins (site_id, file, name, version, author, active, network_active, protected, auto_update, icon_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
   const plugins = (Array.isArray(list.plugins) ? list.plugins : []).slice(0, 500).filter((p) => text(p.file));
+  const changes = await siteRowChanges(env.DB, {
+    table: "site_plugins",
+    siteId: site.id,
+    key: ["file"],
+    columns: ["file", "name", "version", "author", "active", "network_active", "protected", "auto_update", "icon_url"],
+    rows: plugins.map((p) => [
+      text(p.file).slice(0, 300),
+      text(p.name).slice(0, 200) || text(p.file),
+      text(p.version).slice(0, 40),
+      text(p.author).slice(0, 200),
+      p.active ? 1 : 0,
+      p.network_active ? 1 : 0,
+      p.protected ? 1 : 0,
+      p.auto_update ? 1 : 0,
+      iconUrl(p.icon_url) ?? "",
+    ]),
+  });
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(site.id),
-    ...plugins.map((p) =>
-      insert.bind(
-        site.id,
-        text(p.file).slice(0, 300),
-        text(p.name).slice(0, 200) || text(p.file),
-        text(p.version).slice(0, 40),
-        text(p.author).slice(0, 200),
-        p.active ? 1 : 0,
-        p.network_active ? 1 : 0,
-        p.protected ? 1 : 0,
-        p.auto_update ? 1 : 0,
-        iconUrl(p.icon_url) ?? "",
-      ),
-    ),
+    ...changes,
     env.DB.prepare("UPDATE sites SET plugin_auto_updates = ? WHERE id = ?").bind(list.auto_updates === false ? 0 : 1, site.id),
   ]);
 }
@@ -271,10 +277,6 @@ async function storeUsers(env: Env, site: SiteCredentials, pluginVersion: string
     if (error instanceof SiteRequestError) return;
     throw error;
   }
-  const insert = env.DB.prepare(
-    `INSERT OR REPLACE INTO site_users (site_id, user_id, login, email, display_name, roles, registered)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
   const users = (Array.isArray(list.users) ? list.users : [])
     .filter((user) => Number.isSafeInteger(user.id) && user.id > 0 && text(user.login))
     .slice(0, 2000);
@@ -282,19 +284,22 @@ async function storeUsers(env: Env, site: SiteCredentials, pluginVersion: string
     .filter((role) => text(role.slug))
     .slice(0, 100)
     .map((role) => ({ slug: text(role.slug).slice(0, 100), name: text(role.name).slice(0, 100) || text(role.slug) }));
+  const changes = await siteRowChanges(env.DB, {
+    table: "site_users",
+    siteId: site.id,
+    key: ["user_id"],
+    columns: ["user_id", "login", "email", "display_name", "roles", "registered"],
+    rows: users.map((user) => [
+      user.id,
+      text(user.login).slice(0, 120),
+      text(user.email).slice(0, 200),
+      text(user.display_name).slice(0, 200),
+      (Array.isArray(user.roles) ? user.roles : []).map((role) => text(role).slice(0, 100)).join(","),
+      Math.max(0, Math.trunc(Number(user.registered) || 0)),
+    ]),
+  });
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM site_users WHERE site_id = ?").bind(site.id),
-    ...users.map((user) =>
-      insert.bind(
-        site.id,
-        user.id,
-        text(user.login).slice(0, 120),
-        text(user.email).slice(0, 200),
-        text(user.display_name).slice(0, 200),
-        (Array.isArray(user.roles) ? user.roles : []).map((role) => text(role).slice(0, 100)).join(","),
-        Math.max(0, Math.trunc(Number(user.registered) || 0)),
-      ),
-    ),
+    ...changes,
     env.DB.prepare("UPDATE sites SET user_roles = ? WHERE id = ?").bind(JSON.stringify(roles), site.id),
   ]);
 }

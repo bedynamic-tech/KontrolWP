@@ -38,6 +38,7 @@ interface ScanRow {
   updated_at: number;
   finished_at: number | null;
   truncated: number;
+  posts_seen: string;
 }
 
 interface ListedPost {
@@ -72,7 +73,8 @@ export async function startLinkScan(env: Env, siteId: number, now = nowSeconds()
      VALUES (?, 1, 'collecting', 0, 0, 0, ?, ?)
      ON CONFLICT (site_id) DO UPDATE SET
        scan_id = scan_id + 1, status = 'collecting', error = NULL, posts_scanned = 0, total_urls = 0,
-       checked_urls = 0, started_at = excluded.started_at, updated_at = excluded.updated_at, finished_at = NULL, truncated = 0
+       checked_urls = 0, started_at = excluded.started_at, updated_at = excluded.updated_at, finished_at = NULL, truncated = 0,
+       posts_seen = '[]'
      RETURNING scan_id`,
   )
     .bind(siteId, now + delaySeconds, now + delaySeconds)
@@ -138,15 +140,16 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
 
   const items = Array.isArray(listing.items) ? listing.items : [];
   const statements: D1PreparedStatement[] = [];
-  // The first page starts the list of where each link appears over.
-  if (page === 1) statements.push(env.DB.prepare("DELETE FROM site_link_refs WHERE site_id = ?").bind(siteId));
   const known = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND scan_id = ?")
     .bind(siteId, scanId)
     .first<{ n: number }>();
   let room = MAX_URLS - (known?.n ?? 0);
   const added = new Set<string>();
   let dropped = false;
+  const refs = new Map<number, unknown[][]>();
   for (const post of items) {
+    const postId = Number(post.post_id) || 0;
+    if (!refs.has(postId)) refs.set(postId, []);
     for (const link of Array.isArray(post.links) ? post.links : []) {
       const url = cleanUrl(link.url);
       if (!url) continue;
@@ -164,9 +167,10 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
           ).bind(siteId, url, scanId),
         );
       }
-      statements.push(refStatement(env.DB, siteId, url, post, link));
+      refs.get(postId)!.push(refValues(url, post, link));
     }
   }
+  statements.push(...(await refChanges(env.DB, siteId, refs)));
   if (dropped) {
     statements.push(env.DB.prepare("UPDATE link_scans SET truncated = 1 WHERE site_id = ? AND scan_id = ?").bind(siteId, scanId));
   }
@@ -174,18 +178,30 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
 
   const lastPage = page >= (Number(listing.total_pages) || 0);
   const now = nowSeconds();
+  const seen = new Set([...parseIds(scan.posts_seen), ...refs.keys()]);
   await env.DB.prepare(
-    "UPDATE link_scans SET posts_scanned = MIN(posts_scanned + ?, ?), updated_at = ? WHERE site_id = ? AND scan_id = ?",
+    "UPDATE link_scans SET posts_scanned = MIN(posts_scanned + ?, ?), posts_seen = ?, updated_at = ? WHERE site_id = ? AND scan_id = ?",
   )
-    .bind(POSTS_PER_PAGE, Number(listing.total_posts) || 0, now, siteId, scanId)
+    .bind(POSTS_PER_PAGE, Number(listing.total_posts) || 0, JSON.stringify([...seen]), now, siteId, scanId)
     .run();
   if (!lastPage) {
     await env.SYNC_QUEUE.send({ type: "links-collect", siteId, scanId, page: page + 1 });
     return;
   }
 
-  // Every page is in: drop links no longer in the content, then check the rest
-  // (ignored links stay listed but are never checked again).
+  // Every page is in: forget where links appeared in posts no longer listed,
+  // drop links no longer in the content, then check the rest (ignored links
+  // stay listed but are never checked again).
+  const { results: listed } = await env.DB.prepare("SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ?")
+    .bind(siteId)
+    .all<{ post_id: number }>();
+  const gone = listed.map((row) => row.post_id).filter((id) => !seen.has(id));
+  for (let i = 0; i < gone.length; i += 99) {
+    const ids = gone.slice(i, i + 99);
+    await env.DB.prepare(`DELETE FROM site_link_refs WHERE site_id = ? AND post_id IN (${ids.map(() => "?").join(", ")})`)
+      .bind(siteId, ...ids)
+      .run();
+  }
   await env.DB.prepare("DELETE FROM site_links WHERE site_id = ? AND scan_id <> ?").bind(siteId, scanId).run();
   const total = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND ignored = 0")
     .bind(siteId)
@@ -204,12 +220,15 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
 export async function checkLinks(env: Env, siteId: number, scanId: number, fetcher: typeof fetch = fetch): Promise<boolean> {
   const scan = await loadScan(env.DB, siteId);
   if (!scan || scan.scan_id !== scanId || scan.status !== "checking") return false;
+  // One more than is checked says whether any remain, without counting them
+  // (counting read every unchecked row again for each few checked).
   const { results } = await env.DB.prepare(
-    "SELECT url FROM site_links WHERE site_id = ? AND checked_scan < ? AND ignored = 0 ORDER BY url LIMIT ?",
+    "SELECT url FROM site_links WHERE site_id = ? AND ignored = 0 AND checked_scan < ? LIMIT ?",
   )
-    .bind(siteId, scanId, URLS_PER_CHECK)
+    .bind(siteId, scanId, URLS_PER_CHECK + 1)
     .all<{ url: string }>();
-  const urls = results.map((row) => row.url);
+  const urls = results.slice(0, URLS_PER_CHECK).map((row) => row.url);
+  const more = results.length > URLS_PER_CHECK;
 
   const checks = await mapLimit(urls, CHECK_CONCURRENCY, (url) => checkUrl(url, fetcher));
   const now = nowSeconds();
@@ -222,17 +241,14 @@ export async function checkLinks(env: Env, siteId: number, scanId: number, fetch
     ),
   );
 
-  const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND checked_scan < ? AND ignored = 0")
-    .bind(siteId, scanId)
-    .first<{ n: number }>();
-  const remaining = left?.n ?? 0;
   await env.DB.prepare(
-    `UPDATE link_scans SET checked_urls = total_urls - ?, updated_at = ?, status = ?, finished_at = ?
+    `UPDATE link_scans SET checked_urls = CASE WHEN ? THEN MIN(checked_urls + ?, total_urls) ELSE total_urls END,
+       updated_at = ?, status = ?, finished_at = ?
      WHERE site_id = ? AND scan_id = ?`,
   )
-    .bind(remaining, now, remaining ? "checking" : "done", remaining ? null : now, siteId, scanId)
+    .bind(more ? 1 : 0, urls.length, now, more ? "checking" : "done", more ? null : now, siteId, scanId)
     .run();
-  return remaining > 0;
+  return more;
 }
 
 export interface LinkCheck {
@@ -465,14 +481,19 @@ async function rereadPosts(env: Env, site: SiteCredentials, postIds: number[]): 
 
 }
 
+const REF_COLUMNS = "url, post_id, post_title, post_type, permalink, link_text, kind";
+
 function refStatement(db: D1Database, siteId: number, url: string, post: ListedPost, link: ListedPost["links"][number]) {
-  return db
-    .prepare(
-      `INSERT INTO site_link_refs (site_id, url, post_id, post_title, post_type, permalink, link_text, kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      siteId,
+  return insertRef(db, siteId, refValues(url, post, link));
+}
+
+function insertRef(db: D1Database, siteId: number, values: unknown[]) {
+  return db.prepare(`INSERT INTO site_link_refs (site_id, ${REF_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(siteId, ...values);
+}
+
+/** Where a link appears, in REF_COLUMNS order. */
+function refValues(url: string, post: ListedPost, link: ListedPost["links"][number]): unknown[] {
+  return [
       url,
       Number(post.post_id) || 0,
       String(post.title ?? "").slice(0, 300),
@@ -480,7 +501,49 @@ function refStatement(db: D1Database, siteId: number, url: string, post: ListedP
       String(post.permalink ?? "").slice(0, 2048),
       String(link.text ?? "").slice(0, 200),
       link.kind === "image" ? "image" : "link",
-    );
+  ];
+}
+
+const parseIds = (text: string | null | undefined): number[] => {
+  try {
+    const ids: unknown = JSON.parse(text ?? "[]");
+    return Array.isArray(ids) ? ids.filter((id): id is number => typeof id === "number") : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Rewrite where links appear only for the posts whose links changed since
+ * the last scan; most posts are unchanged, and D1 counts every row written.
+ */
+async function refChanges(db: D1Database, siteId: number, refs: Map<number, unknown[][]>): Promise<D1PreparedStatement[]> {
+  const ids = [...refs.keys()];
+  if (!ids.length) return [];
+  const stored = new Map<number, string[]>();
+  // D1 binds at most 100 values per statement.
+  for (let i = 0; i < ids.length; i += 99) {
+    const chunk = ids.slice(i, i + 99);
+    const { results } = await db
+      .prepare(`SELECT ${REF_COLUMNS} FROM site_link_refs WHERE site_id = ? AND post_id IN (${chunk.map(() => "?").join(", ")})`)
+      .bind(siteId, ...chunk)
+      .all<Record<string, unknown>>();
+    for (const row of results) {
+      const values = REF_COLUMNS.split(", ").map((name) => row[name] ?? null);
+      const postId = Number(row.post_id);
+      if (!stored.has(postId)) stored.set(postId, []);
+      stored.get(postId)!.push(JSON.stringify(values));
+    }
+  }
+  const statements: D1PreparedStatement[] = [];
+  for (const [postId, rows] of refs) {
+    const fresh = rows.map((values) => JSON.stringify(values)).sort();
+    const old = (stored.get(postId) ?? []).sort();
+    if (fresh.length === old.length && fresh.every((row, i) => row === old[i])) continue;
+    statements.push(db.prepare("DELETE FROM site_link_refs WHERE site_id = ? AND post_id = ?").bind(siteId, postId));
+    for (const values of rows) statements.push(insertRef(db, siteId, values));
+  }
+  return statements;
 }
 
 /** Thrown when links can't be removed on this site, phrased for the dashboard. */
