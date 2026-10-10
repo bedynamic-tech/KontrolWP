@@ -238,6 +238,12 @@ function RunsList(props: { runs: UpdateRun[]; showSite: boolean; heading?: boole
             {props.showSite && <> on {run.site_name}</>}: queued {run.queued} {run.queued === 1 ? "update" : "updates"}
             {run.items.length > 0 && ` (${run.items.map((item) => `${item.name} ${item.version}`).join(", ")})`}
             {run.skipped > 0 && `, left out ${run.skipped} by the plugin list`}.
+            {run.check_note && (
+              <span className={run.check_result === "reverted" || run.check_result === "broken" ? " text-destructive" : ""}>
+                {" "}
+                {run.check_note}
+              </span>
+            )}
           </li>
         ))}
       </ul>

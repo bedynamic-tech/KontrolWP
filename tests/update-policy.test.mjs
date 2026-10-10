@@ -99,7 +99,8 @@ test("a due site gets its waiting updates queued, plugins first, then core, minu
     { kind: "core", slug: "wordpress", version: "6.9", status: "queued" },
   ]);
   assert.equal(sent.length, 1);
-  assert.deepEqual(sent[0].message, { type: "update", siteId: 1 });
+  // The home page is looked at before the updates start.
+  assert.deepEqual(sent[0].message, { type: "update-check", siteId: 1, runId: 1, phase: "before" });
   const view = await globalPolicyView(env, sunday);
   assert.equal(view.runs[0].queued, 3);
   assert.equal(view.runs[0].skipped, 1);

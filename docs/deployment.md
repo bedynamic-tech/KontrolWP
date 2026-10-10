@@ -9,7 +9,7 @@ Access. No local CLI or API keys are needed.
 - A Cloudflare Zero Trust team for protecting the dashboard with Access (the
   free plan is enough).
 
-Workers, D1, Queues and Cron Triggers usage belongs to your account and is
+Workers, D1, Queues, Browser Rendering and Cron Triggers usage belongs to your account and is
 subject to Cloudflare's quotas and billing.
 
 ## At a glance
@@ -30,7 +30,9 @@ subject to Cloudflare's quotas and billing.
 2. Choose the destination account, repository and Worker name. For your first
    instance the default names are fine. For more instances in the same
    account, use different Worker, database and queue names.
-3. Review the resource bindings: `DB` (D1) and `SYNC_QUEUE` (Queues).
+3. Review the resource bindings: `DB` (D1) and `SYNC_QUEUE` (Queues). The
+   `BROWSER` binding (Browser Rendering, for the check after scheduled updates)
+   needs nothing created.
    Cloudflare provisions them in your account and writes their values into
    your new repository. In `wrangler.jsonc`, the queue consumer's `queue` must
    match the `SYNC_QUEUE` producer, including if you rename it.

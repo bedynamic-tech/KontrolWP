@@ -40,6 +40,10 @@ _Avoid_: Refresh, poll, crawl
 A newer version of WordPress core, a plugin or a theme that a Site reported during its last Sync.
 _Avoid_: Upgrade, patch
 
+**Regression check**:
+After a Site's scheduled updates, KontrolWP compares its home page with how it looked just before them. If the page stopped loading, shows WordPress's critical error, answers with a new HTTP error or looks very different, the plugins and themes that run updated are reverted. The result is noted on the run.
+_Avoid_: Visual check, smoke test, safe updates
+
 **Update Queue**:
 The Updates the owner asked KontrolWP to install on one Site, run one at a time in the order they were queued. An Update in it is Queued, Updating, Updated (until the next Sync) or failed.
 _Avoid_: Job list, batch

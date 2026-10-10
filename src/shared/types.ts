@@ -1190,6 +1190,9 @@ export interface UpdateRun {
   /** Updates left out because their plugin is excluded. */
   skipped: number;
   items: { kind: UpdateKind; name: string; version: string }[];
+  /** The home page check around the run: null until it is done, or for runs before it existed. */
+  check_result: "passed" | "reverted" | "broken" | "skipped" | null;
+  check_note: string | null;
 }
 
 export interface GlobalUpdatePolicyView {

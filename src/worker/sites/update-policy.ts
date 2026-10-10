@@ -209,13 +209,19 @@ export async function runScheduledUpdates(env: Env, now = Math.floor(Date.now() 
       );
       items.push({ kind: update.kind, name: update.name, version: update.new_version });
     }
-    if (items.length || skipped) {
-      await env.DB.prepare("INSERT INTO update_runs (site_id, ran_at, queued, skipped, items) VALUES (?, ?, ?, ?, ?)")
-        .bind(row.id, now, items.length, skipped, JSON.stringify(items))
-        .run();
-    }
-    if (items.length) {
-      await env.SYNC_QUEUE.send({ type: "update", siteId: row.id }, { delaySeconds: index * spacing });
+    const run = items.length || skipped
+      ? await env.DB.prepare(
+          "INSERT INTO update_runs (site_id, ran_at, queued, skipped, items) VALUES (?, ?, ?, ?, ?) RETURNING id",
+        )
+          .bind(row.id, now, items.length, skipped, JSON.stringify(items))
+          .first<{ id: number }>()
+      : null;
+    if (items.length && run) {
+      // The home page is looked at first, and the updates start after it (update-check.ts).
+      await env.SYNC_QUEUE.send(
+        { type: "update-check", siteId: row.id, runId: run.id, phase: "before" },
+        { delaySeconds: index * spacing },
+      );
     }
   }
   await env.DB.prepare("DELETE FROM update_runs WHERE ran_at < ?")
@@ -226,7 +232,7 @@ export async function runScheduledUpdates(env: Env, now = Math.floor(Date.now() 
 
 async function listRuns(env: Env, siteId: number | null, limit: number): Promise<UpdateRun[]> {
   const { results } = await env.DB.prepare(
-    `SELECT r.id, r.site_id, s.name AS site_name, r.ran_at, r.queued, r.skipped, r.items
+    `SELECT r.id, r.site_id, s.name AS site_name, r.ran_at, r.queued, r.skipped, r.items, r.check_result, r.check_note
      FROM update_runs r JOIN sites s ON s.id = r.site_id
      ${siteId === null ? "" : "WHERE r.site_id = ?"} ORDER BY r.ran_at DESC, r.id DESC LIMIT ?`,
   )

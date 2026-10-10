@@ -5,6 +5,7 @@ import { SecretsKeyError } from "./secrets.ts";
 import { loadPackage, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { getCredentials } from "./store.ts";
 import { syncSite } from "./sync.ts";
+import { afterUpdates } from "./update-check.ts";
 
 // WordPress puts the site in maintenance mode while it updates, so each site
 // runs one update at a time. Jobs live in update_jobs; a queue message only
@@ -204,6 +205,8 @@ async function afterJob(env: Env, siteId: number): Promise<UpdateStep> {
   // often still restarting or in maintenance just after an update, and a failed
   // sync leaves the finished updates listed, so it is tried again shortly.
   const synced = await syncSite(env, siteId);
+  // A scheduled run checks the home page once its updates are done.
+  await afterUpdates(env, siteId);
   return synced.ok ? { next: "idle" } : { next: "resync", delaySeconds: RESYNC_SECONDS };
 }
 
