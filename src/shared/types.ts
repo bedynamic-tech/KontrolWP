@@ -66,6 +66,8 @@ export interface SiteSummary {
   cf_error: string | null;
   /** Static sites: when the newest deployment went live, in seconds. */
   last_deployed_at: number | null;
+  /** Maintenance mode was on when KontrolWP last read or changed it. */
+  maintenance: boolean;
 }
 
 /** Core auto-updates: every new version, maintenance and security releases only, or none. */

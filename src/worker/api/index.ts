@@ -1346,7 +1346,7 @@ api.put("/sites/:id/update-emails", async (c) => {
 });
 
 /** A site's maintenance mode and its page. */
-api.get("/sites/:id/maintenance", async (c) => redirectsCall(c, (site, credentials) => siteMaintenance(site, credentials)));
+api.get("/sites/:id/maintenance", async (c) => redirectsCall(c, (site, credentials) => siteMaintenance(c.env.DB, site, credentials)));
 
 api.put("/sites/:id/maintenance", async (c) => {
   const parsed = z
@@ -1360,7 +1360,7 @@ api.put("/sites/:id/maintenance", async (c) => {
     })
     .safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid maintenance settings" }, 400);
-  return redirectsCall(c, (site, credentials) => saveMaintenance(site, credentials, parsed.data));
+  return redirectsCall(c, (site, credentials) => saveMaintenance(c.env.DB, site, credentials, parsed.data));
 });
 
 /** A site's custom login address. */
