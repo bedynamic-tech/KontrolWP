@@ -42,6 +42,7 @@ import type {
   SeoSettings,
   SiteAccessibility,
   SitePerformance,
+  SiteUptime,
   SiteSeoAudit,
   SiteRedirects,
   SiteSeo,
@@ -235,7 +236,7 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
 export const setLinksExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });
 
-export type SiteFeature = "analytics" | "security" | "accessibility" | "performance";
+export type SiteFeature = "analytics" | "security" | "accessibility" | "performance" | "uptime";
 
 export const setFeatureExcluded = (siteId: number, feature: SiteFeature, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/feature-excluded`, { method: "PUT", json: { feature, excluded } });
@@ -402,6 +403,9 @@ export const setSecurityFixes = (siteId: number, ids: string[], enabled: boolean
 export const fetchPerformance = (siteId: number) => request<SitePerformance>(`/sites/${siteId}/performance`);
 export const runPerformance = (siteId: number) =>
   request<SitePerformance>(`/sites/${siteId}/performance/run`, { method: "POST" });
+export const fetchUptime = (siteId: number) => request<SiteUptime>(`/sites/${siteId}/uptime`);
+export const checkUptime = (siteId: number) =>
+  request<SiteUptime>(`/sites/${siteId}/uptime/check`, { method: "POST" });
 export const fetchPagespeedSettings = () => request<{ configured: boolean }>("/settings/pagespeed");
 export const savePagespeedKey = (key: string) =>
   request<{ configured: boolean }>("/settings/pagespeed", { method: "PUT", json: { key } });

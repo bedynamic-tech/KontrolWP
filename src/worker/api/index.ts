@@ -32,6 +32,7 @@ import type {
   SiteAccessibility,
   SiteSeoAudit,
   SitePerformance,
+  SiteUptime,
   SiteSeo,
   SiteSummary,
   SiteSecurity,
@@ -154,6 +155,7 @@ import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, sit
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance } from "../sites/performance.ts";
+import { checkSite, siteUptime } from "../sites/uptime.ts";
 import {
   cleanExcluded,
   globalPolicyView,
@@ -309,11 +311,12 @@ api.use("/sites/:id/*", async (c, next) => {
 });
 
 // A feature the owner turned off for a site answers nothing, whatever asks.
-const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility" | "performance", string][] = [
+const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility" | "performance" | "uptime", string][] = [
   [/^\/sites\/\d+\/analytics(\/|$)/, "analytics", "Analytics"],
   [/^\/sites\/\d+\/security(\/|$)/, "security", "Security checks"],
   [/^\/sites\/\d+\/accessibility(\/|$)/, "accessibility", "Accessibility checks"],
   [/^\/sites\/\d+\/performance(\/|$)/, "performance", "Performance checks"],
+  [/^\/sites\/\d+\/uptime(\/|$)/, "uptime", "Uptime checks"],
 ];
 api.use("/sites/:id/*", async (c, next) => {
   const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
@@ -421,6 +424,8 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM performance_scans WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM performance_history WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM seo_history WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM uptime_checks WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM ssl_certificates WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM sites WHERE id = ?").bind(id),
   ]);
   return c.json({ ok: true });
@@ -626,9 +631,9 @@ api.put("/sites/:id/links-excluded", async (c) => {
   return c.json(await getSite(c.env.DB, id));
 });
 
-const featureExcluded = z.object({ feature: z.enum(["analytics", "security", "accessibility", "performance"]), excluded: z.boolean() });
+const featureExcluded = z.object({ feature: z.enum(["analytics", "security", "accessibility", "performance", "uptime"]), excluded: z.boolean() });
 
-/** Turn analytics, security, accessibility or performance checks off for one site, or on again. Results already stored are kept. */
+/** Turn analytics, security, accessibility, performance or uptime checks off for one site, or on again. Results already stored are kept. */
 api.put("/sites/:id/feature-excluded", async (c) => {
   const id = siteId(c);
   const parsed = featureExcluded.safeParse(await c.req.json().catch(() => null));
@@ -1021,6 +1026,21 @@ api.post("/sites/:id/performance/run", async (c) => {
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
   if (await claimTest(c.env, id)) await c.env.SYNC_QUEUE.send({ type: "performance", siteId: id });
   return c.json<SitePerformance>(await sitePerformance(c.env, site));
+});
+
+/** The site's uptime checks of the last 30 days and its TLS certificate. */
+api.get("/sites/:id/uptime", async (c) => {
+  const id = siteId(c);
+  if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  return c.json<SiteUptime>(await siteUptime(c.env, id));
+});
+
+/** Check the site and read its certificate now, rather than at the next scheduled check. */
+api.post("/sites/:id/uptime/check", async (c) => {
+  const id = siteId(c);
+  if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  await checkSite(c.env, id, undefined, { refreshCertificate: true, retryDelayMs: 2000 });
+  return c.json<SiteUptime>(await siteUptime(c.env, id));
 });
 
 api.get("/settings/pagespeed", async (c) => {
