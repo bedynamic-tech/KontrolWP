@@ -24,6 +24,7 @@ import { Spinner } from "./Spinner";
 import { pluginIconSources, RemoteIcon } from "./RemoteIcon";
 import { EmptyRow, Section } from "./Section";
 import { SiteScheduleFields, SiteScheduleSelect, useSitePluginSchedule } from "./UpdatePolicy";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function supported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, PLUGIN_MANAGEMENT_SINCE) >= 0;
@@ -464,7 +465,7 @@ export function InstallDialog(props: {
           </Tabs>
           {props.children}
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={activate} onChange={(e) => setActivate(e.target.checked)} />
+            <Checkbox checked={activate} onChange={(e) => setActivate(e.target.checked)} />
             Activate after installing
           </label>
           {install.error && <p className="whitespace-pre-line text-sm text-destructive">{install.error.message}</p>}

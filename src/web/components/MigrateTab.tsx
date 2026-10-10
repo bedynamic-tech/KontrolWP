@@ -14,6 +14,7 @@ import type { SeoMigrationParts, SeoMigrationPreview, SeoMigrationResult, SiteSu
 import { deactivateMigrationSource, fetchMigrationSources, previewMigration, runMigration } from "../api";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const SETTING_LABELS: Record<string, string> = {
   separator: "Title separator",
@@ -59,9 +60,8 @@ function CheckLine(props: {
 }) {
   return (
     <label className={`flex items-start gap-3 px-4 py-3 ${props.disabled ? "opacity-60" : "cursor-pointer"}`}>
-      <input
-        type="checkbox"
-        className="mt-0.5 size-4 shrink-0 accent-primary"
+      <Checkbox
+        className="mt-0.5"
         checked={props.checked}
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.checked)}

@@ -39,7 +39,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "easy-fade fixed inset-0 isolate z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-sm",
         className
       )}
       {...props}
@@ -78,10 +78,10 @@ function DialogContent({
           }
         }}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-y-auto -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "easy-settle fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-y-auto -translate-y-1/2 gap-4 rounded-2xl border bg-popover p-4 text-sm text-popover-foreground shadow-elevated outline-none sm:max-w-sm",
           className,
           fullScreenOnMobile &&
-            "max-sm:inset-0 max-sm:flex max-sm:flex-col max-sm:h-dvh max-sm:max-h-none max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:overflow-y-auto max-sm:rounded-none max-sm:ring-0 max-sm:pt-[max(1rem,var(--app-inset-top))] max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+            "easy-sheet max-sm:inset-0 max-sm:flex max-sm:flex-col max-sm:h-dvh max-sm:max-h-none max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:overflow-y-auto max-sm:rounded-none max-sm:border-0 max-sm:pt-[max(1rem,var(--app-inset-top))] max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
         )}
         {...props}
       >
@@ -91,7 +91,7 @@ function DialogContent({
             <Button
               variant="ghost"
               className={cn(
-                "absolute top-2 right-2",
+                "absolute top-2.5 right-2.5",
                 fullScreenOnMobile && "max-sm:top-[max(0.5rem,var(--app-inset-top))]"
               )}
               size="icon-sm"
@@ -129,7 +129,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-[-1rem] z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t max-sm:mt-auto max-sm:rounded-none bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))] p-4 sm:flex-row sm:justify-end",
+        "sticky bottom-[-1rem] z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-2xl border-t max-sm:mt-auto max-sm:rounded-none bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))] p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

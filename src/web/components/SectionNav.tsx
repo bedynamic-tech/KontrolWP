@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { Fragment } from "react";
+import { LayoutGroup, motion } from "framer-motion";
+import { Fragment, useId } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { motionTransitions } from "@/lib/motion";
 
 export interface NavItem {
   value: string;
@@ -38,6 +40,7 @@ export function SectionNav(props: {
   const currentView = current?.item.children?.find((child) => child.value === view) ?? current?.item.children?.[0];
   const trail = [current?.group.label, currentView && current?.item.label].filter(Boolean);
   const leaf = currentView?.label ?? current?.item.label ?? "";
+  const layoutGroup = useId();
 
   return (
     <>
@@ -46,7 +49,7 @@ export function SectionNav(props: {
           <button
             type="button"
             aria-label={`${props.label}: ${[...trail, leaf].join(", ")}`}
-            className="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden dark:bg-input/30"
+            className="group flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden dark:bg-input/30"
           >
             <span className="min-w-0 truncate">
               {trail.map((part) => (
@@ -54,7 +57,7 @@ export function SectionNav(props: {
               ))}
               <span className="font-medium">{leaf}</span>
             </span>
-            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-(--ease-snappy) group-data-[state=open]:rotate-180" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
@@ -86,39 +89,41 @@ export function SectionNav(props: {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <nav aria-label={props.label} className="hidden lg:mt-6 lg:block">
-        <div className="sticky top-6 space-y-0.5">
-          {groups.map((group, index) => (
-            <Fragment key={group.label ?? index}>
-              {group.label && <p className="px-2 pt-5 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>}
-              {group.items.map((item) => {
-                const open = item.value === value;
-                return (
-                  <Fragment key={item.value}>
-                    <NavButton
-                      label={item.label}
-                      active={open && !item.children}
-                      open={open}
-                      expandable={!!item.children}
-                      onClick={() => onChange(item.value, item.children?.[0]?.value)}
-                    />
-                    {open &&
-                      item.children?.map((child) => (
-                        <NavButton
-                          key={child.value}
-                          label={child.label}
-                          child
-                          active={child.value === currentView?.value}
-                          onClick={() => onChange(item.value, child.value)}
-                        />
-                      ))}
-                  </Fragment>
-                );
-              })}
-            </Fragment>
-          ))}
-        </div>
-      </nav>
+      <LayoutGroup id={layoutGroup}>
+        <nav aria-label={props.label} className="hidden lg:mt-6 lg:block">
+          <div className="sticky top-6 space-y-0.5">
+            {groups.map((group, index) => (
+              <Fragment key={group.label ?? index}>
+                {group.label && <p className="px-2 pt-5 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>}
+                {group.items.map((item) => {
+                  const open = item.value === value;
+                  return (
+                    <Fragment key={item.value}>
+                      <NavButton
+                        label={item.label}
+                        active={open && !item.children}
+                        open={open}
+                        expandable={!!item.children}
+                        onClick={() => onChange(item.value, item.children?.[0]?.value)}
+                      />
+                      {open &&
+                        item.children?.map((child) => (
+                          <NavButton
+                            key={child.value}
+                            label={child.label}
+                            child
+                            active={child.value === currentView?.value}
+                            onClick={() => onChange(item.value, child.value)}
+                          />
+                        ))}
+                    </Fragment>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </div>
+        </nav>
+      </LayoutGroup>
     </>
   );
 }
@@ -131,25 +136,47 @@ function NavButton(props: {
   child?: boolean;
   onClick: () => void;
 }) {
-  const Chevron = props.open ? ChevronDownIcon : ChevronRightIcon;
   return (
-    <button
+    <motion.button
       type="button"
       aria-current={props.active ? "page" : undefined}
       aria-expanded={props.expandable ? props.open : undefined}
       onClick={props.onClick}
-      className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
+      // A section's views fade down into place as it opens.
+      initial={props.child ? { opacity: 0, y: -4 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={motionTransitions.springGentle}
+      className={`relative flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
         props.child ? "ml-3 w-[calc(100%-0.75rem)] rounded-l-none border-l pl-3" : ""
       } ${
         props.active
-          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+          ? "font-medium text-sidebar-accent-foreground"
           : props.open
             ? "font-medium text-foreground hover:bg-sidebar-accent/60"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
       }`}
     >
-      <span className="truncate">{props.label}</span>
-      {props.expandable && <Chevron className="size-3.5 shrink-0" />}
-    </button>
+      {/* EasyUI's PillNavigation: one highlight that slides to the open section. */}
+      {props.active && (
+        <motion.span
+          aria-hidden
+          layoutId="section-active"
+          transition={motionTransitions.springMorph}
+          className={`absolute inset-0 bg-sidebar-accent ${props.child ? "rounded-r-lg" : "rounded-lg"}`}
+        />
+      )}
+      <span className="relative truncate">{props.label}</span>
+      {props.expandable && (
+        <motion.span
+          aria-hidden
+          className="relative"
+          initial={false}
+          animate={{ rotate: props.open ? 90 : 0 }}
+          transition={motionTransitions.springSnappy}
+        >
+          <ChevronRightIcon className="size-3.5 shrink-0" />
+        </motion.span>
+      )}
+    </motion.button>
   );
 }
