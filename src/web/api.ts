@@ -78,6 +78,7 @@ import type {
   LinkUnlinkResult,
   SiteLinks,
   SiteSummary,
+  SiteRollback,
   SiteUpdate,
 } from "../shared/types";
 
@@ -199,6 +200,9 @@ export const syncSite = (id: number) => request<{ ok: true }>(`/sites/${id}/sync
 
 export const moderateComment = (siteId: number, commentId: number, action: CommentAction) =>
   request<{ ok: true }>(`/sites/${siteId}/comments/${commentId}`, { method: "POST", json: { action } });
+
+export const revertUpdate = (siteId: number, item: Pick<SiteRollback, "kind" | "slug">) =>
+  request<{ ok: true }>(`/sites/${siteId}/rollbacks`, { method: "POST", json: { kind: item.kind, slug: item.slug } });
 
 export const applyUpdate = (siteId: number, update: Pick<SiteUpdate, "kind" | "slug" | "new_version">) =>
   request<{ ok: true }>(`/sites/${siteId}/updates`, {

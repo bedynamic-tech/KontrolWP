@@ -5,8 +5,8 @@ import { compareVersions, KONTROLWP_CONNECT_VERSION } from "../src/shared/plugin
 import { applyMigrations } from "../src/worker/db/migrate.ts";
 import { syncSite } from "../src/worker/sites/sync.ts";
 import { encryptSecret } from "../src/worker/sites/secrets.ts";
-import { getSite, listFleetPlugins, listFleetUsers, listUpdates } from "../src/worker/sites/store.ts";
-import { enqueueUpdate, runNextUpdate, runResync } from "../src/worker/sites/updates.ts";
+import { getSite, listFleetPlugins, listFleetUsers, listRollbacks, listUpdates } from "../src/worker/sites/store.ts";
+import { enqueueRollback, enqueueUpdate, RollbackError, runNextUpdate, runResync } from "../src/worker/sites/updates.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 const SITE = "https://example.com";
@@ -399,4 +399,114 @@ test("a sync that fails right after an update is tried again until it works", as
   assert.equal(await runResync(t.env, 1, 2), null);
   assert.equal(t.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM site_updates").get().n, 0, "the finished update leaves the list");
   assert.deepEqual(t.jobs(), []);
+});
+
+/**
+ * A site that kept Akismet 5.2 when it updated it to 5.3. Reverting puts 5.2
+ * back, after which the site offers 5.3 again and keeps no copy.
+ */
+async function setupRollback() {
+  const t = await setup(async (_body, json) => json({ ok: true }));
+  const site = { reverted: false, latest: "5.3", rollbacks: [] };
+  const base = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const route = new URL(url).searchParams.get("rest_route");
+    const json = (body, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    if (route === "/kontrolwp/v1/updates/rollback") {
+      site.rollbacks.push(JSON.parse(init.body));
+      site.reverted = true;
+      return json({ ok: true, version: "5.2" });
+    }
+    if (route === "/kontrolwp/v1/updates") {
+      const installed = site.reverted ? "5.2" : "5.3";
+      return json({
+        core: null,
+        plugins:
+          installed === site.latest
+            ? []
+            : [{ slug: "akismet/akismet.php", name: "Akismet", current_version: installed, new_version: site.latest }],
+        themes: [],
+        rollbacks: site.reverted
+          ? []
+          : [{ kind: "plugin", slug: "akismet/akismet.php", name: "Akismet", version: "5.2", current_version: "5.3", created_at: 1700000000 }],
+      });
+    }
+    return base(url, init);
+  };
+  return { ...t, site };
+}
+
+const holds = (db) => db.sqlite.prepare("SELECT kind, slug, version FROM update_holds").all().map((r) => ({ ...r }));
+
+test("a revert runs in the Update Queue, then the reverted version is marked for scheduled updates to skip", async () => {
+  const t = await setupRollback();
+  const db = t.env.DB;
+  await syncSite(t.env, 1);
+  const [kept] = await listRollbacks(db, 1);
+  assert.deepEqual(
+    { ...kept },
+    {
+      site_id: 1, kind: "plugin", slug: "akismet/akismet.php", name: "Akismet", version: "5.2", current_version: "5.3",
+      created_at: 1700000000, job_status: null, job_error: null,
+    },
+  );
+
+  await enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" });
+  await enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" });
+  assert.equal(t.jobs().length, 1, "a second click keeps one job");
+  assert.equal((await listRollbacks(db, 1))[0].job_status, "queued");
+  assert.deepEqual(t.sent.at(-1).body, { type: "update", siteId: 1 });
+
+  assert.deepEqual(await runNextUpdate(t.env, 1), { next: "idle" });
+  assert.deepEqual(t.site.rollbacks, [{ kind: "plugin", slug: "akismet/akismet.php" }]);
+  assert.deepEqual(t.applied, [], "a revert is not an update");
+  // The sync after it: no copy left, 5.3 offered again and held back from schedules.
+  assert.deepEqual(await listRollbacks(db, 1), []);
+  assert.deepEqual(t.jobs(), []);
+  assert.deepEqual(holds(db), [{ kind: "plugin", slug: "akismet/akismet.php", version: "5.3" }]);
+  const [update] = await listUpdates(db, 1);
+  assert.equal(update.new_version, "5.3");
+  assert.equal(update.held, true);
+  assert.equal(update.job_status, null);
+
+  // A newer release is not the version the owner reverted, so the hold goes.
+  t.site.latest = "5.4";
+  await syncSite(t.env, 1);
+  assert.deepEqual(holds(db), []);
+  assert.equal((await listUpdates(db, 1))[0].held, false);
+});
+
+test("a revert needs a kept copy and waits for no update of the same plugin", async () => {
+  const t = await setupRollback();
+  await assert.rejects(enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" }), RollbackError);
+  await syncSite(t.env, 1);
+  await enqueueUpdate(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" });
+  await assert.rejects(
+    enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" }),
+    /An update of this is in the queue/,
+  );
+  assert.equal((await listRollbacks(t.env.DB, 1))[0].job_status, null, "the update's job is not the revert's");
+});
+
+test("a failed revert is reported on its row and can be tried again", async () => {
+  const t = await setupRollback();
+  await syncSite(t.env, 1);
+  const base = globalThis.fetch;
+  globalThis.fetch = async (url, init) =>
+    new URL(url).searchParams.get("rest_route") === "/kontrolwp/v1/updates/rollback"
+      ? new Response(JSON.stringify({ code: "kontrolwp_no_rollback", message: "The previous version is no longer on the site." }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        })
+      : base(url, init);
+  await enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" });
+  await runNextUpdate(t.env, 1);
+  const [row] = await listRollbacks(t.env.DB, 1);
+  assert.equal(row.job_status, "failed");
+  assert.equal(row.job_error, "The previous version is no longer on the site.");
+  assert.deepEqual(holds(t.env.DB), []);
+  globalThis.fetch = base;
+  await enqueueRollback(t.env, 1, { kind: "plugin", slug: "akismet/akismet.php" });
+  assert.equal((await listRollbacks(t.env.DB, 1))[0].job_status, "queued");
 });

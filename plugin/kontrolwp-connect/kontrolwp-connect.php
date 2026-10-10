@@ -3,7 +3,7 @@
  * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://kontrolwp.com
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.35.0
+ * Version:           0.36.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
@@ -29,11 +29,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.35.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.36.0' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-rest.php';
+require_once __DIR__ . '/includes/class-kontrolwp-connect-rollback.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-admin.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-plugins.php';

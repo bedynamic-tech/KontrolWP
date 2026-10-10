@@ -79,6 +79,7 @@ class KontrolWP_Connect_Rest {
 				),
 			)
 		);
+		KontrolWP_Connect_Rollback::register_routes( $auth );
 		KontrolWP_Connect_Plugins::register_routes( $auth );
 		KontrolWP_Connect_Users::register_routes( $auth );
 		KontrolWP_Connect_Links::register_routes( $auth );
@@ -223,9 +224,10 @@ class KontrolWP_Connect_Rest {
 		}
 
 		return array(
-			'core'    => $core_update,
-			'plugins' => $plugins,
-			'themes'  => $themes,
+			'core'      => $core_update,
+			'plugins'   => $plugins,
+			'themes'    => $themes,
+			'rollbacks' => KontrolWP_Connect_Rollback::items(),
 		);
 	}
 
@@ -297,7 +299,17 @@ class KontrolWP_Connect_Rest {
 			wp_update_themes();
 		}
 
-		return self::bulk_upgrade( $kind, $slug );
+		// Keep the installed copy, so the owner can revert; only once the update worked does it replace an older copy.
+		$backup = KontrolWP_Connect_Rollback::prepare( $kind, $slug );
+		$result = self::bulk_upgrade( $kind, $slug );
+		if ( $backup ) {
+			if ( is_wp_error( $result ) ) {
+				KontrolWP_Connect_Rollback::discard( $backup );
+			} else {
+				KontrolWP_Connect_Rollback::commit( $backup );
+			}
+		}
+		return $result;
 	}
 
 	/**

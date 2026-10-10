@@ -48,13 +48,52 @@ export async function enqueueUpdate(
     .prepare(
       `INSERT INTO update_jobs (site_id, kind, slug, version) VALUES (?, ?, ?, ?)
        ON CONFLICT (site_id, kind, slug) DO UPDATE SET
-         status = 'queued', version = excluded.version, error = NULL, attempts = 0,
+         status = 'queued', action = 'update', version = excluded.version, error = NULL, attempts = 0,
          created_at = unixepoch(), started_at = NULL
        WHERE update_jobs.status IN ('failed', 'done')`,
     )
     .bind(siteId, update.kind, update.slug, update.version ?? null)
     .run();
   if (wake) await env.SYNC_QUEUE.send({ type: "update", siteId });
+}
+
+export class RollbackError extends Error {}
+
+/**
+ * Queue putting back the previous version KontrolWP Connect kept of a plugin
+ * or theme. It runs in the Update Queue, since WordPress replaces the files
+ * the same way an update does. The job's version is the one being left, which
+ * scheduled updates then skip (update_holds).
+ */
+export async function enqueueRollback(
+  env: Env,
+  siteId: number,
+  item: { kind: "plugin" | "theme"; slug: string },
+): Promise<void> {
+  const kept = await env.DB
+    .prepare("SELECT current_version FROM site_rollbacks WHERE site_id = ? AND kind = ? AND slug = ?")
+    .bind(siteId, item.kind, item.slug)
+    .first<{ current_version: string }>();
+  if (!kept) throw new RollbackError("There is no previous version of this on the site. Sync the site to check.");
+  const queued = await env.DB
+    .prepare(
+      `INSERT INTO update_jobs (site_id, kind, slug, version, action) VALUES (?, ?, ?, ?, 'rollback')
+       ON CONFLICT (site_id, kind, slug) DO UPDATE SET
+         status = 'queued', action = 'rollback', version = excluded.version, error = NULL, attempts = 0,
+         created_at = unixepoch(), started_at = NULL
+       WHERE update_jobs.status IN ('failed', 'done')`,
+    )
+    .bind(siteId, item.kind, item.slug, kept.current_version)
+    .run();
+  if (!queued.meta.changes) {
+    // Already queued or running: a second click is a no-op, but not an update of the same item.
+    const job = await env.DB
+      .prepare("SELECT action FROM update_jobs WHERE site_id = ? AND kind = ? AND slug = ?")
+      .bind(siteId, item.kind, item.slug)
+      .first<{ action: string }>();
+    if (job?.action !== "rollback") throw new RollbackError("An update of this is in the queue. Revert once it is done.");
+  }
+  await env.SYNC_QUEUE.send({ type: "update", siteId });
 }
 
 /**
@@ -79,10 +118,17 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
       `UPDATE update_jobs SET status = 'running', started_at = ?, attempts = attempts + 1
        WHERE id = (SELECT id FROM update_jobs WHERE site_id = ? AND status = 'queued' ORDER BY created_at, id LIMIT 1)
          AND NOT EXISTS (SELECT 1 FROM update_jobs WHERE site_id = ? AND status = 'running')
-       RETURNING id, kind, slug, version, attempts`,
+       RETURNING id, kind, slug, version, attempts, action`,
     )
     .bind(time, siteId, siteId)
-    .first<{ id: number; kind: UpdateKind; slug: string; version: string | null; attempts: number }>();
+    .first<{
+      id: number;
+      kind: UpdateKind;
+      slug: string;
+      version: string | null;
+      attempts: number;
+      action: "update" | "rollback";
+    }>();
   // Nothing queued, or another consumer is running this site's update and
   // will pick up the rest when it finishes.
   if (!job) return { next: "idle" };
@@ -93,7 +139,19 @@ export async function runNextUpdate(env: Env, siteId: number): Promise<UpdateSte
   try {
     const site = await getCredentials(env, siteId);
     if (!site) return { next: "idle" };
-    if (job.kind === "plugin" && job.slug === SELF_UPDATE.slug) {
+    if (job.action === "rollback") {
+      await callSite(site, "POST", `${REST_NAMESPACE}/updates/rollback`, { kind: job.kind, slug: job.slug });
+      // Scheduled updates leave the version the owner just reverted away from alone.
+      if (job.version) {
+        await env.DB
+          .prepare(
+            `INSERT INTO update_holds (site_id, kind, slug, version) VALUES (?, ?, ?, ?)
+             ON CONFLICT (site_id, kind, slug) DO UPDATE SET version = excluded.version, created_at = unixepoch()`,
+          )
+          .bind(siteId, job.kind, job.slug, job.version)
+          .run();
+      }
+    } else if (job.kind === "plugin" && job.slug === SELF_UPDATE.slug) {
       // Record the version tried, so sync waits before trying it again.
       await env.DB.prepare("UPDATE update_jobs SET version = ? WHERE id = ?").bind(SELF_UPDATE.version, job.id).run();
       await callSite(site, "POST", `${REST_NAMESPACE}/self-update`, {
