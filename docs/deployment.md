@@ -127,6 +127,27 @@ deployment made as Presser does not carry over:
    Connect, and add the site again with its new Connection Key.
 4. Delete the old `presser` database, queue and Worker when nothing needs them.
 
+## Cloudflare usage
+
+KontrolWP is built to fit Cloudflare's free plans. On the Workers Free plan
+Cloudflare never bills: when a daily limit is reached, that service stops
+working until 00:00 UTC. On Workers Paid, the monthly allowances are far above
+what the scheduled jobs use. Rough figures per site per day, with the default
+settings (sync every hour, uptime checks every 15 minutes, link checks weekly):
+
+| Service | Per site per day | Free plan limit | Enough for |
+| --- | --- | --- | --- |
+| Queue operations | about 100 (24 syncs, a share of 96 uptime messages) | 10,000 a day | about 100 sites |
+| D1 rows written | about 600 (mostly uptime results) | 100,000 a day | about 150 sites |
+| D1 rows read | a few thousand | 5 million a day | well over 500 sites |
+| Worker requests | about 30, plus 96 cron runs in total | 100,000 a day | well over 500 sites |
+| D1 storage | under 1 MB (30 days of uptime results) | 5 GB | thousands of sites |
+
+Syncs and link checks write only the rows that changed, so a large site (many
+users, plugins or links) costs about the same as a small one once its lists
+settle. With many more sites on the free plan, choose a longer Background
+sync interval in Settings: queue operations fall with it.
+
 ## Troubleshooting
 
 - **The button cannot import the repository:** the upstream repository must

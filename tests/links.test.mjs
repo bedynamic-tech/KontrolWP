@@ -377,3 +377,41 @@ test("excluding a site from broken link detection clears what it found and keeps
   await runScheduledLinkScans(env, Date.parse("2026-10-09T00:05:00Z") / 1000);
   assert.deepEqual(sent.map((body) => body.siteId), [1]);
 });
+
+test("a rescan rewrites where links appear only for changed posts, and forgets posts that are gone", async () => {
+  const link = (url) => ({ url, text: "", kind: "link" });
+  const pages = [
+    {
+      items: [post(1, "Home", [link("https://a.test/")]), post(2, "About", [link("https://b.test/")]), post(3, "Old", [link("https://c.test/")])],
+      page: 1,
+      total_pages: 1,
+      total_posts: 3,
+    },
+  ];
+  const { db, env } = await setup(pages);
+  await collectLinks(env, 1, await startLinkScan(env, 1), 1);
+  const rowids = () => db.sqlite.prepare("SELECT post_id, url, rowid FROM site_link_refs ORDER BY post_id").all();
+  const before = rowids();
+
+  pages[0].items = [post(1, "Home", [link("https://a.test/")]), post(2, "About", [link("https://b.test/"), link("https://d.test/")])];
+  pages[0].total_posts = 2;
+  await collectLinks(env, 1, await startLinkScan(env, 1), 1);
+  const after = rowids();
+  assert.deepEqual(after.find((row) => row.post_id === 1), before.find((row) => row.post_id === 1));
+  assert.notEqual(after.find((row) => row.post_id === 2).rowid, before.find((row) => row.post_id === 2).rowid);
+  assert.deepEqual(after.map((row) => `${row.post_id} ${row.url}`), ["1 https://a.test/", "2 https://b.test/", "2 https://d.test/"]);
+});
+
+test("checks run a few addresses at a time and count progress without recounting", async () => {
+  const many = Array.from({ length: 25 }, (_, i) => ({ url: `https://l${i}.test/`, text: "", kind: "link" }));
+  const { env } = await setup([{ items: [post(1, "Big", many)], page: 1, total_pages: 1, total_posts: 1 }]);
+  const scanId = await startLinkScan(env, 1);
+  await collectLinks(env, 1, scanId, 1);
+  assert.equal(await checkLinks(env, 1, scanId, web({})), true);
+  assert.equal((await listLinks(env.DB, 1)).scan.checked_urls, 10);
+  assert.equal(await checkLinks(env, 1, scanId, web({})), true);
+  assert.equal(await checkLinks(env, 1, scanId, web({})), false);
+  const done = (await listLinks(env.DB, 1)).scan;
+  assert.equal(done.status, "done");
+  assert.equal(done.checked_urls, 25);
+});
