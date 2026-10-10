@@ -244,6 +244,17 @@ test("a failed check is tried again before the site counts as down", async () =>
   assert.equal(db.sqlite.prepare("SELECT uptime_up FROM sites WHERE id = 1").get().uptime_up, 1);
 });
 
+test("the maintenance page's 503 does not count as down", async () => {
+  const db = await database();
+  db.sqlite.prepare("UPDATE sites SET maintenance = 1 WHERE id = 1").run();
+  const fetcher = async (url) => {
+    if (String(url).startsWith("https://api.certspotter.com")) return Response.json([]);
+    return new Response("", { status: 503 });
+  };
+  await checkSite({ DB: db }, 1, 1000, { fetcher, open: offline, retryDelayMs: 0 });
+  assert.equal(db.sqlite.prepare("SELECT uptime_up FROM sites WHERE id = 1").get().uptime_up, 1);
+});
+
 test("a plain http site gets no certificate check", async () => {
   const db = await database();
   await checkSite({ DB: db }, 3, 1000, {
