@@ -3,6 +3,7 @@ import {
   AccessibilityIcon,
   ActivityIcon,
   GaugeIcon,
+  LockIcon,
   Link2Icon,
   SearchIcon,
   ShieldCheckIcon,
@@ -25,6 +26,7 @@ import {
   fetchSecurity,
   fetchSeo,
   fetchSeoAudit,
+  fetchSsl,
   fetchUptime,
 } from "../api";
 import { plural, timeAgo } from "../format";
@@ -378,10 +380,7 @@ function UptimeCard(props: { site: SiteSummary; onOpen: (tab: string) => void })
   if (uptime.error)
     summary = { value: "Unavailable", detail: "Open the tab for details" };
   else if (uptime.data) {
-    const { latest, since, ratios, ssl } = uptime.data;
-    const cert = ssl ? certificateState(ssl) : null;
-    // A certificate problem matters as much as an outage: visitors see a warning instead of the site.
-    const certProblem = cert && cert.kind !== "ok" && cert.kind !== "unknown" ? cert : null;
+    const { latest, since, ratios } = uptime.data;
     const month = ratios.month === null ? null : `${formatRatio(ratios.month)} over 30 days`;
     summary = !latest
       ? { value: "Not checked yet", detail: "The first check runs within 15 minutes" }
@@ -391,26 +390,44 @@ function UptimeCard(props: { site: SiteSummary; onOpen: (tab: string) => void })
             detail: since ? `For ${formatDuration(latest.checked_at - since)}: ${latest.error ?? ""}` : (latest.error ?? ""),
             tone: "bad",
           }
-        : certProblem
-          ? {
-              value:
-                certProblem.kind === "expiring"
-                  ? `SSL expires in ${plural(certProblem.days, "day")}`
-                  : certProblem.kind === "expired"
-                    ? "SSL certificate expired"
-                    : "SSL certificate is for another site",
-              detail: `Up, ${month ?? `${latest.response_ms} ms`}`,
-              tone: certProblem.kind === "expiring" ? "warn" : "bad",
-            }
-          : {
-              value: "Up",
-              detail: [month, latest.response_ms !== null ? `${latest.response_ms} ms` : null].filter(Boolean).join(", "),
-              tone: ratios.month !== null && ratios.month < 99 ? "warn" : "good",
-            };
+        : {
+            value: "Up",
+            detail: [month, latest.response_ms !== null ? `${latest.response_ms} ms` : null].filter(Boolean).join(", "),
+            tone: ratios.month !== null && ratios.month < 99 ? "warn" : "good",
+          };
   }
   return (
     <HealthCard icon={<ActivityIcon />} title="Uptime" tab="uptime" summary={summary} onOpen={props.onOpen} />
   );
+}
+
+/** The SSL certificate's state, opening the Domain & SSL tab. */
+function SslCard(props: { site: SiteSummary; onOpen: (tab: string) => void }) {
+  const ssl = useQuery({
+    queryKey: ["site", props.site.id, "ssl"],
+    queryFn: () => fetchSsl(props.site.id),
+    refetchInterval: false,
+    staleTime: 60 * 60 * 1000,
+  });
+  let summary: Summary | null = null;
+  if (ssl.error) summary = { value: "Unavailable", detail: "Open the tab for details" };
+  else if (ssl.data) {
+    const cert = ssl.data.ssl;
+    const state = cert ? certificateState(cert) : null;
+    const issuer = cert?.issuer ? `Issued by ${cert.issuer}` : "";
+    summary = !cert
+      ? { value: "No certificate", detail: "This site does not use HTTPS", tone: "warn" }
+      : state!.kind === "unknown"
+        ? { value: "Could not be read", detail: state!.message }
+        : state!.kind === "expired"
+          ? { value: "SSL certificate expired", detail: issuer, tone: "bad" }
+          : state!.kind === "mismatch"
+            ? { value: "SSL certificate is for another site", detail: issuer, tone: "bad" }
+            : state!.kind === "expiring"
+              ? { value: `SSL expires in ${plural(state!.days, "day")}`, detail: "Not renewed yet", tone: "warn" }
+              : { value: `SSL valid for ${plural(state!.days, "day")}`, detail: issuer, tone: "good" };
+  }
+  return <HealthCard icon={<LockIcon />} title="Domain & SSL" tab="domain" summary={summary} onOpen={props.onOpen} />;
 }
 
 /** A basic summary of each health area the site has switched on, each opening its tab. */
@@ -434,6 +451,7 @@ export function HealthOverview(props: {
       <h2 className="mb-3 text-sm font-medium">Health</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {uptime && <UptimeCard site={site} onOpen={onOpen} />}
+        <SslCard site={site} onOpen={onOpen} />
         {links && <LinksCard site={site} onOpen={onOpen} />}
         {security && <SecurityCard site={site} onOpen={onOpen} />}
         <SeoCard site={site} onOpen={onOpen} />

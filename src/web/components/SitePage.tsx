@@ -277,7 +277,7 @@ export function SitePage() {
     ...(isStatic ? [] : [{ value: "maintenance", label: "Maintenance" }]),
     ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
     ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
-    { value: "domain", label: "Domain" },
+    { value: "domain", label: "Domain & SSL" },
   ];
   // ?tab=tools opens the first tool.
   const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;

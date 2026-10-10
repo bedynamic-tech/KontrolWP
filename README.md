@@ -22,7 +22,8 @@ Cloudflare Access.
   comments for every site.
 - **Analytics.** Umami or Google Analytics, plus Search Console.
 - **Uptime.** Every site's home page is checked every 15 minutes, with
-  response times, 30 days of outages and SSL certificate expiry.
+  response times and 30 days of outages. SSL certificate expiry sits with
+  the domain details.
 - **Tools.** Per-site link checks, code snippets, database cleanup, PageSpeed performance, SEO
   (redirects, 404 log, sitemaps, imports), login branding, security,
   accessibility and domain checks.

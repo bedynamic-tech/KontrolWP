@@ -5,7 +5,7 @@ import { checkCertificate, type OpenSocket } from "./certificate.ts";
  * Uptime monitoring for every site, WordPress or static: the cron queues the
  * sites due a check every 15 minutes, a queue message loads a few home pages
  * and records how each answered, and once a day it reads each site's TLS
- * certificate. Results stay for 30 days.
+ * certificate (shown on the Domain & SSL tab). Results stay for 30 days.
  */
 
 const MINUTE = 60;
@@ -109,7 +109,7 @@ export async function checkSite(
 
 async function readCertificateIfDue(
   env: Env,
-  site: SiteRow,
+  site: Pick<SiteRow, "id" | "url">,
   now: number,
   deps: UptimeDeps & { refreshCertificate?: boolean },
 ): Promise<void> {
@@ -188,14 +188,13 @@ export async function runUptimeMessage(
 
 /** The stored checks and certificate for one site, summarized for the Uptime tab. */
 export async function siteUptime(env: Env, siteId: number, now = Math.floor(Date.now() / 1000)): Promise<SiteUptime> {
-  const [checks, cert, site] = await Promise.all([
+  const [checks, site] = await Promise.all([
     env.DB.prepare(
       `SELECT checked_at, up, status_code, response_ms, error FROM uptime_checks
        WHERE site_id = ? AND checked_at >= ? ORDER BY checked_at`,
     )
       .bind(siteId, now - HISTORY)
       .all<Omit<UptimeCheck, "up"> & { up: number }>(),
-    env.DB.prepare("SELECT * FROM ssl_certificates WHERE site_id = ?").bind(siteId).first<CertificateRow>(),
     env.DB.prepare("SELECT uptime_since FROM sites WHERE id = ?").bind(siteId).first<{ uptime_since: number | null }>(),
   ]);
   return {
@@ -204,8 +203,28 @@ export async function siteUptime(env: Env, siteId: number, now = Math.floor(Date
       now,
     ),
     since: site?.uptime_since ?? null,
-    ssl: cert ? certificateFromRow(cert) : null,
   };
+}
+
+/**
+ * The site's TLS certificate for the Domain & SSL tab. Uptime checks read it
+ * once a day; this reads it now when that has not happened (uptime checks
+ * switched off, or a new site) or when `refresh` asks. Null for an http site.
+ */
+export async function siteCertificate(
+  env: Env,
+  siteId: number,
+  refresh = false,
+  now = Math.floor(Date.now() / 1000),
+  deps: UptimeDeps = {},
+): Promise<SslCertificate | null> {
+  const site = await env.DB.prepare("SELECT id, url FROM sites WHERE id = ?").bind(siteId).first<{ id: number; url: string }>();
+  if (!site) return null;
+  await readCertificateIfDue(env, site, now, { ...deps, refreshCertificate: refresh });
+  const row = await env.DB.prepare("SELECT * FROM ssl_certificates WHERE site_id = ?").bind(siteId).first<CertificateRow>();
+  // A row for an older address of the site does not describe it.
+  if (!row || row.host !== new URL(site.url).hostname) return null;
+  return certificateFromRow(row);
 }
 
 type CertificateRow = Omit<SslCertificate, "names" | "covers_host"> & { names: string; covers_host: number | null };
@@ -236,7 +255,7 @@ const percent = (checks: UptimeCheck[]) =>
   checks.length ? Math.round((checks.filter((check) => check.up).length / checks.length) * 10000) / 100 : null;
 
 /** Ratios, daily totals and outages from 30 days of checks (oldest first). */
-export function summarizeUptime(checks: UptimeCheck[], now: number): Omit<SiteUptime, "ssl" | "since"> {
+export function summarizeUptime(checks: UptimeCheck[], now: number): Omit<SiteUptime, "since"> {
   const within = (seconds: number) => checks.filter((check) => check.checked_at > now - seconds);
   const recent = within(DAY);
   const answered = recent.filter((check) => check.up && check.response_ms !== null);

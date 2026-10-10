@@ -33,6 +33,7 @@ import type {
   SiteSeoAudit,
   SitePerformance,
   SiteUptime,
+  SslCertificate,
   SiteSeo,
   SiteSummary,
   SiteSecurity,
@@ -155,7 +156,7 @@ import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, sit
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
 import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance } from "../sites/performance.ts";
-import { checkSite, siteUptime } from "../sites/uptime.ts";
+import { checkSite, siteCertificate, siteUptime } from "../sites/uptime.ts";
 import {
   cleanExcluded,
   globalPolicyView,
@@ -874,6 +875,13 @@ api.get("/sites/:id/domain", async (c) => {
   return c.json<SiteDomain>(await cachedDomain(c.env.DB, id, site.url, c.req.query("refresh") === "1"));
 });
 
+/** The TLS certificate the site serves, read once a day; `?refresh=1` reads it now. */
+api.get("/sites/:id/ssl", async (c) => {
+  const id = siteId(c);
+  if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
+  return c.json<{ ssl: SslCertificate | null }>({ ssl: await siteCertificate(c.env, id, c.req.query("refresh") === "1") });
+});
+
 /** The link checker's latest scan and the links that need a look. */
 api.get("/sites/:id/links", async (c) => {
   const id = siteId(c);
@@ -1028,18 +1036,18 @@ api.post("/sites/:id/performance/run", async (c) => {
   return c.json<SitePerformance>(await sitePerformance(c.env, site));
 });
 
-/** The site's uptime checks of the last 30 days and its TLS certificate. */
+/** The site's uptime checks of the last 30 days. */
 api.get("/sites/:id/uptime", async (c) => {
   const id = siteId(c);
   if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
   return c.json<SiteUptime>(await siteUptime(c.env, id));
 });
 
-/** Check the site and read its certificate now, rather than at the next scheduled check. */
+/** Check the site now, rather than at the next scheduled check. */
 api.post("/sites/:id/uptime/check", async (c) => {
   const id = siteId(c);
   if (!id || !(await getSite(c.env.DB, id))) return c.json({ error: "Site not found" }, 404);
-  await checkSite(c.env, id, undefined, { refreshCertificate: true, retryDelayMs: 2000 });
+  await checkSite(c.env, id, undefined, { retryDelayMs: 2000 });
   return c.json<SiteUptime>(await siteUptime(c.env, id));
 });
 

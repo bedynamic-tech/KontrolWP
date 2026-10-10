@@ -14,6 +14,7 @@ import {
   checkSite,
   runScheduledUptime,
   runUptimeMessage,
+  siteCertificate,
   siteUptime,
   summarizeUptime,
 } from "../src/worker/sites/uptime.ts";
@@ -227,8 +228,9 @@ test("checkSite records each answer and when the site went up or down", async ()
   assert.equal(uptime.latest.status_code, 200);
   assert.equal(uptime.ratios.day, 60);
   assert.deepEqual(uptime.incidents, [{ started_at: 2800, ended_at: 4600, error: "The site answered HTTP 503" }]);
-  assert.equal(uptime.ssl.source, null, "the certificate was looked for once");
-  assert.equal(uptime.ssl.checked_at, 1000);
+  const ssl = await siteCertificate(env, 1, false, 4600, deps);
+  assert.equal(ssl.source, null, "the certificate was looked for");
+  assert.equal(ssl.checked_at, 1000, "and only once that day");
 });
 
 test("a failed check is tried again before the site counts as down", async () => {
@@ -308,4 +310,22 @@ test("summarizeUptime builds 30 daily totals and keeps an open outage open", () 
   assert.equal(summary.ratios.month, 66.67);
   assert.deepEqual(summary.incidents, [{ started_at: 40 * day + 960, ended_at: null, error: "Could not reach the site" }]);
   assert.equal(summary.recent.length, 2);
+});
+
+test("siteCertificate reads a certificate nobody has read yet, and again on refresh", async () => {
+  const db = await database();
+  db.sqlite.exec("UPDATE sites SET uptime_excluded = 1 WHERE id = 1");
+  const server = await tlsServer({ minVersion: "TLSv1.2" });
+  try {
+    const env = { DB: db };
+    const first = await siteCertificate(env, 1, false, 5000, { open: server.open, fetcher: noLogs });
+    assert.equal(first.source, "server");
+    assert.equal(first.covers_host, true);
+    assert.equal((await siteCertificate(env, 1, false, 6000, { open: server.open, fetcher: noLogs })).checked_at, 5000);
+    assert.equal((await siteCertificate(env, 1, true, 7000, { open: server.open, fetcher: noLogs })).checked_at, 7000);
+    assert.equal(server.hosts.length, 2);
+    assert.equal(await siteCertificate(env, 3, false, 5000, { open: server.open, fetcher: noLogs }), null, "http site");
+  } finally {
+    await server.close();
+  }
 });

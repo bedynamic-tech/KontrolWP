@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
-import type { DnsRecord, DomainRegistration, SiteSummary } from "../../shared/types";
+import type { DnsRecord, DomainRegistration, SiteSummary, SslCertificate } from "../../shared/types";
+import { certificateState } from "../../shared/uptime";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fetchDomain } from "../api";
-import { timeAgo } from "../format";
+import { fetchDomain, fetchSsl } from "../api";
+import { plural, timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 
 const DAY = 86400;
@@ -14,7 +15,7 @@ const EXPIRY_WARNING_DAYS = 30;
 
 const TYPE_ORDER: DnsRecord["type"][] = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "CAA", "SOA"];
 
-/** The site's domain: registration and DNS records, looked up live from public sources. */
+/** The site's domain: registration, SSL certificate and DNS records, looked up from public sources and the site itself. */
 export function DomainSection(props: { site: SiteSummary }) {
   const queryClient = useQueryClient();
   const domain = useQuery({
@@ -24,15 +25,26 @@ export function DomainSection(props: { site: SiteSummary }) {
     refetchInterval: false,
     staleTime: 60 * 60 * 1000,
   });
+  const ssl = useQuery({
+    queryKey: ["site", props.site.id, "ssl"],
+    queryFn: () => fetchSsl(props.site.id),
+    refetchInterval: false,
+    staleTime: 60 * 60 * 1000,
+  });
 
   // The Worker keeps the lookup for a day; asking again skips it.
   const [checking, setChecking] = useState(false);
   const refetch = async () => {
     setChecking(true);
     try {
-      queryClient.setQueryData(["site", props.site.id, "domain"], await fetchDomain(props.site.id, true));
-    } catch {
-      await domain.refetch();
+      await Promise.all([
+        fetchDomain(props.site.id, true)
+          .then((data) => queryClient.setQueryData(["site", props.site.id, "domain"], data))
+          .catch(() => domain.refetch()),
+        fetchSsl(props.site.id, true)
+          .then((data) => queryClient.setQueryData(["site", props.site.id, "ssl"], data))
+          .catch(() => ssl.refetch()),
+      ]);
     } finally {
       setChecking(false);
     }
@@ -76,6 +88,7 @@ export function DomainSection(props: { site: SiteSummary }) {
           <EmptyRow>{data.registration_error ?? "No registration details were found."}</EmptyRow>
         )}
       </Section>
+      <SslSection loading={ssl.isPending} error={ssl.error?.message ?? null} cert={ssl.data?.ssl ?? null} />
       <Section title={`DNS records (${data.dns.length})`}>
         {data.dns_error ? (
           <p className="px-4 py-6 text-center text-sm text-destructive">{data.dns_error}</p>
@@ -127,11 +140,66 @@ function Registration(props: { registration: DomainRegistration }) {
   );
 }
 
-function Row(props: { label: string; value: string | null }) {
+const SSL_HINT =
+  "Read once a day from the site's own TLS handshake. When the server cannot be asked directly, such as a site behind Cloudflare, KontrolWP reads the newest certificate for the address from the public Certificate Transparency logs instead.";
+
+/** The TLS certificate the site serves: expiry, issuer and the addresses it covers. */
+function SslSection(props: { loading: boolean; error: string | null; cert: SslCertificate | null }) {
+  const { cert } = props;
+  if (props.loading || props.error || !cert) {
+    return (
+      <Section title="SSL certificate" hint={SSL_HINT}>
+        {props.error ? (
+          <p className="px-4 py-6 text-center text-sm text-destructive">{props.error}</p>
+        ) : (
+          <EmptyRow>{props.loading ? "Reading the certificate..." : "This site does not use HTTPS."}</EmptyRow>
+        )}
+      </Section>
+    );
+  }
+  const state = certificateState(cert);
+  const banner =
+    state.kind === "expired" || state.kind === "mismatch"
+      ? "bg-destructive/5 text-destructive"
+      : state.kind === "expiring"
+        ? "bg-amber-500/10 text-amber-800 dark:text-amber-300"
+        : null;
+  return (
+    <Section title="SSL certificate" hint={SSL_HINT}>
+      {banner && <p className={cn("border-b px-4 py-2.5 text-sm font-medium", banner)}>{state.message}</p>}
+      {state.kind === "unknown" ? (
+        <EmptyRow>{state.message}</EmptyRow>
+      ) : (
+        <dl className="divide-y text-sm">
+          <Row
+            label="Expires"
+            value={`${formatDate(cert.expires_at!)}${state.days >= 0 ? ` (in ${plural(state.days, "day")})` : ""}`}
+            tone={
+              state.kind === "ok"
+                ? undefined
+                : state.kind === "expiring"
+                  ? "text-amber-700 dark:text-amber-300"
+                  : "text-destructive"
+            }
+          />
+          <Row label="Issued by" value={cert.issuer || "Unknown"} />
+          <Row label="Valid from" value={cert.valid_from ? formatDate(cert.valid_from) : "Unknown"} />
+          <Row label="Covers" value={cert.names.length ? cert.names.join("\n") : "Unknown"} />
+          <Row
+            label="Checked"
+            value={`${timeAgo(cert.checked_at)}${cert.source === "ct" ? ", from the certificate logs" : ""}`}
+          />
+        </dl>
+      )}
+    </Section>
+  );
+}
+
+function Row(props: { label: string; value: string | null; tone?: string }) {
   return (
     <div className="grid gap-1 px-4 py-2.5 sm:grid-cols-[10rem_1fr] sm:gap-4">
       <dt className="text-muted-foreground">{props.label}</dt>
-      <dd className="min-w-0 break-words whitespace-pre-line">{props.value ?? "Not published"}</dd>
+      <dd className={cn("min-w-0 break-words whitespace-pre-line", props.tone)}>{props.value ?? "Not published"}</dd>
     </div>
   );
 }
