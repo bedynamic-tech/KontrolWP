@@ -3,13 +3,15 @@
  * Absent means sync. The link checker reads one page of the site's links
  * per "links-collect" and checks a few addresses per "links-check".
  * "performance" runs a PageSpeed Insights test the dashboard asked for.
+ * "uptime" checks that a few sites answer (src/worker/sites/uptime.ts).
  */
 type SyncMessage =
   | { type?: "sync" | "update"; siteId: number }
   | { type: "resync"; siteId: number; attempt: number }
   | { type: "links-collect"; siteId: number; scanId: number; page: number }
   | { type: "links-check"; siteId: number; scanId: number }
-  | { type: "performance"; siteId: number };
+  | { type: "performance"; siteId: number }
+  | { type: "uptime"; siteIds: number[] };
 
 interface Env {
   WEB_ACCESS_TEAM_DOMAIN?: string;

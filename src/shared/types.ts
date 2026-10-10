@@ -39,6 +39,11 @@ export interface SiteSummary {
   security_excluded: boolean;
   accessibility_excluded: boolean;
   performance_excluded: boolean;
+  uptime_excluded: boolean;
+  /** The latest uptime check found the site up; null before the first check. */
+  uptime_up: boolean | null;
+  /** When the site last went up or down, or its first uptime check. */
+  uptime_since: number | null;
   /** WordPress's own core auto-updates, from the last sync; null before KontrolWP Connect 0.7.0. */
   core_auto_update: CoreAutoUpdate | null;
   /** wp-config.php decides core auto-updates, so KontrolWP cannot change them. */
@@ -1443,4 +1448,63 @@ export interface DatabaseCleanupResult {
   /** The time ran out before everything chosen was deleted; another run picks up the rest. */
   unfinished: boolean;
   report: DatabaseReport;
+}
+
+/** One load of a site's home page by the uptime monitor. */
+export interface UptimeCheck {
+  checked_at: number;
+  up: boolean;
+  /** The HTTP status after redirects; null when the site did not answer. */
+  status_code: number | null;
+  /** Time to the response headers, in milliseconds. */
+  response_ms: number | null;
+  error: string | null;
+}
+
+/** A run of failed checks: the site was down from `started_at` until `ended_at` (null while it still is). */
+export interface UptimeIncident {
+  started_at: number;
+  ended_at: number | null;
+  error: string | null;
+}
+
+/** One day of checks, for the 30 day strip. `day` is the start of the UTC day, in seconds. */
+export interface UptimeDay {
+  day: number;
+  checks: number;
+  up: number;
+}
+
+/** The TLS certificate a site serves. */
+export interface SslCertificate {
+  host: string;
+  checked_at: number;
+  /** Read from the server's own TLS handshake, or from the Certificate Transparency logs; null when it could not be read. */
+  source: "server" | "ct" | null;
+  subject: string;
+  issuer: string;
+  valid_from: number | null;
+  expires_at: number | null;
+  names: string[];
+  /** False when none of the certificate's names match the site's host. */
+  covers_host: boolean | null;
+  error: string | null;
+}
+
+/** A site's uptime monitoring: the latest check, the last 30 days and its certificate. */
+export interface SiteUptime {
+  latest: UptimeCheck | null;
+  /** When the site last went up or down, or the first check. */
+  since: number | null;
+  /** Share of checks that found the site up, in percent; null with no checks in the period. */
+  ratios: { day: number | null; week: number | null; month: number | null };
+  /** Average response time of the last 24 hours' successful checks, in milliseconds. */
+  average_ms: number | null;
+  /** The last 24 hours of checks, oldest first. */
+  recent: UptimeCheck[];
+  /** The last 30 days, oldest first. */
+  days: UptimeDay[];
+  /** Downtime in the last 30 days, newest first. */
+  incidents: UptimeIncident[];
+  ssl: SslCertificate | null;
 }

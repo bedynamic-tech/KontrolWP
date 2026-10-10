@@ -72,6 +72,7 @@ import { UpdateEmailsRow } from "./UpdateEmailsRow";
 import { MaintenanceBanner, MaintenanceTab } from "./MaintenanceTab";
 import { AccessibilityTab } from "./AccessibilityTab";
 import { PerformanceTab } from "./PerformanceTab";
+import { UptimeTab } from "./UptimeTab";
 import { SiteIcon } from "./SiteIcon";
 import { SiteName } from "./SiteName";
 import { CloudflareWorkerSelect } from "./CloudflareWorkerSelect";
@@ -100,6 +101,7 @@ const WORDPRESS_TABS = [
   "links",
   "snippets",
   "database",
+  "uptime",
   "performance",
   "seo",
   "branding",
@@ -113,6 +115,7 @@ const STATIC_TABS = [
   "analytics",
   "pages",
   "tools",
+  "uptime",
   "performance",
   "seo",
   "accessibility",
@@ -125,6 +128,7 @@ const CLOUDFLARE_TABS = [
   "pages",
   "deployments",
   "tools",
+  "uptime",
   "performance",
   "seo",
   "accessibility",
@@ -245,7 +249,8 @@ export function SitePage() {
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded) ||
-    (requestedTab === "performance" && data?.site.performance_excluded);
+    (requestedTab === "performance" && data?.site.performance_excluded) ||
+    (requestedTab === "uptime" && data?.site.uptime_excluded);
   const chosenTab =
     switchedOff || (kind && !tabs.includes(requestedTab))
       ? "overview"
@@ -265,6 +270,7 @@ export function SitePage() {
     ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links" }] : []),
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
     ...(isStatic ? [] : [{ value: "database", label: "Database" }]),
+    ...(site.uptime_excluded ? [] : [{ value: "uptime", label: "Uptime" }]),
     ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
     { value: "seo", label: "SEO", ...(isStatic ? {} : { children: seoViews }) },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
@@ -508,6 +514,11 @@ export function SitePage() {
               {!isStatic && <DatabaseTab site={site} />}
             </div>
           )}
+          {tab === "uptime" && (
+            <div className={TAB_CLASS}>
+              <UptimeTab site={site} />
+            </div>
+          )}
           {tab === "performance" && (
             <div className={TAB_CLASS}>
               <PerformanceTab site={site} />
@@ -663,6 +674,13 @@ export function SitePage() {
               title="Enable accessibility checks"
               on="KontrolWP scans this site for accessibility problems on a schedule."
               off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
+            />
+            <FeatureSwitchRow
+              site={site}
+              feature="uptime"
+              title="Enable uptime checks"
+              on="KontrolWP checks that this site answers every 15 minutes and reads its SSL certificate once a day."
+              off="KontrolWP does not check whether this site is up, and its Uptime tab is off."
             />
             <FeatureSwitchRow
               site={site}

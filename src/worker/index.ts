@@ -12,6 +12,7 @@ import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 import { runScheduledPerformance, testSite } from "./sites/performance.ts";
 import { getSite } from "./sites/store.ts";
+import { runScheduledUptime, runUptimeMessage } from "./sites/uptime.ts";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", requireWebAccess);
@@ -28,6 +29,7 @@ export default {
           runScheduledLinkScans(env),
           runScheduledFeedRefresh(env),
           runScheduledUpdates(env),
+          runScheduledUptime(env),
           synced ? 0 : runScheduledScans(env),
           synced ? 0 : runScheduledSeoScans(env),
           synced ? 0 : runScheduledPerformance(env),
@@ -43,6 +45,11 @@ export default {
           // Unreachable sites are recorded on the site, not retried; only
           // unexpected failures (such as D1 errors) go back to the queue.
           const body = message.body;
+          if (body.type === "uptime") {
+            await runUptimeMessage(env, body.siteIds);
+            message.ack();
+            return;
+          }
           const { siteId } = body;
           if (body.type === "links-collect") {
             await collectLinks(env, siteId, body.scanId, body.page);

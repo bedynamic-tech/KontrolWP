@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   AccessibilityIcon,
+  ActivityIcon,
   GaugeIcon,
   Link2Icon,
   SearchIcon,
@@ -16,6 +17,7 @@ import {
   SEO_SINCE,
 } from "../../shared/plugin-version";
 import type { SiteSummary } from "../../shared/types";
+import { certificateState, formatDuration, formatRatio } from "../../shared/uptime";
 import {
   fetchAccessibility,
   fetchLinks,
@@ -23,6 +25,7 @@ import {
   fetchSecurity,
   fetchSeo,
   fetchSeoAudit,
+  fetchUptime,
 } from "../api";
 import { plural, timeAgo } from "../format";
 
@@ -363,6 +366,53 @@ function PerformanceCard(props: {
   );
 }
 
+function UptimeCard(props: { site: SiteSummary; onOpen: (tab: string) => void }) {
+  const { site } = props;
+  const uptime = useQuery({
+    queryKey: ["site", site.id, "uptime"],
+    queryFn: () => fetchUptime(site.id),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  let summary: Summary | null = null;
+  if (uptime.error)
+    summary = { value: "Unavailable", detail: "Open the tab for details" };
+  else if (uptime.data) {
+    const { latest, since, ratios, ssl } = uptime.data;
+    const cert = ssl ? certificateState(ssl) : null;
+    // A certificate problem matters as much as an outage: visitors see a warning instead of the site.
+    const certProblem = cert && cert.kind !== "ok" && cert.kind !== "unknown" ? cert : null;
+    const month = ratios.month === null ? null : `${formatRatio(ratios.month)} over 30 days`;
+    summary = !latest
+      ? { value: "Not checked yet", detail: "The first check runs within 15 minutes" }
+      : !latest.up
+        ? {
+            value: "Down",
+            detail: since ? `For ${formatDuration(latest.checked_at - since)}: ${latest.error ?? ""}` : (latest.error ?? ""),
+            tone: "bad",
+          }
+        : certProblem
+          ? {
+              value:
+                certProblem.kind === "expiring"
+                  ? `SSL expires in ${plural(certProblem.days, "day")}`
+                  : certProblem.kind === "expired"
+                    ? "SSL certificate expired"
+                    : "SSL certificate is for another site",
+              detail: `Up, ${month ?? `${latest.response_ms} ms`}`,
+              tone: certProblem.kind === "expiring" ? "warn" : "bad",
+            }
+          : {
+              value: "Up",
+              detail: [month, latest.response_ms !== null ? `${latest.response_ms} ms` : null].filter(Boolean).join(", "),
+              tone: ratios.month !== null && ratios.month < 99 ? "warn" : "good",
+            };
+  }
+  return (
+    <HealthCard icon={<ActivityIcon />} title="Uptime" tab="uptime" summary={summary} onOpen={props.onOpen} />
+  );
+}
+
 /** A basic summary of each health area the site has switched on, each opening its tab. */
 export function HealthOverview(props: {
   site: SiteSummary;
@@ -378,10 +428,12 @@ export function HealthOverview(props: {
   const security = wordpress && !site.security_excluded;
   const accessibility = !site.accessibility_excluded;
   const performance = !site.performance_excluded;
+  const uptime = !site.uptime_excluded;
   return (
     <section className="mt-8">
       <h2 className="mb-3 text-sm font-medium">Health</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {uptime && <UptimeCard site={site} onOpen={onOpen} />}
         {links && <LinksCard site={site} onOpen={onOpen} />}
         {security && <SecurityCard site={site} onOpen={onOpen} />}
         <SeoCard site={site} onOpen={onOpen} />

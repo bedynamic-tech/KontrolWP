@@ -22,7 +22,10 @@ export function OverviewPage() {
 
   const { sites, updates, comments, links } = data;
   const pendingComments = sites.reduce((sum, site) => sum + site.pending_comments, 0);
-  const attention = sites.filter((site) => site.status !== "connected").length;
+  // A site that cannot be synced, or that is down for its visitors.
+  const attention = sites.filter(
+    (site) => site.status !== "connected" || (!site.uptime_excluded && site.uptime_up === false),
+  ).length;
 
   return (
     <div>
