@@ -154,6 +154,7 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --shadow-elevated: var(--shadow-elevated);
 }
 
 :root {
@@ -184,6 +185,7 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  --shadow-elevated: 0 10px 25px -8px oklch(0.2 0.02 265 / 0.14), 0 0 0 1px oklch(0.2 0.02 265 / 0.05);
   --sidebar: oklch(0.978 0.003 265);
   --sidebar-foreground: oklch(0.2 0.012 265);
   --sidebar-primary: oklch(0.22 0.014 265);
@@ -221,6 +223,7 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --shadow-elevated: 0 10px 25px -8px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
   --sidebar: oklch(0.165 0.005 265);
   --sidebar-foreground: oklch(0.95 0.004 265);
   --sidebar-primary: oklch(0.93 0.004 265);
@@ -244,5 +247,123 @@
 @media (prefers-reduced-motion: reduce) {
   .activity-stripe {
     animation-duration: 3s !important;
+  }
+}
+
+/* EasyUI motion for popups Radix places in a portal (menus, tooltips,
+   dialogs). Radix keeps them mounted until their exit animation ends, so
+   these run as CSS keyframes. The curves match EasyUI's motion tokens:
+   springSnappy for menus and tooltips, and the "settle" curve for dialogs. */
+:root {
+  --ease-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* OriginDropdown and DirectionalTooltip: grow from the side they open on,
+   with a short inward travel, so the popup reads as coming from its trigger. */
+@keyframes easy-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--pop-x, 0), var(--pop-y, 0)) scale(0.96);
+  }
+}
+@keyframes easy-pop-out {
+  to {
+    opacity: 0;
+    transform: translate(calc(var(--pop-x, 0) * 0.4), calc(var(--pop-y, 0) * 0.4)) scale(0.97);
+  }
+}
+.easy-pop {
+  &[data-side="bottom"] { --pop-y: -8px; }
+  &[data-side="top"] { --pop-y: 8px; }
+  &[data-side="left"] { --pop-x: 8px; }
+  &[data-side="right"] { --pop-x: -8px; }
+  &[data-state="open"],
+  &[data-state="delayed-open"],
+  &[data-state="instant-open"] {
+    animation: easy-pop-in 220ms var(--ease-snappy);
+  }
+  &[data-state="closed"] {
+    animation: easy-pop-out 140ms var(--ease-snappy) forwards;
+  }
+}
+
+/* SettleModal: the panel scales 0.94 to 1.02 to 1 with a little rise,
+   instead of a plain fade. Tailwind centers it with the separate translate
+   property, so these transforms add to that rather than replace it. */
+@keyframes easy-settle-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes easy-settle-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+@keyframes easy-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes easy-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.easy-settle {
+  &[data-state="open"] {
+    animation: easy-settle-in 420ms var(--ease-settle);
+  }
+  &[data-state="closed"] {
+    animation: easy-settle-out 160ms var(--ease-snappy) forwards;
+  }
+}
+/* A full-screen sheet on a phone just fades: scaling the whole screen reads as a glitch. */
+@media (max-width: 639px) {
+  .easy-settle.easy-sheet {
+    &[data-state="open"] {
+      animation: easy-fade-in 200ms var(--ease-snappy);
+    }
+    &[data-state="closed"] {
+      animation: easy-fade-out 140ms var(--ease-snappy) forwards;
+    }
+  }
+}
+.easy-fade {
+  &[data-state="open"] {
+    animation: easy-fade-in 320ms var(--ease-snappy);
+  }
+  &[data-state="closed"] {
+    animation: easy-fade-out 160ms var(--ease-snappy) forwards;
+  }
+}
+
+/* Tab panels fade up into place when they open (AnimatedTabs). */
+@keyframes easy-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.easy-rise[data-state="active"] {
+  animation: easy-rise-in 360ms var(--ease-snappy);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .easy-pop,
+  .easy-settle,
+  .easy-fade,
+  .easy-rise {
+    animation-duration: 1ms !important;
   }
 }

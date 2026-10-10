@@ -1,4 +1,5 @@
 import type { SiteSummary } from "../../shared/types";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /** Checkboxes for choosing sites, with Select all. */
 export function SitePicker(props: {
@@ -35,8 +36,7 @@ export function SitePicker(props: {
         <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border px-3 py-2">
           {sites.map((site) => (
             <label key={site.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={selected.has(site.id)}
                 onChange={() => {
                   const next = new Set(selected);

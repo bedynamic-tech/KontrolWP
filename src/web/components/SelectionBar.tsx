@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /** A checkbox that can show "some selected". */
 export function SelectBox(props: {
@@ -10,17 +11,11 @@ export function SelectBox(props: {
   disabled?: boolean;
   className?: string;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current)
-      ref.current.indeterminate = !!props.indeterminate && !props.checked;
-  }, [props.indeterminate, props.checked]);
   return (
-    <input
-      ref={ref}
-      type="checkbox"
-      className={props.className ?? "size-4 shrink-0 accent-primary"}
+    <Checkbox
+      className={props.className}
       checked={props.checked}
+      indeterminate={props.indeterminate}
       onChange={props.onChange}
       aria-label={props.label}
       disabled={props.disabled}

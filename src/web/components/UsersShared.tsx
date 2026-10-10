@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import type { NewUser, UserAction, UserRole } from "../../shared/types";
 import { type BulkProgress } from "./PluginBulkBar";
 import { SelectionBar } from "./SelectionBar";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /** Role slugs as their names, such as "Administrator, Editor", or "No role". */
 export function roleLabel(slugs: string[], roles: UserRole[]): string {
@@ -265,7 +266,7 @@ export function AddUserDialog(props: {
             })}
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 accent-primary" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+            <Checkbox checked={notify} onChange={(e) => setNotify(e.target.checked)} />
             Email them a link to set their password
           </label>
           {props.children}

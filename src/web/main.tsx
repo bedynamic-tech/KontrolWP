@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "framer-motion";
 import { BrowserRouter } from "react-router";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { App } from "./App";
@@ -26,11 +27,13 @@ startTheme();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </TooltipProvider>
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </TooltipProvider>
+      </MotionConfig>
     </QueryClientProvider>
   </StrictMode>,
 );
