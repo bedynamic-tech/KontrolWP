@@ -17,6 +17,7 @@
 | D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below) and the link checker. The consumer takes one message per run: a Worker run opens at most six connections at once and queues the rest with their timeouts already running, so syncing several sites in one run made healthy sites time out. A sync that can't reach a site, or gets a 5xx, tries once more three seconds later before the site shows as unreachable. |
+| Browser Rendering | `BROWSER` | Loads a site's home page before and after its scheduled updates, for the regression check (below). Two short browser sessions per scheduled run that queued updates; nothing else uses it. |
 | Cron Trigger | | `*/15 * * * *` checks whether a sync is due and, once the Background sync interval (Settings; every hour by default) has passed since the last run, enqueues every site. |
 
 KontrolWP only makes outbound requests to sites. Sites never call the
@@ -120,6 +121,22 @@ updates or in error are skipped; a site in error runs once it recovers the same
 day. WordPress updates are off by default. Each run that queued or left out
 anything is logged in `update_runs` (kept 90 days) and listed in Settings and in
 the site's settings.
+
+**Regression check.** A run that queued updates does not start them directly:
+it sends an `update-check` message, and `src/worker/sites/update-check.ts` has
+Browser Rendering load the site's home page (1280 pixels wide, a cache-busting
+query on the address), shrinks the screenshot to one pixel per 10 by 10 block
+and keeps that in `update_checks`, then starts the updates. Once the site's
+Update Queue is empty, `afterJob` sends the second look 20 seconds later. The
+page counts as broken when it no longer loads, shows WordPress's critical
+error, answers 5xx (or a 4xx it did not before), or when at least 30% of its
+blocks changed colour by more than 48 (summed over red, green and blue). Then
+the plugins and themes the run updated are reverted through `enqueueRollback`,
+which also holds those versions back from the next run; WordPress core is never
+reverted. The outcome (passed, reverted, broken with nothing to revert, or
+skipped when the page was already broken or no browser started) is noted on the
+run. A browser that cannot start never holds up the updates, and updates queued
+by hand are not checked.
 
 ## KontrolWP Connect updates
 

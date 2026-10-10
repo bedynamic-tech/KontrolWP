@@ -15,7 +15,8 @@ Cloudflare Access.
 ## Features
 
 - **Updates.** Core, plugin and theme updates across all sites, queued in one
-  click or on a schedule.
+  click or on a schedule. Scheduled updates check the home page afterwards and
+  revert themselves if it broke.
 - **Plugins and users.** Install, activate, update and remove plugins, and
   manage users, on one site or many at once.
 - **Content and comments.** Posts and pages, custom post types and pending

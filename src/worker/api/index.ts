@@ -420,6 +420,7 @@ api.delete("/sites/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_holds WHERE site_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM update_checks WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),

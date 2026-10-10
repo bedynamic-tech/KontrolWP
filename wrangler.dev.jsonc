@@ -19,6 +19,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Cloudflare Browser Rendering looks at a site's home page around its scheduled updates.
+  "browser": {
+    "binding": "BROWSER"
+  },
   "queues": {
     "producers": [
       {

@@ -13,6 +13,7 @@ import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 import { runScheduledPerformance, testSite } from "./sites/performance.ts";
 import { getSite } from "./sites/store.ts";
 import { runScheduledUptime, runUptimeMessage } from "./sites/uptime.ts";
+import { checkAfterUpdates, checkBeforeUpdates } from "./sites/update-check.ts";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", requireWebAccess);
@@ -61,6 +62,9 @@ export default {
             // A test can take a minute, longer than a request may keep working after it answers.
             const site = await getSite(env.DB, siteId);
             if (site) await testSite(env, site);
+          } else if (body.type === "update-check") {
+            if (body.phase === "before") await checkBeforeUpdates(env, siteId, body.runId);
+            else await checkAfterUpdates(env, siteId);
           } else if (body.type === "update") {
             const step = await runNextUpdate(env, siteId);
             if (step.next === "continue") await env.SYNC_QUEUE.send({ type: "update", siteId });
