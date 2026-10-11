@@ -366,4 +366,10 @@
   .easy-rise {
     animation-duration: 1ms !important;
   }
+  /* Color and opacity fades too, such as a button coming back from disabled. */
+  *,
+  ::before,
+  ::after {
+    transition-duration: 1ms !important;
+  }
 }
