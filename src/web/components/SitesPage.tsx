@@ -35,7 +35,7 @@ export function SitesPage() {
                     <SiteIcon site={site} className="size-9 text-sm" />
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-sm font-medium">{site.name}</p>
+                        <p className="wrap-break-word text-sm font-medium">{site.name}</p>
                         {site.kind !== "static" && site.maintenance && (
                           <span
                             className="shrink-0 rounded-full border border-amber-600/25 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-400/25 dark:text-amber-300"
@@ -45,7 +45,7 @@ export function SitesPage() {
                           </span>
                         )}
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">{hostname(site.url)}</p>
+                      <p className="wrap-break-word text-xs text-muted-foreground">{hostname(site.url)}</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

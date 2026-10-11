@@ -174,7 +174,7 @@ export function PerformanceTab(props: { site: SiteSummary }) {
         hint="Google runs Lighthouse against the home page on its own servers and reports four scores out of 100. A phone test uses a slower connection and processor than the desktop test, so it scores lower."
         action={
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border p-0.5" role="group" aria-label="Device">
+            <div className="flex gap-2 rounded-lg border p-0.5" role="group" aria-label="Device">
               {(["mobile", "desktop"] as const).map((value) => (
                 <Button
                   key={value}

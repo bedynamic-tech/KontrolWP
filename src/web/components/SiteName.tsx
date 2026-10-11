@@ -3,6 +3,7 @@ import { HelpTip } from "./HelpTip";
 import { PencilIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -51,19 +52,23 @@ export function SiteName(props: { site: SiteSummary }) {
 
   return (
     <div className="group flex min-w-0 items-center gap-1">
-      <h1 className="truncate text-xl font-semibold tracking-tight">
+      <h1 className="wrap-break-word text-xl font-semibold tracking-tight">
         {site.name}
       </h1>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Rename site"
-        title="Rename site"
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
-        onClick={openEditor}
-      >
-        <PencilIcon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Rename site"
+            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
+            onClick={openEditor}
+          >
+            <PencilIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Rename site</TooltipContent>
+      </Tooltip>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md [&>*]:min-w-0">
           <form onSubmit={submit} className="min-w-0 space-y-4">

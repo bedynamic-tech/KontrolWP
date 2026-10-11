@@ -96,7 +96,7 @@ function RollbackRow(props: { rollback: SiteRollback }) {
         <RemoteIcon sources={icon} name={rollback.name} className="size-9 text-sm" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{rollback.name}</span>
+            <span className="wrap-break-word text-sm font-medium">{rollback.name}</span>
             <Badge variant="outline" className="capitalize">{rollback.kind}</Badge>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">

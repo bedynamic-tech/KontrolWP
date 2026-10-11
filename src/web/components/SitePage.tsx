@@ -9,6 +9,7 @@ import {
 import { Children, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpTip } from "./HelpTip";
 import { ANALYTICS_PROVIDERS, type AnalyticsProvider, type SiteSummary } from "../../shared/types";
 import { Textarea } from "@/components/ui/textarea";
@@ -144,11 +145,9 @@ export function SitePage() {
     ? searchParams.get("tab")!
     : "overview";
   // A section with views, such as SEO, keeps the open view in ?view=; its first view leaves it out.
-  const setTab = (next: string, view?: string) =>
-    setSearchParams(
-      next === "overview" ? {} : view && view !== "settings" ? { tab: next, view } : { tab: next },
-      { replace: true },
-    );
+  const tabParams = (next: string, view?: string): Record<string, string> =>
+    next === "overview" ? {} : view && view !== "settings" ? { tab: next, view } : { tab: next };
+  const setTab = (next: string, view?: string) => setSearchParams(tabParams(next, view), { replace: true });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { hash } = useLocation();
@@ -335,15 +334,19 @@ export function SitePage() {
             <RefreshCwIcon className={sync.isPending ? "animate-spin" : ""} />
             {sync.isPending ? "Syncing..." : "Sync now"}
           </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Site settings"
-            title="Site settings"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SettingsIcon />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Site settings"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <SettingsIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Site settings</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -372,7 +375,14 @@ export function SitePage() {
       )}
 
       <div className="mt-8 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
-        <SectionNav groups={navGroups} value={tab} view={seoView} onChange={setTab} label="Site sections" />
+        <SectionNav
+          groups={navGroups}
+          value={tab}
+          view={seoView}
+          onChange={setTab}
+          hrefFor={(next, view) => `?${new URLSearchParams(tabParams(next, view))}`}
+          label="Site sections"
+        />
         <div className="min-w-0">
           {tab === "overview" && (
             <div className={TAB_CLASS}>
@@ -1019,7 +1029,7 @@ function Fact(props: { label: string; value: string | null }) {
   return (
     <div className="rounded-xl border bg-background px-4 py-3">
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
-      <dd className="mt-1 truncate text-sm font-medium">
+      <dd className="mt-1 wrap-break-word text-sm font-medium">
         {props.value || "Unknown"}
       </dd>
     </div>

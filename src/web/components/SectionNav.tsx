@@ -33,6 +33,8 @@ export function SectionNav(props: {
   value: string;
   view?: string;
   onChange: (value: string, view?: string) => void;
+  /** The address of a section, so each one is a real link that can open in a new tab. */
+  hrefFor: (value: string, view?: string) => string;
   label: string;
 }) {
   const { groups, value, view, onChange } = props;
@@ -104,6 +106,7 @@ export function SectionNav(props: {
                         active={open && !item.children}
                         open={open}
                         expandable={!!item.children}
+                        href={props.hrefFor(item.value, item.children?.[0]?.value)}
                         onClick={() => onChange(item.value, item.children?.[0]?.value)}
                       />
                       {open &&
@@ -113,6 +116,7 @@ export function SectionNav(props: {
                             label={child.label}
                             child
                             active={child.value === currentView?.value}
+                            href={props.hrefFor(item.value, child.value)}
                             onClick={() => onChange(item.value, child.value)}
                           />
                         ))}
@@ -134,14 +138,20 @@ function NavButton(props: {
   open?: boolean;
   expandable?: boolean;
   child?: boolean;
+  href: string;
   onClick: () => void;
 }) {
   return (
-    <motion.button
-      type="button"
+    <motion.a
+      href={props.href}
       aria-current={props.active ? "page" : undefined}
       aria-expanded={props.expandable ? props.open : undefined}
-      onClick={props.onClick}
+      onClick={(event) => {
+        // A plain click switches in place; a modified click opens a new tab as usual.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        props.onClick();
+      }}
       // A section's views fade down into place as it opens.
       initial={props.child ? { opacity: 0, y: -4 } : false}
       animate={{ opacity: 1, y: 0 }}
@@ -165,7 +175,7 @@ function NavButton(props: {
           className={`absolute inset-0 bg-sidebar-accent ${props.child ? "rounded-r-lg" : "rounded-lg"}`}
         />
       )}
-      <span className="relative truncate">{props.label}</span>
+      <span className="relative wrap-break-word">{props.label}</span>
       {props.expandable && (
         <motion.span
           aria-hidden
@@ -177,6 +187,6 @@ function NavButton(props: {
           <ChevronRightIcon className="size-3.5 shrink-0" />
         </motion.span>
       )}
-    </motion.button>
+    </motion.a>
   );
 }

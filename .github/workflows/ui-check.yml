@@ -1,0 +1,41 @@
+# Checks the rendered dashboard against ui-policy.json with lintapple
+# (https://github.com/gholtzap/lintapple) on every push and pull request.
+name: UI check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run check
+      - run: npm test
+      - name: Prepare the local database
+        run: |
+          npm run db:migrate:local
+          npm run lint:ui:seed
+      - name: Start the dashboard
+        run: |
+          npm run dev -- --port 5173 > dev.log 2>&1 &
+          for i in $(seq 60); do curl -sf -o /dev/null http://localhost:5173/ && exit 0; sleep 2; done
+          cat dev.log; exit 1
+      - run: npm run lint:ui -- http://localhost:5173 --json ui-report.json
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-report
+          path: |
+            ui-report.json
+            dev.log
+          if-no-files-found: ignore

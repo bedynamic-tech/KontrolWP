@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ExternalLinkIcon, SearchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { compareVersions, CONTENT_LIST_SINCE } from "../../shared/plugin-version";
@@ -118,7 +119,7 @@ export function ContentTab(props: { site: SiteSummary }) {
   return (
     <section className="mt-8">
       <div className="mb-3 space-y-2">
-        <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+        <div className="flex max-w-full min-w-0 flex-wrap gap-2">
           {chips
             .filter((chip) => chip.value === "all" || chip.count > 0 || chip.value === status)
             .map((chip) => (
@@ -211,19 +212,23 @@ function StatusBadge(props: { item: SiteContentItem }) {
 function Actions(props: { site: SiteSummary; item: SiteContentItem }) {
   const { site, item } = props;
   return (
-    <div className="flex items-center justify-end gap-1">
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        asChild
-        title={
+    <div className="flex items-center justify-end gap-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            asChild
+          >
+            <a href={item.permalink} target="_blank" rel="noreferrer noopener" aria-label="View on the site">
+              <ExternalLinkIcon />
+            </a>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{
           item.status === "publish" ? "View on the site" : "Open on the site (WordPress sign-in needed to preview)"
-        }
-      >
-        <a href={item.permalink} target="_blank" rel="noreferrer noopener" aria-label="View on the site">
-          <ExternalLinkIcon />
-        </a>
-      </Button>
+        }</TooltipContent>
+      </Tooltip>
       <EditButton site={site} postId={item.id} />
     </div>
   );
@@ -260,9 +265,7 @@ function ContentList(props: { site: SiteSummary; items: SiteContentItem[]; types
             <th className="px-4 py-2 font-medium">Status</th>
             <th className="px-4 py-2 font-medium">Author</th>
             <th className="px-4 py-2 font-medium">Date</th>
-            <th className="px-4 py-2 text-right font-medium">
-              <span className="sr-only">Actions</span>
-            </th>
+            <th className="px-4 py-2 text-right font-medium" aria-label="Actions" />
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -273,7 +276,7 @@ function ContentList(props: { site: SiteSummary; items: SiteContentItem[]; types
                   href={item.permalink}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="block truncate font-medium hover:underline"
+                  className="block wrap-break-word font-medium hover:underline"
                   title={title(item)}
                 >
                   {title(item)}

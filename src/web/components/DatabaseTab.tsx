@@ -259,8 +259,8 @@ function Database({ site }: { site: SiteSummary }) {
 function Stat(props: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-4 py-3">
-      <dt className="truncate text-xs text-muted-foreground">{props.label}</dt>
-      <dd className="mt-1 truncate text-sm font-medium">{props.value}</dd>
+      <dt className="wrap-break-word text-xs text-muted-foreground">{props.label}</dt>
+      <dd className="mt-1 wrap-break-word text-sm font-medium">{props.value}</dd>
     </div>
   );
 }
@@ -321,7 +321,7 @@ function LargestTables({ report }: { report: DatabaseReport }) {
       <div className="divide-y">
         {tables.map((table) => (
           <div key={table.name} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs">{table.name}</p>
+            <p className="min-w-0 flex-1 wrap-break-word font-mono text-xs">{table.name}</p>
             <span className="hidden shrink-0 text-muted-foreground sm:inline">{plural(table.rows, "row")}</span>
             <span className="w-20 shrink-0 text-right font-medium">{formatBytes(table.bytes)}</span>
           </div>

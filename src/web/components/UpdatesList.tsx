@@ -102,7 +102,7 @@ function UpdateGroup(props: { updates: SiteUpdate[] }) {
           <RemoteIcon sources={updateIconSources(first)} name={first.name} className="size-9 text-sm" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate text-sm font-medium">{first.name}</span>
+              <span className="wrap-break-word text-sm font-medium">{first.name}</span>
               <Badge variant="outline" className="capitalize">{first.kind === "core" ? "WordPress" : first.kind}</Badge>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -220,7 +220,7 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
     return (
       <li className="flex flex-col gap-2 py-2.5 pr-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <Link to={`/sites/${update.site_id}`} className="truncate text-sm hover:underline">
+          <Link to={`/sites/${update.site_id}`} className="wrap-break-word text-sm hover:underline">
             {update.site_name}
           </Link>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -240,7 +240,7 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
         <RemoteIcon sources={updateIconSources(update)} name={update.name} className="size-9 text-sm" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{update.name}</span>
+            <span className="wrap-break-word text-sm font-medium">{update.name}</span>
             <Badge variant="outline" className="capitalize">{update.kind === "core" ? "WordPress" : update.kind}</Badge>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">

@@ -81,7 +81,7 @@ function HealthCard(props: {
           >
             {summary.value}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
+          <span className="wrap-break-word text-xs text-muted-foreground">
             {summary.detail}
           </span>
         </>

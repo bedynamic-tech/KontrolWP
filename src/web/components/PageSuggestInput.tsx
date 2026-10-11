@@ -108,8 +108,8 @@ export function PageSuggestInput(props: {
               onClick={() => choose(page)}
               className={cn("cursor-pointer rounded-md px-2 py-1.5", index === active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60")}
             >
-              <p className="truncate font-medium">{page.title || "(no title)"}</p>
-              <p className="truncate text-xs text-muted-foreground">{targetFor(page.permalink, site.url)}</p>
+              <p className="wrap-break-word font-medium">{page.title || "(no title)"}</p>
+              <p className="wrap-break-word text-xs text-muted-foreground">{targetFor(page.permalink, site.url)}</p>
             </li>
           ))}
         </ul>

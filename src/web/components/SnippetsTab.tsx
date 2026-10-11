@@ -174,7 +174,7 @@ function Snippets(props: { site: SiteSummary }) {
                       ) : (
                         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
                       )}
-                      <span className="min-w-0 truncate text-sm font-medium">{snippet.name || "New snippet"}</span>
+                      <span className="min-w-0 wrap-break-word text-sm font-medium">{snippet.name || "New snippet"}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{LOCATION_LABELS[snippet.location]}</span>
                       {!snippet.enabled && <span className="sr-only">(off)</span>}
                     </button>

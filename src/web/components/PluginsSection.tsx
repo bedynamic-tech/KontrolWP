@@ -294,7 +294,7 @@ function PluginRow(props: {
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-medium">
+            <p className="wrap-break-word text-sm font-medium">
               {plugin.name}
               {!plugin.active && <span className="sr-only"> (inactive)</span>}
             </p>

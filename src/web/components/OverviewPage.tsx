@@ -97,11 +97,11 @@ function BrokenLinksList(props: { links: FleetLinks }) {
                 )}
               >
                 {link.status === "broken" ? "Broken" : "Unresponsive"}
-                {link.http_status !== null && <span className="tabular-nums opacity-80">{link.http_status}</span>}
+                {link.http_status !== null && <span className="tabular-nums">{link.http_status}</span>}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{link.url.replace(/^https?:\/\//, "")}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="block wrap-break-word text-sm font-medium">{link.url.replace(/^https?:\/\//, "")}</span>
+                <span className="block wrap-break-word text-xs text-muted-foreground">
                   {[
                     link.site_name,
                     link.post_title &&

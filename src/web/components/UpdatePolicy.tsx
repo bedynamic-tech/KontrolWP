@@ -193,7 +193,7 @@ function PluginPicker(props: {
                     name={plugin.name}
                     className="size-6 text-xs"
                   />
-                  <span className="min-w-0 flex-1 truncate">{plugin.name}</span>
+                  <span className="min-w-0 flex-1 wrap-break-word">{plugin.name}</span>
                   {isLocked ? (
                     <span className="shrink-0 text-xs text-muted-foreground">Left out for all sites</span>
                   ) : (
