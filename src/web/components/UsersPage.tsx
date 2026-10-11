@@ -247,7 +247,7 @@ function UserGroup(props: {
           {name.slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
+          <p className="wrap-break-word text-sm font-medium">
             {name}
             {first.email && <span className="font-normal text-muted-foreground"> {first.email}</span>}
           </p>
@@ -283,7 +283,7 @@ function UserGroup(props: {
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <Link to={`/sites/${user.site_id}`} className="truncate text-sm hover:underline">
+                <Link to={`/sites/${user.site_id}`} className="wrap-break-word text-sm hover:underline">
                   {user.site_name}
                 </Link>
                 <p className="mt-0.5 text-xs text-muted-foreground">

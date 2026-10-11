@@ -363,7 +363,7 @@ function PagePicker(props: {
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {props.pageId > 0 ? (
-          <span className="min-w-0 truncate">
+          <span className="min-w-0 wrap-break-word">
             {props.known?.title ?? `Page ${props.pageId}`}
           </span>
         ) : (
@@ -420,10 +420,10 @@ function PagePicker(props: {
                       setOpen(false);
                     }}
                   >
-                    <span className="block truncate">
+                    <span className="block wrap-break-word">
                       {item.title || "Untitled"}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
+                    <span className="block wrap-break-word text-xs text-muted-foreground">
                       {item.permalink}
                     </span>
                   </button>
@@ -512,10 +512,10 @@ function LocationCard(props: {
     <details className="group" open={props.startOpen}>
       <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm">
         <span className="min-w-0">
-          <span className="block truncate font-medium">
+          <span className="block wrap-break-word font-medium">
             {location.name || props.siteName || "New location"}
           </span>
-          <span className="block truncate text-xs text-muted-foreground">
+          <span className="block wrap-break-word text-xs text-muted-foreground">
             {summary || "Add a phone number or a street address"}
             {location.page_id > 0 && " · Has its own page"}
           </span>
@@ -786,10 +786,10 @@ function PagesSection(props: { site: SiteSummary; seo: SiteSeo }) {
               className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
             >
               <div className="min-w-0">
-                <p className="truncate font-medium">
+                <p className="wrap-break-word font-medium">
                   {item.title || "Untitled"}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="wrap-break-word text-xs text-muted-foreground">
                   {item.seo_title || item.description || item.noindex
                     ? [
                         item.seo_title && "Custom title",

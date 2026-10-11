@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -235,7 +236,7 @@ export function LinksTab(props: { site: SiteSummary }) {
 
       <section className="mt-8">
         <div className="mb-3 flex flex-wrap items-center gap-2 xl:flex-nowrap">
-          <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+          <div className="flex max-w-full min-w-0 flex-wrap gap-2">
             {chips
               .filter((chip) => chip.value === "problems" || chip.count > 0 || chip.value === filter)
               .map((chip) => (
@@ -491,7 +492,7 @@ function StatCard(props: { label: string; value: string; tone?: "bad" | "warn" }
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
       <dd
         className={cn(
-          "mt-1 truncate text-sm font-medium tabular-nums",
+          "mt-1 wrap-break-word text-sm font-medium tabular-nums",
           props.tone === "bad" && "text-destructive",
           props.tone === "warn" && "text-amber-700 dark:text-amber-300",
         )}
@@ -530,9 +531,7 @@ function LinkList(props: {
             <th className="px-4 py-2 font-medium">Status</th>
             <th className="px-4 py-2 font-medium">Link</th>
             <th className="px-4 py-2 font-medium">Found in</th>
-            <th className="px-4 py-2 text-right font-medium">
-              <span className="sr-only">Actions</span>
-            </th>
+            <th className="px-4 py-2 text-right font-medium" aria-label="Actions" />
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -576,7 +575,7 @@ function StatusBadge(props: { link: SiteLink }) {
       title={link.error ?? undefined}
     >
       {STATUS_LABEL[link.status]}
-      {link.http_status !== null && <span className="tabular-nums opacity-80">{link.http_status}</span>}
+      {link.http_status !== null && <span className="tabular-nums">{link.http_status}</span>}
     </span>
   );
 }
@@ -591,7 +590,7 @@ function LinkCell(props: { link: SiteLink }) {
         href={link.url}
         target="_blank"
         rel="noreferrer noopener"
-        className="block truncate font-medium hover:underline"
+        className="block wrap-break-word font-medium hover:underline"
         title={link.url}
       >
         {image && <ImageIcon className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Image" />}
@@ -618,7 +617,7 @@ function Refs(props: { site: SiteSummary; refs: LinkRef[] }) {
             href={ref.permalink || undefined}
             target="_blank"
             rel="noreferrer noopener"
-            className="min-w-0 truncate hover:underline"
+            className="min-w-0 wrap-break-word hover:underline"
             title={ref.permalink}
           >
             {ref.post_title || `(no title) #${ref.post_id}`}
@@ -678,17 +677,21 @@ export function EditButton(props: { site: SiteSummary; postId: number }) {
   }
 
   return (
-    <Button
-      size="icon-xs"
-      variant="ghost"
-      className="shrink-0"
-      onClick={open}
-      disabled={pending}
-      title={magic ? "Edit in WordPress (Magic Login)" : "Edit in WordPress"}
-      aria-label="Edit in WordPress"
-    >
-      <PencilIcon className={pending ? "animate-pulse" : ""} />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          className="shrink-0"
+          onClick={open}
+          disabled={pending}
+          aria-label="Edit in WordPress"
+        >
+          <PencilIcon className={pending ? "animate-pulse" : ""} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{magic ? "Edit in WordPress (Magic Login)" : "Edit in WordPress"}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -712,42 +715,54 @@ function Actions(props: {
   const error = recheck.error ?? ignore.error;
   return (
     <div className="flex flex-col items-start gap-1 md:items-end">
-      <div className="flex gap-1">
+      <div className="flex gap-2">
         {/* Ignored links are never checked again. */}
         {!link.ignored && (
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => recheck.mutate()}
-            loading={recheck.isPending}
-            title="Check this link again now"
-            aria-label="Check again"
-          >
-            {!recheck.isPending && <RefreshCwIcon />}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={() => recheck.mutate()}
+                loading={recheck.isPending}
+                aria-label="Check again"
+              >
+                {!recheck.isPending && <RefreshCwIcon />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Check this link again now</TooltipContent>
+          </Tooltip>
         )}
         {redirectFrom && (
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => props.onRedirect!(link, redirectFrom)}
-            title="Redirect this address to another page"
-            aria-label="Redirect"
-          >
-            <CornerDownRightIcon />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={() => props.onRedirect!(link, redirectFrom)}
+                aria-label="Redirect"
+              >
+                <CornerDownRightIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Redirect this address to another page</TooltipContent>
+          </Tooltip>
         )}
         {props.onUnlink && removable(link) && (
-          <Button
-            size="icon-sm"
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => props.onUnlink!([link])}
-            title="Take this link out of its posts, keeping the text"
-            aria-label="Remove link"
-          >
-            <UnlinkIcon />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => props.onUnlink!([link])}
+                aria-label="Remove link"
+              >
+                <UnlinkIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Take this link out of its posts, keeping the text</TooltipContent>
+          </Tooltip>
         )}
         {link.ignored ? (
           <Button size="sm" variant="ghost" onClick={() => ignore.mutate()} loading={ignore.isPending}>
@@ -755,16 +770,20 @@ function Actions(props: {
             Unignore
           </Button>
         ) : (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => ignore.mutate()}
-            loading={ignore.isPending}
-            title="Ignore: hide this link from the problems and stop checking it"
-            aria-label="Ignore"
-          >
-            {!ignore.isPending && <EyeOffIcon />}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => ignore.mutate()}
+                loading={ignore.isPending}
+                aria-label="Ignore"
+              >
+                {!ignore.isPending && <EyeOffIcon />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ignore: hide this link from the problems and stop checking it</TooltipContent>
+          </Tooltip>
         )}
       </div>
       {error && <p className="text-xs text-destructive">{error.message}</p>}

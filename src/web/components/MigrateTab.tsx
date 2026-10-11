@@ -183,7 +183,7 @@ function Review(props: { site: SiteSummary; source: string }) {
             ) : (
               <ul>
                 {data.settings.map((item) => (
-                  <li key={item.key} className="truncate">
+                  <li key={item.key} className="wrap-break-word">
                     {SETTING_LABELS[item.key] ?? item.key}: {item.value}
                   </li>
                 ))}
@@ -221,7 +221,7 @@ function Review(props: { site: SiteSummary; source: string }) {
                 </p>
                 <ul className="mt-1">
                   {data.redirects.samples.map((item) => (
-                    <li key={`${item.match_type}-${item.source}`} className="truncate">
+                    <li key={`${item.match_type}-${item.source}`} className="wrap-break-word">
                       {item.source} to {item.target || "(gone)"} ({item.status_code})
                     </li>
                   ))}

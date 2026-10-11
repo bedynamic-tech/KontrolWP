@@ -40,13 +40,19 @@ export function App() {
           width, so folding only clips them and hides the labels. */}
       <div className={`sticky top-0 z-40 hidden h-dvh shrink-0 md:block ${collapsed ? "w-14" : "w-56"}`}>
         <aside
-          className={`absolute inset-y-0 left-0 overflow-x-hidden overflow-y-auto border-r bg-sidebar px-3 py-4 ${
+          className={`group/rail absolute inset-y-0 left-0 overflow-x-hidden overflow-y-auto border-r bg-sidebar px-3 py-4 ${
             collapsed
               ? "w-14 transition-[width,box-shadow] duration-150 hover:w-56 hover:shadow-2xl hover:delay-100 focus-within:w-56 focus-within:shadow-2xl [&_span]:transition-opacity [&:not(:hover):not(:focus-within)_span]:opacity-0"
               : "w-56"
           }`}
         >
-          <div className="flex min-h-full w-50 flex-col whitespace-nowrap">
+          {/* Folded, the contents fit the rail, so nothing hidden sits over the page; opened,
+              they take their full width at once and the rail's own width animates. */}
+          <div
+            className={`flex min-h-full flex-col whitespace-nowrap ${
+              collapsed ? "w-8 overflow-hidden group-hover/rail:w-50 group-focus-within/rail:w-50" : "w-50"
+            }`}
+          >
             <div className="flex items-center justify-between">
               <Brand />
               <ThemeToggle />
@@ -119,7 +125,7 @@ function Brand(props: { compact?: boolean }) {
     <div className="flex items-center gap-2 px-2">
       <img src="/kontrolwp.svg" alt="KontrolWP" className="size-6" />
       <span
-        className={`text-sm font-semibold tracking-tight ${props.compact ? "max-[439px]:sr-only" : ""}`}
+        className={`text-sm font-semibold tracking-tight ${props.compact ? "max-[439px]:hidden" : ""}`}
         aria-hidden="true"
       >
         KontrolWP
@@ -134,6 +140,7 @@ function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: 
     <NavLink
       to={props.to}
       title={props.compact ? props.label : undefined}
+      aria-label={props.compact ? props.label : undefined}
       end={props.to === "/"}
       className={({ isActive }) =>
         `relative flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors [&_svg]:size-4 ${
@@ -157,7 +164,7 @@ function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: 
           {/* A div, not a span: the folded sidebar fades out every span, and the icon must stay. */}
           <div className="relative flex items-center gap-2">
             {props.icon}
-            <span className={props.compact ? "sr-only sm:not-sr-only" : undefined}>{props.label}</span>
+            <span className={props.compact ? "hidden sm:inline" : undefined}>{props.label}</span>
           </div>
         </>
       )}

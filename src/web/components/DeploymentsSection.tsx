@@ -167,8 +167,8 @@ function DeploymentRow(props: { site: SiteSummary; row: SiteDeployment; live: bo
           {STATUS_LABELS[shown]}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{row.message || fallback}</span>
-          <span className="block truncate text-xs text-muted-foreground">{details.join(" · ")}</span>
+          <span className="block wrap-break-word text-sm font-medium">{row.message || fallback}</span>
+          <span className="block wrap-break-word text-xs text-muted-foreground">{details.join(" · ")}</span>
         </span>
       </div>
       {props.logs && row.type === "build" && row.status !== "queued" && (

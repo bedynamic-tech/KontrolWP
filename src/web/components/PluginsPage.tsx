@@ -304,7 +304,7 @@ function PluginGroup(props: {
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate text-sm font-medium">{first.name}</span>
+              <span className="wrap-break-word text-sm font-medium">{first.name}</span>
               {updates.length > 0 && <Badge variant="secondary">Update available</Badge>}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -379,7 +379,7 @@ function SiteRow(props: {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/sites/${plugin.site_id}`} className="truncate text-sm hover:underline">
+          <Link to={`/sites/${plugin.site_id}`} className="wrap-break-word text-sm hover:underline">
             {plugin.site_name}
           </Link>
           {plugin.active ? (

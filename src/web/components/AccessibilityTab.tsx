@@ -36,7 +36,7 @@ function StatCard(props: { label: string; value: string; className?: string }) {
   return (
     <div className="rounded-xl border bg-background px-4 py-3">
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
-      <dd className={cn("mt-1 truncate text-sm font-medium tabular-nums", props.className)}>{props.value}</dd>
+      <dd className={cn("mt-1 wrap-break-word text-sm font-medium tabular-nums", props.className)}>{props.value}</dd>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AnalyticsProvider, AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
 import {
@@ -110,9 +111,14 @@ export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: Ana
 /** A small icon button on an Overview module that jumps to the full view. */
 export function JumpButton(props: { label: string; onClick: () => void }) {
   return (
-    <Button type="button" variant="ghost" size="icon-xs" aria-label={props.label} title={props.label} onClick={props.onClick}>
-      <ArrowUpRightIcon />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label={props.label} onClick={props.onClick}>
+          <ArrowUpRightIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{props.label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -318,7 +324,7 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
           </div>
         ))}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+      <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
         {ticks.map((index) => (
           <span key={index}>{series[index] ? label(series[index].label) : ""}</span>
         ))}
@@ -383,16 +389,20 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
 
   if (!open) {
     return (
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={`Change the ${label} ${noun}`}
-        title={`Change the ${label} ${noun}`}
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
-        onClick={() => setOpen(true)}
-      >
-        <PencilIcon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Change the ${label} ${noun}`}
+            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
+            onClick={() => setOpen(true)}
+          >
+            <PencilIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{`Change the ${label} ${noun}`}</TooltipContent>
+      </Tooltip>
     );
   }
   return (

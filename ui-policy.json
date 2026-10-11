@@ -1,0 +1,57 @@
+{
+  "fonts": [
+    "Geist Variable",
+    "ui-monospace"
+  ],
+  "fontSizes": [
+    12,
+    13,
+    14,
+    15,
+    16,
+    18,
+    20,
+    24,
+    30
+  ],
+  "typeRules": [
+    {
+      "selector": "button, [role=button]",
+      "sizes": [
+        12,
+        13,
+        14,
+        15,
+        16
+      ]
+    }
+  ],
+  "minControlSize": 15,
+  "controlSizeRules": [],
+  "minControlGap": 8,
+  "minControlInset": 8,
+  "controlContainers": [
+    "[data-ui-container]"
+  ],
+  "minLayoutGap": 8,
+  "bannedCopy": [
+    "unlock your potential",
+    "seamlessly",
+    "game-changing"
+  ],
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "colorSchemes": [
+    "light",
+    "dark"
+  ],
+  "exceptions": []
+}

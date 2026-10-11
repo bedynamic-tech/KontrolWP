@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLinkIcon, RefreshCwIcon, SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import type { SitemapPage, SiteSummary } from "../../shared/types";
 import { fetchSitePages } from "../api";
@@ -92,16 +93,20 @@ export function SitemapTab(props: { site: SiteSummary }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium">{`Pages (${data.total.toLocaleString()})`}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => pages.refetch()}
-            disabled={pages.isFetching}
-            title="Read the sitemap again"
-            aria-label="Read the sitemap again"
-          >
-            <RefreshCwIcon className={pages.isFetching ? "animate-spin" : ""} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={() => pages.refetch()}
+                disabled={pages.isFetching}
+                aria-label="Read the sitemap again"
+              >
+                <RefreshCwIcon className={pages.isFetching ? "animate-spin" : ""} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Read the sitemap again</TooltipContent>
+          </Tooltip>
           <div className="relative w-full sm:w-64">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -129,7 +134,7 @@ export function SitemapTab(props: { site: SiteSummary }) {
                   className="flex min-w-0 items-center gap-1.5 hover:underline"
                   title={item.url}
                 >
-                  <span className="truncate font-medium">{pathOf(item.url)}</span>
+                  <span className="wrap-break-word font-medium">{pathOf(item.url)}</span>
                   <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground" />
                 </a>
                 {anyDate && (
@@ -145,7 +150,7 @@ export function SitemapTab(props: { site: SiteSummary }) {
         )}
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate" title={data.sitemap_url}>
+        <span className="min-w-0 wrap-break-word" title={data.sitemap_url}>
           {query ? `${plural(shown.length, "match", "matches")} · ` : ""}From {pathOf(data.sitemap_url)}
           {data.truncated ? ` · showing the first ${data.items.length.toLocaleString()}` : ""}
         </span>

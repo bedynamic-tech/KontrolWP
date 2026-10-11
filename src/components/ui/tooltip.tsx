@@ -3,16 +3,34 @@ import { Tooltip as TooltipPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+// The trigger names its tooltip with data-ui-tooltip, so the UI check
+// (npm run lint:ui) can see that an icon-only button has a text label.
+// While closed, the tooltip text stays in the page as a hidden element with
+// that id; while open, the visible Radix tooltip carries the id instead.
+const TooltipState = React.createContext<{ id: string; open: boolean } | null>(null)
+
 function TooltipProvider({ delayDuration = 150, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
 }
 
-function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+function Tooltip({ open: openProp, defaultOpen = false, onOpenChange, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  const id = React.useId()
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = openProp ?? uncontrolledOpen
+  const handleOpenChange = (next: boolean) => {
+    setUncontrolledOpen(next)
+    onOpenChange?.(next)
+  }
+  return (
+    <TooltipState.Provider value={{ id, open }}>
+      <TooltipPrimitive.Root data-slot="tooltip" open={open} onOpenChange={handleOpenChange} {...props} />
+    </TooltipState.Provider>
+  )
 }
 
 function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const state = React.useContext(TooltipState)
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" data-ui-tooltip={state?.id} {...props} />
 }
 
 function TooltipContent({
@@ -21,20 +39,31 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  const state = React.useContext(TooltipState)
+  const closed = state !== null && !state.open
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        data-slot="tooltip-content"
-        sideOffset={sideOffset}
-        className={cn(
-          "easy-pop z-50 max-w-72 origin-(--radix-tooltip-content-transform-origin) rounded-md border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-elevated",
-          className
-        )}
-        {...props}
-      >
-        {children}
-      </TooltipPrimitive.Content>
-    </TooltipPrimitive.Portal>
+    <>
+      {closed && (
+        <span id={state.id} role="tooltip" hidden>
+          {children}
+        </span>
+      )}
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Content
+          data-slot="tooltip-content"
+          id={closed ? undefined : state?.id}
+          role="tooltip"
+          sideOffset={sideOffset}
+          className={cn(
+            "easy-pop z-50 max-w-72 origin-(--radix-tooltip-content-transform-origin) rounded-md border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-elevated",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    </>
   )
 }
 

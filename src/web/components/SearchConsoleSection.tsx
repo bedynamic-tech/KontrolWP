@@ -3,6 +3,7 @@ import { PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -208,7 +209,7 @@ function Body(props: {
               />
             ))}
           </div>
-          <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+          <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
             <span>{data.series[0].label}</span>
             <span>{data.series[data.series.length - 1].label}</span>
           </div>
@@ -287,7 +288,7 @@ function RowList(props: {
                 className="absolute inset-y-0 left-0 rounded bg-muted"
                 style={{ width: `${(row.clicks / max) * 100}%` }}
               />
-              <span className="relative truncate" title={row.label}>
+              <span className="relative wrap-break-word" title={row.label}>
                 {shown(row.label)}
               </span>
               <span className="relative flex shrink-0 gap-4 tabular-nums text-muted-foreground">
@@ -393,16 +394,20 @@ function PropertyPicker(props: {
   });
   if (!open) {
     return (
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Change the Search Console property"
-        title="Change the Search Console property"
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
-        onClick={() => setOpen(true)}
-      >
-        <PencilIcon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Change the Search Console property"
+            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100"
+            onClick={() => setOpen(true)}
+          >
+            <PencilIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Change the Search Console property</TooltipContent>
+      </Tooltip>
     );
   }
   return (

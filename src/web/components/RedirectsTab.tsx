@@ -608,11 +608,11 @@ function RulesSection(props: {
                   />
                 )}
                 <div className={`min-w-0 flex-1 ${item.enabled ? "" : "opacity-60"}`}>
-                  <p className="truncate font-medium">
+                  <p className="wrap-break-word font-medium">
                     {item.source}
                     {!item.enabled && <span className="sr-only"> (off)</span>}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="wrap-break-word text-xs text-muted-foreground">
                     {item.target ? `to ${item.target}` : "No destination"} ·{" "}
                     {item.status_code}
                     {item.match_type !== "exact"
@@ -914,8 +914,8 @@ function NotFoundSection(props: {
                   className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{item.path}</p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="wrap-break-word font-medium">{item.path}</p>
+                    <p className="wrap-break-word text-xs text-muted-foreground">
                       {item.hits} {item.hits === 1 ? "request" : "requests"} ·
                       last {timeAgo(item.last_seen)}
                       {item.referrer ? ` · from ${item.referrer}` : ""}

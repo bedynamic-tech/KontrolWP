@@ -157,7 +157,7 @@ function Tile(props: { label: string; value: string; detail?: string; tone?: str
     <div className="min-w-0 rounded-lg border px-3 py-2.5">
       <dt className="text-xs text-muted-foreground">{props.label}</dt>
       <dd className={cn("mt-0.5 text-base font-medium tabular-nums", props.tone)}>{props.value}</dd>
-      {props.detail && <dd className="truncate text-xs text-muted-foreground">{props.detail}</dd>}
+      {props.detail && <dd className="wrap-break-word text-xs text-muted-foreground">{props.detail}</dd>}
     </div>
   );
 }
@@ -176,7 +176,7 @@ function ResponseChart(props: { checks: UptimeCheck[] }) {
   return (
     <div className="px-4 py-3">
       <div className="flex items-stretch gap-2">
-        <div className="flex flex-col justify-between py-0.5 text-right text-[10px] text-muted-foreground tabular-nums">
+        <div className="flex flex-col justify-between py-0.5 text-right text-xs text-muted-foreground tabular-nums">
           <span>{top} ms</span>
           <span>0</span>
         </div>
@@ -209,7 +209,7 @@ function ResponseChart(props: { checks: UptimeCheck[] }) {
           })}
         </svg>
       </div>
-      <div className="mt-1 flex justify-between pl-10 text-[10px] text-muted-foreground">
+      <div className="mt-1 flex justify-between pl-10 text-xs text-muted-foreground">
         <span>{timeAgo(checks[0].checked_at)}</span>
         <span>Now</span>
       </div>
@@ -238,7 +238,7 @@ function DayStrip(props: { days: UptimeDay[] }) {
           return <div key={day.day} role="listitem" title={label} aria-label={label} className={cn("min-w-0 flex-1 rounded-sm", tone)} />;
         })}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+      <div className="mt-1 flex justify-between text-xs text-muted-foreground">
         <span>30 days ago</span>
         <span>Today</span>
       </div>

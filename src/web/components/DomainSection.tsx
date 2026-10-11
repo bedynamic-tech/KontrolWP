@@ -219,7 +219,7 @@ function DnsTable(props: { records: DnsRecord[] }) {
           <li key={`${record.type} ${record.name} ${record.value}`} className="px-4 py-2.5">
             <p className="flex items-baseline gap-2">
               <span className="font-medium">{record.type}</span>
-              <span className="min-w-0 truncate text-muted-foreground">{record.name}</span>
+              <span className="min-w-0 wrap-break-word text-muted-foreground">{record.name}</span>
               <span className="ml-auto text-xs text-muted-foreground">{ttlLabel(record.ttl)}</span>
             </p>
             <p className="mt-0.5 font-mono text-xs break-all">{record.value}</p>

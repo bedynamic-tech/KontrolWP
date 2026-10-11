@@ -228,11 +228,11 @@ function UserRow(props: {
         {name.slice(0, 1).toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
+        <p className="wrap-break-word text-sm font-medium">
           {name}
           {name !== user.login && <span className="font-normal text-muted-foreground"> ({user.login})</span>}
         </p>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="wrap-break-word text-xs text-muted-foreground">
           {[user.email, roleLabel(user.roles, props.roles), props.magicLogin && "Magic Login"].filter(Boolean).join(" · ")}
         </p>
         {props.error && <p className="mt-1 text-xs text-destructive">{props.error}</p>}

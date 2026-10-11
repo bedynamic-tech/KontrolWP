@@ -14,7 +14,7 @@ export function CopyField(props: { label?: string; value: string; placeholder?: 
         <span className="shrink-0 font-mono text-xs text-muted-foreground">{props.label}</span>
       )}
       <code
-        className={`min-w-0 flex-1 truncate font-mono text-xs ${props.placeholder ? "text-muted-foreground italic" : "text-foreground"}`}
+        className={`min-w-0 flex-1 font-mono text-xs break-all ${props.placeholder ? "text-muted-foreground italic" : "text-foreground"}`}
         title={props.value}
       >
         {props.value}
