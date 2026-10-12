@@ -1,10 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import {
+  AccessibilityIcon,
+  ActivityIcon,
   ArrowLeftIcon,
+  ChartColumnIcon,
+  CodeIcon,
+  DatabaseIcon,
   ExternalLinkIcon,
+  FileTextIcon,
+  GaugeIcon,
+  LayoutDashboardIcon,
+  Link2Icon,
+  LockIcon,
+  PaletteIcon,
+  PlugIcon,
   RefreshCwIcon,
+  RocketIcon,
+  SearchIcon,
   SettingsIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+  WrenchIcon,
 } from "lucide-react";
 import { Children, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -266,35 +283,35 @@ export function SitePage() {
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
   const toolItems: NavItem[] = [
-    ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links" }] : []),
-    ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets" }]),
-    ...(isStatic ? [] : [{ value: "database", label: "Database" }]),
-    ...(site.uptime_excluded ? [] : [{ value: "uptime", label: "Uptime" }]),
-    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance" }]),
-    { value: "seo", label: "SEO", ...(isStatic ? {} : { children: seoViews }) },
-    ...(isStatic ? [] : [{ value: "branding", label: "Branding" }]),
-    ...(isStatic ? [] : [{ value: "maintenance", label: "Maintenance" }]),
-    ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security" }]),
-    ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility" }]),
-    { value: "domain", label: "Domain & SSL" },
+    ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links", icon: <Link2Icon /> }] : []),
+    ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets", icon: <CodeIcon /> }]),
+    ...(isStatic ? [] : [{ value: "database", label: "Database", icon: <DatabaseIcon /> }]),
+    ...(site.uptime_excluded ? [] : [{ value: "uptime", label: "Uptime", icon: <ActivityIcon /> }]),
+    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance", icon: <GaugeIcon /> }]),
+    { value: "seo", label: "SEO", icon: <SearchIcon />, ...(isStatic ? {} : { children: seoViews }) },
+    ...(isStatic ? [] : [{ value: "branding", label: "Branding", icon: <PaletteIcon /> }]),
+    ...(isStatic ? [] : [{ value: "maintenance", label: "Maintenance", icon: <WrenchIcon /> }]),
+    ...(isStatic || site.security_excluded ? [] : [{ value: "security", label: "Security", icon: <ShieldCheckIcon /> }]),
+    ...(site.accessibility_excluded ? [] : [{ value: "accessibility", label: "Accessibility", icon: <AccessibilityIcon /> }]),
+    { value: "domain", label: "Domain & SSL", icon: <LockIcon /> },
   ];
   // ?tab=tools opens the first tool.
   const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;
   const siteItems: NavItem[] = [
-    { value: "overview", label: "Overview" },
-    ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics" }] : []),
+    { value: "overview", label: "Overview", icon: <LayoutDashboardIcon /> },
+    ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics", icon: <ChartColumnIcon /> }] : []),
     ...(isStatic
       ? [
-          { value: "pages", label: "Pages" },
-          ...(onCloudflare ? [{ value: "deployments", label: "Deployments" }] : []),
+          { value: "pages", label: "Pages", icon: <FileTextIcon /> },
+          ...(onCloudflare ? [{ value: "deployments", label: "Deployments", icon: <RocketIcon /> }] : []),
         ]
       : [
-          { value: "content", label: "Posts and pages" },
-          { value: "plugins", label: "Plugins" },
-          { value: "users", label: "Users" },
+          { value: "content", label: "Posts and pages", icon: <FileTextIcon /> },
+          { value: "plugins", label: "Plugins", icon: <PlugIcon /> },
+          { value: "users", label: "Users", icon: <UsersIcon /> },
         ]),
   ];
-  const navGroups: NavGroup[] = [{ items: siteItems }, { label: "Tools", items: toolItems }];
+  const navGroups: NavGroup[] = [{ label: "Site", items: siteItems }, { label: "Tools", items: toolItems }];
 
   return (
     <div>
