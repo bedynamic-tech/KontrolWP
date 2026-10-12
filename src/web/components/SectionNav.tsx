@@ -1,6 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { LayoutGroup, motion } from "framer-motion";
-import { Fragment, useId } from "react";
+import { Fragment, useId, type ReactNode } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import { motionTransitions } from "@/lib/motion";
 export interface NavItem {
   value: string;
   label: string;
+  icon?: ReactNode;
   /** Views inside this section, such as SEO's Redirects; picking the section opens the first. */
   children?: NavItem[];
 }
@@ -22,10 +23,14 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** A group's heading: small capitals, so it reads as a label over its sections and not as one of them. */
+const GROUP_HEADING = "px-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase";
+
 /**
  * A page's sections as one grouped menu: a column of links from the lg breakpoint up,
- * and one dropdown below it. A section with views opens in place to list them, so a
- * view is always one pick away instead of sitting under rows of nested tabs.
+ * and one dropdown below it. Each group sits under its own heading, set apart by a rule.
+ * A section with views opens in place to list them, so a view is always one pick away
+ * instead of sitting under rows of nested tabs.
  */
 export function SectionNav(props: {
   groups: NavGroup[];
@@ -66,20 +71,21 @@ export function SectionNav(props: {
           {groups.map((group, index) => (
             <Fragment key={group.label ?? index}>
               {index > 0 && <DropdownMenuSeparator />}
-              {group.label && <p className="px-2 pt-1 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>}
+              {group.label && <p className={`${GROUP_HEADING} pt-1.5 pb-1`}>{group.label}</p>}
               {group.items.map((item) => (
                 <Fragment key={item.value}>
                   <DropdownMenuItem
                     onSelect={() => onChange(item.value, item.children?.[0]?.value)}
                     className={item.value === value && !item.children ? "bg-accent font-medium" : item.children ? "font-medium" : ""}
                   >
+                    {item.icon}
                     {item.label}
                   </DropdownMenuItem>
                   {item.children?.map((child) => (
                     <DropdownMenuItem
                       key={child.value}
                       onSelect={() => onChange(item.value, child.value)}
-                      className={`ml-3 rounded-l-none border-l pl-3 ${item.value === value && child.value === currentView?.value ? "bg-accent font-medium" : ""}`}
+                      className={`ml-4 rounded-l-none border-l pl-3 ${item.value === value && child.value === currentView?.value ? "bg-accent font-medium" : ""}`}
                     >
                       {child.label}
                     </DropdownMenuItem>
@@ -93,16 +99,26 @@ export function SectionNav(props: {
 
       <LayoutGroup id={layoutGroup}>
         <nav aria-label={props.label} className="hidden lg:mt-6 lg:block">
-          <div className="sticky top-6 space-y-0.5">
+          <div className="sticky top-6">
             {groups.map((group, index) => (
-              <Fragment key={group.label ?? index}>
-                {group.label && <p className="px-2 pt-5 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>}
+              <div
+                key={group.label ?? index}
+                role="group"
+                aria-labelledby={group.label ? `${layoutGroup}-group-${index}` : undefined}
+                className={`space-y-0.5 ${index > 0 ? "mt-4 border-t pt-4" : ""}`}
+              >
+                {group.label && (
+                  <p id={`${layoutGroup}-group-${index}`} className={`${GROUP_HEADING} pb-1.5`}>
+                    {group.label}
+                  </p>
+                )}
                 {group.items.map((item) => {
                   const open = item.value === value;
                   return (
                     <Fragment key={item.value}>
                       <NavButton
                         label={item.label}
+                        icon={item.icon}
                         active={open && !item.children}
                         open={open}
                         expandable={!!item.children}
@@ -123,7 +139,7 @@ export function SectionNav(props: {
                     </Fragment>
                   );
                 })}
-              </Fragment>
+              </div>
             ))}
           </div>
         </nav>
@@ -134,6 +150,7 @@ export function SectionNav(props: {
 
 function NavButton(props: {
   label: string;
+  icon?: ReactNode;
   active?: boolean;
   open?: boolean;
   expandable?: boolean;
@@ -157,7 +174,7 @@ function NavButton(props: {
       animate={{ opacity: 1, y: 0 }}
       transition={motionTransitions.springGentle}
       className={`relative flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
-        props.child ? "ml-3 w-[calc(100%-0.75rem)] rounded-l-none border-l pl-3" : ""
+        props.child ? "ml-4 w-[calc(100%-1rem)] rounded-l-none border-l pl-3" : ""
       } ${
         props.active
           ? "font-medium text-sidebar-accent-foreground"
@@ -175,7 +192,10 @@ function NavButton(props: {
           className={`absolute inset-0 bg-sidebar-accent ${props.child ? "rounded-r-lg" : "rounded-lg"}`}
         />
       )}
-      <span className="relative wrap-break-word">{props.label}</span>
+      <span className="relative flex min-w-0 items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
+        {props.icon && <span className={props.active || props.open ? "text-foreground" : "text-muted-foreground"}>{props.icon}</span>}
+        <span className="wrap-break-word">{props.label}</span>
+      </span>
       {props.expandable && (
         <motion.span
           aria-hidden
