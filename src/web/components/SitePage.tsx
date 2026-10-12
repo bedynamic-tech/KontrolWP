@@ -154,6 +154,18 @@ const CLOUDFLARE_TABS = [
 ];
 const TABS = [...new Set([...WORDPRESS_TABS, ...CLOUDFLARE_TABS])];
 
+/** The Analytics section's views, each a tab of its own in the section menu. */
+const ANALYTICS_VIEWS = [
+  { value: "search-console", label: "Search Console" },
+  { value: "analytics", label: "Analytics" },
+];
+
+/** The Overview's shortcuts used to open the Analytics tab at one of these sections. */
+const ANALYTICS_HASH_VIEWS: Record<string, string> = { "site-search-console": "search-console", "site-analytics": "analytics" };
+
+/** A section's first view, which its address leaves out. */
+const FIRST_VIEW: Record<string, string> = { seo: "settings", analytics: ANALYTICS_VIEWS[0].value };
+
 export function SitePage() {
   const id = Number(useParams().siteId);
   // The tab lives in the address, so a refresh or a shared link opens the same one.
@@ -163,15 +175,12 @@ export function SitePage() {
     : "overview";
   // A section with views, such as SEO, keeps the open view in ?view=; its first view leaves it out.
   const tabParams = (next: string, view?: string): Record<string, string> =>
-    next === "overview" ? {} : view && view !== "settings" ? { tab: next, view } : { tab: next };
+    next === "overview" ? {} : view && view !== FIRST_VIEW[next] ? { tab: next, view } : { tab: next };
   const setTab = (next: string, view?: string) => setSearchParams(tabParams(next, view), { replace: true });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { hash } = useLocation();
-  // Open a tab scrolled to one of its sections, from the shortcut icons on the Overview.
-  const jumpTo = (next: string, section: string) =>
-    navigate({ search: `?tab=${next}`, hash: `#${section}` }, { replace: true });
-  // A link such as ?tab=analytics#site-search-console scrolls to that section once the tab is showing.
+  // A link ending in #section, such as #site-analytics, scrolls to that section once the tab is showing.
   // The sections above it may still be loading and growing, so it scrolls again a moment later.
   useEffect(() => {
     if (!hash || requestedTab === "overview") return;
@@ -274,6 +283,10 @@ export function SitePage() {
 
   const seoViews = useSeoViews(data?.site);
   const seoView = seoViews.find((item) => item.value === searchParams.get("view"))?.value ?? "settings";
+  // Older links name the Analytics view by its section, as ?tab=analytics#site-search-console.
+  const analyticsView =
+    ANALYTICS_VIEWS.find((item) => item.value === (searchParams.get("view") ?? ANALYTICS_HASH_VIEWS[hash.slice(1)]))
+      ?.value ?? "search-console";
 
   if (isPending) return <PageSkeleton />;
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
@@ -299,7 +312,9 @@ export function SitePage() {
   const tab = chosenTab === "tools" ? toolItems[0].value : chosenTab;
   const siteItems: NavItem[] = [
     { value: "overview", label: "Overview", icon: <LayoutDashboardIcon /> },
-    ...(analyticsTabOn ? [{ value: "analytics", label: "Analytics", icon: <ChartColumnIcon /> }] : []),
+    ...(analyticsTabOn
+      ? [{ value: "analytics", label: "Analytics", icon: <ChartColumnIcon />, children: ANALYTICS_VIEWS }]
+      : []),
     ...(isStatic
       ? [
           { value: "pages", label: "Pages", icon: <FileTextIcon /> },
@@ -395,7 +410,7 @@ export function SitePage() {
         <SectionNav
           groups={navGroups}
           value={tab}
-          view={seoView}
+          view={tab === "analytics" ? analyticsView : seoView}
           onChange={setTab}
           hrefFor={(next, view) => `?${new URLSearchParams(tabParams(next, view))}`}
           label="Site sections"
@@ -406,7 +421,7 @@ export function SitePage() {
               {(() => {
                 const searchConsole = searchConsoleOn && (
                   <ErrorBoundary label="Search Console">
-                    <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
+                    <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => setTab("analytics", "search-console")} />
                   </ErrorBoundary>
                 );
                 const facts = (
@@ -471,13 +486,13 @@ export function SitePage() {
                     <div className={`min-w-0 ${TAB_CLASS}`}>{main}</div>
                     <div className={`min-w-0 ${TAB_CLASS}`}>
                       {searchConsole}
-                      {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
+                      {analyticsOn && <AnalyticsSection site={site} onOpen={() => setTab("analytics", "analytics")} />}
                     </div>
                   </div>
                 ) : (
                   <>
                     {searchConsole}
-                    {analyticsOn && <AnalyticsSection site={site} onOpen={() => jumpTo("analytics", "site-analytics")} />}
+                    {analyticsOn && <AnalyticsSection site={site} onOpen={() => setTab("analytics", "analytics")} />}
                     {main}
                   </>
                 );
@@ -492,7 +507,7 @@ export function SitePage() {
           )}
           {tab === "analytics" && (
             <div>
-              <AnalyticsTab site={site} />
+              <AnalyticsTab site={site} view={analyticsView} />
             </div>
           )}
           {tab === "pages" && (
