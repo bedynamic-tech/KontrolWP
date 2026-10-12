@@ -8,6 +8,7 @@ import { hostname } from "../format";
 import {
   AnalyticsFooter,
   count,
+  RangeSelect,
   StatsRow,
   TopList,
   TrendChart,
@@ -59,43 +60,45 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: one date range at the top, then Search Console above the site's analytics in full. */
-export function AnalyticsTab(props: { site: SiteSummary }) {
-  const { site } = props;
+/** The Analytics tab: Search Console and the site's analytics in full, each in its own view with the date range in its heading. */
+export function AnalyticsTab(props: { site: SiteSummary; view: string }) {
+  const { site, view } = props;
   const source = useAnalyticsProvider(site);
-  return (
-    <>
-      {/* The date range sits in the Search Console heading and changes the analytics below too. */}
+  const [range, chooseRange] = useAnalyticsRange();
+  if (view === "search-console") {
+    return (
       <div id="site-search-console" className="[&>section:first-child]:mt-6">
         <ErrorBoundary label="Search Console">
           <SearchConsoleSection site={site} />
         </ErrorBoundary>
       </div>
-      <div id="site-analytics">
-        {source.configured ? (
-          <AnalyticsContent site={site} />
-        ) : (
-          source.loaded && (
-            <Section title="Analytics">
-              <EmptyRow>
-                Connect {source.label} in{" "}
-                <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-                  Settings
-                </Link>{" "}
-                to show this site's analytics.
-              </EmptyRow>
-            </Section>
-          )
-        )}
-      </div>
-    </>
+    );
+  }
+  return (
+    <div id="site-analytics">
+      {source.configured ? (
+        <AnalyticsContent site={site} />
+      ) : (
+        source.loaded && (
+          <Section title="Analytics" action={<RangeSelect range={range} onChange={chooseRange} />}>
+            <EmptyRow>
+              Connect {source.label} in{" "}
+              <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+                Settings
+              </Link>{" "}
+              to show this site's analytics.
+            </EmptyRow>
+          </Section>
+        )
+      )}
+    </div>
   );
 }
 
 function AnalyticsContent(props: { site: SiteSummary }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
-  const [range] = useAnalyticsRange();
+  const [range, chooseRange] = useAnalyticsRange();
   const details = useQuery({
     queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
@@ -106,6 +109,7 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   const header = (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <ActiveNow data={details.data} />
+      <RangeSelect range={range} onChange={chooseRange} />
     </div>
   );
 
