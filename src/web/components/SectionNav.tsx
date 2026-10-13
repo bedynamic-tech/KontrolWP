@@ -1,5 +1,4 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { LayoutGroup, motion } from "framer-motion";
 import { Fragment, useId, type ReactNode } from "react";
 import {
   DropdownMenu,
@@ -8,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { motionTransitions } from "@/lib/motion";
 
 export interface NavItem {
   value: string;
@@ -47,7 +45,7 @@ export function SectionNav(props: {
   const currentView = current?.item.children?.find((child) => child.value === view) ?? current?.item.children?.[0];
   const trail = [current?.group.label, currentView && current?.item.label].filter(Boolean);
   const leaf = currentView?.label ?? current?.item.label ?? "";
-  const layoutGroup = useId();
+  const headingId = useId();
 
   return (
     <>
@@ -64,7 +62,7 @@ export function SectionNav(props: {
               ))}
               <span className="font-medium">{leaf}</span>
             </span>
-            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-(--ease-snappy) group-data-[state=open]:rotate-180" />
+            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground group-data-[state=open]:rotate-180" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
@@ -97,53 +95,51 @@ export function SectionNav(props: {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <LayoutGroup id={layoutGroup}>
-        <nav aria-label={props.label} className="hidden lg:mt-6 lg:block">
-          <div className="sticky top-6">
-            {groups.map((group, index) => (
-              <div
-                key={group.label ?? index}
-                role="group"
-                aria-labelledby={group.label ? `${layoutGroup}-group-${index}` : undefined}
-                className={`space-y-0.5 ${index > 0 ? "mt-4 border-t pt-4" : ""}`}
-              >
-                {group.label && (
-                  <p id={`${layoutGroup}-group-${index}`} className={`${GROUP_HEADING} pb-1.5`}>
-                    {group.label}
-                  </p>
-                )}
-                {group.items.map((item) => {
-                  const open = item.value === value;
-                  return (
-                    <Fragment key={item.value}>
-                      <NavButton
-                        label={item.label}
-                        icon={item.icon}
-                        active={open && !item.children}
-                        open={open}
-                        expandable={!!item.children}
-                        href={props.hrefFor(item.value, item.children?.[0]?.value)}
-                        onClick={() => onChange(item.value, item.children?.[0]?.value)}
-                      />
-                      {open &&
-                        item.children?.map((child) => (
-                          <NavButton
-                            key={child.value}
-                            label={child.label}
-                            child
-                            active={child.value === currentView?.value}
-                            href={props.hrefFor(item.value, child.value)}
-                            onClick={() => onChange(item.value, child.value)}
-                          />
-                        ))}
-                    </Fragment>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </nav>
-      </LayoutGroup>
+      <nav aria-label={props.label} className="hidden lg:mt-6 lg:block">
+        <div className="sticky top-6">
+          {groups.map((group, index) => (
+            <div
+              key={group.label ?? index}
+              role="group"
+              aria-labelledby={group.label ? `${headingId}-group-${index}` : undefined}
+              className={`space-y-0.5 ${index > 0 ? "mt-4 border-t pt-4" : ""}`}
+            >
+              {group.label && (
+                <p id={`${headingId}-group-${index}`} className={`${GROUP_HEADING} pb-1.5`}>
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const open = item.value === value;
+                return (
+                  <Fragment key={item.value}>
+                    <NavButton
+                      label={item.label}
+                      icon={item.icon}
+                      active={open && !item.children}
+                      open={open}
+                      expandable={!!item.children}
+                      href={props.hrefFor(item.value, item.children?.[0]?.value)}
+                      onClick={() => onChange(item.value, item.children?.[0]?.value)}
+                    />
+                    {open &&
+                      item.children?.map((child) => (
+                        <NavButton
+                          key={child.value}
+                          label={child.label}
+                          child
+                          active={child.value === currentView?.value}
+                          href={props.hrefFor(item.value, child.value)}
+                          onClick={() => onChange(item.value, child.value)}
+                        />
+                      ))}
+                  </Fragment>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </nav>
     </>
   );
 }
@@ -159,7 +155,7 @@ function NavButton(props: {
   onClick: () => void;
 }) {
   return (
-    <motion.a
+    <a
       href={props.href}
       aria-current={props.active ? "page" : undefined}
       aria-expanded={props.expandable ? props.open : undefined}
@@ -169,44 +165,23 @@ function NavButton(props: {
         event.preventDefault();
         props.onClick();
       }}
-      // A section's views fade down into place as it opens.
-      initial={props.child ? { opacity: 0, y: -4 } : false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={motionTransitions.springGentle}
-      className={`relative flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
+      className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${
         props.child ? "ml-4 w-[calc(100%-1rem)] rounded-l-none border-l pl-3" : ""
       } ${
         props.active
-          ? "font-medium text-sidebar-accent-foreground"
+          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
           : props.open
             ? "font-medium text-foreground hover:bg-sidebar-accent/60"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
       }`}
     >
-      {/* EasyUI's PillNavigation: one highlight that slides to the open section. */}
-      {props.active && (
-        <motion.span
-          aria-hidden
-          layoutId="section-active"
-          transition={motionTransitions.springMorph}
-          className={`absolute inset-0 bg-sidebar-accent ${props.child ? "rounded-r-lg" : "rounded-lg"}`}
-        />
-      )}
-      <span className="relative flex min-w-0 items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
+      <span className="flex min-w-0 items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
         {props.icon && <span className={props.active || props.open ? "text-foreground" : "text-muted-foreground"}>{props.icon}</span>}
         <span className="wrap-break-word">{props.label}</span>
       </span>
       {props.expandable && (
-        <motion.span
-          aria-hidden
-          className="relative"
-          initial={false}
-          animate={{ rotate: props.open ? 90 : 0 }}
-          transition={motionTransitions.springSnappy}
-        >
-          <ChevronRightIcon className="size-3.5 shrink-0" />
-        </motion.span>
+        <ChevronRightIcon aria-hidden className={`size-3.5 shrink-0 ${props.open ? "rotate-90" : ""}`} />
       )}
-    </motion.a>
+    </a>
   );
 }
