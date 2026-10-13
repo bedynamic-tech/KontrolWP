@@ -392,7 +392,7 @@ function UptimeCard(props: { site: SiteSummary; onOpen: (tab: string) => void })
           }
         : {
             value: "Up",
-            detail: [month, latest.response_ms !== null ? `${latest.response_ms} ms` : null].filter(Boolean).join(", "),
+            detail: month ?? "Checked every hour",
             tone: ratios.month !== null && ratios.month < 99 ? "warn" : "good",
           };
   }

@@ -22,17 +22,12 @@ import { fetchPerformance, runPerformance } from "../api";
 import { timeAgo } from "../format";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
+import { StatCard, StatsHeader, StatsNote } from "./StatCard";
 
 const BAND_TEXT: Record<PerformanceBand, string> = {
   good: "text-green-700 dark:text-green-400",
   fair: "text-orange-700 dark:text-orange-300",
   poor: "text-destructive",
-};
-
-const BAND_STROKE: Record<PerformanceBand, string> = {
-  good: "stroke-green-600 dark:stroke-green-400",
-  fair: "stroke-orange-500 dark:stroke-orange-300",
-  poor: "stroke-red-600 dark:stroke-red-400",
 };
 
 const FIELD_BAND: Record<PerformanceFieldMetric["category"], PerformanceBand> = {
@@ -53,44 +48,6 @@ const SCORE_LABELS: [keyof PerformanceScores, string][] = [
   ["best_practices", "Best practices"],
   ["seo", "SEO"],
 ];
-
-function ScoreTile(props: { label: string; score: number | null }) {
-  const { score } = props;
-  const band = score === null ? null : performanceBand(score);
-  const radius = 26;
-  const circumference = 2 * Math.PI * radius;
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border bg-background px-4 py-4">
-      <div className="relative size-16">
-        <svg viewBox="0 0 64 64" className="size-16 -rotate-90" aria-hidden="true">
-          <circle cx="32" cy="32" r={radius} fill="none" strokeWidth="5" className="stroke-muted" />
-          {score !== null && band && (
-            <circle
-              cx="32"
-              cy="32"
-              r={radius}
-              fill="none"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - score / 100)}
-              className={BAND_STROKE[band]}
-            />
-          )}
-        </svg>
-        <span
-          className={cn(
-            "absolute inset-0 flex items-center justify-center text-base font-semibold tabular-nums",
-            band ? BAND_TEXT[band] : "text-muted-foreground",
-          )}
-        >
-          {score ?? "-"}
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground">{props.label}</p>
-    </div>
-  );
-}
 
 /** Google's assessment: LCP, INP and CLS all good. INP is left out when Google has too little data for it. */
 function corePassed(field: PerformanceFieldMetric[]): boolean | null {
@@ -169,7 +126,7 @@ export function PerformanceTab(props: { site: SiteSummary }) {
 
   return (
     <div className="mt-8">
-      <Section
+      <StatsHeader
         title="Scores"
         hint="Google runs Lighthouse against the home page on its own servers and reports four scores out of 100. A phone test uses a slower connection and processor than the desktop test, so it scores lower."
         action={
@@ -198,39 +155,42 @@ export function PerformanceTab(props: { site: SiteSummary }) {
             </Button>
           </div>
         }
-      >
-        {(run.error?.message ?? state.error) && (
-          <p className="border-b px-4 py-3 text-sm text-destructive">{run.error?.message ?? state.error}</p>
-        )}
-        {!data.key_configured && !result && !testing && (
-          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
-            Google allows very few tests without your own Google account or API key.{" "}
-            <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-              Connect Google or add a key in Settings
-            </Link>{" "}
-            to avoid refused tests.
-          </p>
-        )}
-        {result ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
-              {SCORE_LABELS.map(([id, label]) => (
-                <ScoreTile key={id} label={label} score={result.scores[id]} />
-              ))}
-            </div>
-            <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
-              Tested {timeAgo(result.scanned_at)}
-              {result.url ? `: ${result.url}` : ""}
-            </p>
-          </>
-        ) : (
-          <EmptyRow>
-            {testing
-              ? "Google is testing the page. This takes about a minute."
-              : "No test yet. Run one to see this site's scores."}
-          </EmptyRow>
-        )}
-      </Section>
+      />
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {SCORE_LABELS.map(([id, label]) => {
+          const score = result?.scores[id] ?? null;
+          return (
+            <StatCard
+              key={id}
+              label={label}
+              value={score === null ? "-" : `${score} out of 100`}
+              className={score === null ? undefined : BAND_TEXT[performanceBand(score)]}
+            />
+          );
+        })}
+      </dl>
+      {(run.error?.message ?? state.error) && <StatsNote tone="bad">{run.error?.message ?? state.error}</StatsNote>}
+      {!data.key_configured && !result && !testing && (
+        <StatsNote>
+          Google allows very few tests without your own Google account or API key.{" "}
+          <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+            Connect Google or add a key in Settings
+          </Link>{" "}
+          to avoid refused tests.
+        </StatsNote>
+      )}
+      {result ? (
+        <p className="mt-3 wrap-break-word text-xs text-muted-foreground">
+          Tested {timeAgo(result.scanned_at)}
+          {result.url ? `: ${result.url}` : ""}
+        </p>
+      ) : (
+        <StatsNote>
+          {testing
+            ? "Google is testing the page. This takes about a minute."
+            : "No test yet. Run one to see this site's scores."}
+        </StatsNote>
+      )}
 
       {result && (
         <>
