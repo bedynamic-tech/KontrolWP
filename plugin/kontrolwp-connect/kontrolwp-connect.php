@@ -3,7 +3,7 @@
  * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://kontrolwp.com
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.38.0
+ * Version:           0.39.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
@@ -29,7 +29,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.38.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.39.0' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
@@ -64,6 +64,8 @@ add_action( 'rest_api_init', array( 'KontrolWP_Connect_Rest', 'register_routes' 
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Security', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Accessibility', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO', 'boot' ) );
+// After core registers the sitemap's rules on init.
+add_action( 'init', array( 'KontrolWP_Connect_SEO', 'repair_sitemap_rules' ), 99 );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Redirects', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO_Tools', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_SEO_Content', 'boot' ) );
