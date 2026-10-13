@@ -142,11 +142,16 @@ class KontrolWP_Connect_SEO_Tools {
 	}
 
 	/** What /robots.txt should say. A site that discourages search engines keeps WordPress's own answer. */
-	public static function robots_output( $mode, $custom, $default, $public ) {
+	public static function robots_output( $mode, $custom, $default, $public, $sitemap = '' ) {
 		if ( 'custom' !== $mode || ! $public || '' === trim( (string) $custom ) ) {
 			return $default;
 		}
-		return rtrim( str_replace( array( "\r\n", "\r" ), "\n", (string) $custom ) ) . "\n";
+		$out = rtrim( str_replace( array( "\r\n", "\r" ), "\n", (string) $custom ) ) . "\n";
+		// WordPress adds its sitemap to its own robots.txt; custom text replaces that, so it is added back unless the text names one.
+		if ( '' !== $sitemap && ! preg_match( '/^\s*sitemap\s*:/im', $out ) ) {
+			$out .= "\nSitemap: " . $sitemap . "\n";
+		}
+		return $out;
 	}
 
 	/**
@@ -275,7 +280,8 @@ class KontrolWP_Connect_SEO_Tools {
 
 	public static function filter_robots_txt( $output, $public ) {
 		$texts = self::texts();
-		return self::robots_output( 'custom', $texts['robots'], $output, (bool) $public );
+		$sitemap = function_exists( 'wp_sitemaps_get_server' ) && wp_sitemaps_get_server()->sitemaps_enabled() ? esc_url( get_sitemap_url( 'index' ) ) : '';
+		return self::robots_output( 'custom', $texts['robots'], $output, (bool) $public, $sitemap );
 	}
 
 	/** The request's path with the site's own folder taken off. */

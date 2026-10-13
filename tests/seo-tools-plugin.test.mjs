@@ -69,6 +69,20 @@ test("custom robots.txt replaces the default, except on a site that discourages 
   assert.equal(call("robots_output", "custom", "  ", def, true), def);
 });
 
+test("custom robots.txt keeps WordPress's sitemap line unless it names its own", { skip }, () => {
+  const def = "User-agent: *\nDisallow: /wp-admin/\n";
+  const map = "https://a.test/wp-sitemap.xml";
+  assert.equal(
+    call("robots_output", "custom", "User-agent: *\nDisallow: /x/", def, true, map),
+    "User-agent: *\nDisallow: /x/\n\nSitemap: https://a.test/wp-sitemap.xml\n",
+  );
+  assert.equal(
+    call("robots_output", "custom", "User-agent: *\nsitemap: https://a.test/other.xml", def, true, map),
+    "User-agent: *\nsitemap: https://a.test/other.xml\n",
+  );
+  assert.equal(call("robots_output", "custom", "User-agent: *\nDisallow: /x/", def, true, ""), "User-agent: *\nDisallow: /x/\n");
+});
+
 test("llms.txt lists the site, its pages and its recent posts", { skip }, () => {
   const text = call(
     "llms_auto",
