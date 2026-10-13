@@ -133,7 +133,9 @@ error, answers 5xx (or a 4xx it did not before), or when at least 30% of its
 blocks changed colour by more than 48 (summed over red, green and blue). Then
 the plugins and themes the run updated are reverted through `enqueueRollback`,
 which also holds those versions back from the next run; WordPress core is never
-reverted. The outcome (passed, reverted, broken with nothing to revert, or
+reverted. When the page passes, the Previous versions the site kept of the
+run's plugins and themes are deleted there (`/updates/rollback/clear`, KontrolWP
+Connect 0.41.0+) and dropped from `site_rollbacks`. The outcome (passed, reverted, broken with nothing to revert, or
 skipped when the page was already broken or no browser started) is noted on the
 run. A browser that cannot start never holds up the updates, and updates queued
 by hand are not checked.
