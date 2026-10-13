@@ -300,7 +300,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links|content|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|links-excluded|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links\/unlink|content|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -926,13 +926,14 @@ api.get("/sites/:id/links", async (c) => {
   return c.json<SiteLinks>(await listLinks(c.env.DB, id));
 });
 
-/** Scan the site's published content for broken links, replacing any running scan. */
+/** Scan the site's published content (a static site's pages) for broken links, replacing any running scan. */
 api.post("/sites/:id/links/scan", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
   if (site.links_excluded) return c.json({ error: "This site is excluded from broken link detection" }, 409);
-  if (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0) {
+  // A static site's pages are read by the Worker itself, so only WordPress sites need a recent plugin.
+  if (site.kind !== "static" && (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0)) {
     return c.json(
       {
         error: `Checking links needs KontrolWP Connect ${LINK_CHECK_SINCE} or later. It updates automatically; select Sync now to check.`,

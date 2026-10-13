@@ -139,7 +139,7 @@ export async function listFleetLinks(db: D1Database, limit = 50): Promise<FleetL
   const [{ results }, total, scanned] = await Promise.all([
     db
       .prepare(
-        `SELECT l.site_id, s.name AS site_name, l.url, l.status, l.http_status, l.error, l.checked_at,
+        `SELECT l.site_id, s.name AS site_name, s.kind AS site_kind, l.url, l.status, l.http_status, l.error, l.checked_at,
            (SELECT r.post_title FROM site_link_refs r WHERE r.site_id = l.site_id AND r.url = l.url ORDER BY r.post_title LIMIT 1) AS post_title,
            (SELECT COUNT(DISTINCT r.post_id) FROM site_link_refs r WHERE r.site_id = l.site_id AND r.url = l.url) AS post_count
          FROM site_links l JOIN sites s ON s.id = l.site_id

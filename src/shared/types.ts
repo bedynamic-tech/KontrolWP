@@ -148,6 +148,8 @@ export interface Overview {
 export interface FleetLink {
   site_id: number;
   site_name: string;
+  /** Static sites list pages, not posts. */
+  site_kind: SiteKind;
   url: string;
   status: "broken" | "unresponsive";
   http_status: number | null;

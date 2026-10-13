@@ -84,9 +84,10 @@ const queued = (scan: LinkScan | null | undefined) =>
 const running = (scan: LinkScan | null | undefined) =>
   (scan?.status === "collecting" || scan?.status === "checking") && !queued(scan);
 
-/** The Links tab: scan published posts and pages for broken links, and fix them one by one. */
+/** The Links tab: scan published posts and pages (a static site's pages) for broken links, and fix them one by one. */
 export function LinksTab(props: { site: SiteSummary }) {
   const { site } = props;
+  const isStatic = site.kind === "static";
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("problems");
   const [search, setSearch] = useState("");
@@ -158,7 +159,9 @@ export function LinksTab(props: { site: SiteSummary }) {
         <div className="space-y-1 px-4 py-8 text-center text-sm">
           <p className="font-medium">Find broken links</p>
           <p className="text-muted-foreground">
-            Scan every published post and page for links and images that no longer load.
+            {isStatic
+              ? "Read every page of the site for links and images that no longer load."
+              : "Scan every published post and page for links and images that no longer load."}
           </p>
           {scan.error && <p className="text-destructive">{scan.error.message}</p>}
         </div>
@@ -191,7 +194,7 @@ export function LinksTab(props: { site: SiteSummary }) {
     const name = `${hostname(site.url)} ${view} ${new Date().toISOString().slice(0, 10)}`
       .toLowerCase()
       .replace(/[^a-z0-9.]+/g, "-");
-    const table = linksTable(shown);
+    const table = linksTable(shown, isStatic ? "Page" : "Post");
     if (format === "csv") download(`${name}.csv`, toCsv(table), "text/csv;charset=utf-8");
     else {
       download(
@@ -223,13 +226,13 @@ export function LinksTab(props: { site: SiteSummary }) {
             {scanButton}
           </div>
           <ScanCards scan={data.scan} counts={counts} />
-          {data.scan.truncated && <TruncatedNote className="mt-2" />}
+          {data.scan.truncated && <TruncatedNote site={site} className="mt-2" />}
           {scan.error && <p className="mt-2 text-sm text-destructive">{scan.error.message}</p>}
         </section>
       ) : (
         <Section title="Link check" action={scanButton}>
-          <ScanSummary scan={data.scan} counts={counts} />
-          {data.scan.truncated && <TruncatedNote className="border-t px-4 py-2.5" />}
+          <ScanSummary site={site} scan={data.scan} />
+          {data.scan.truncated && <TruncatedNote site={site} className="border-t px-4 py-2.5" />}
           {scan.error && <p className="border-t px-4 py-2.5 text-sm text-destructive">{scan.error.message}</p>}
         </Section>
       )}
@@ -275,8 +278,8 @@ export function LinksTab(props: { site: SiteSummary }) {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search links or posts"
-                aria-label="Search links or posts"
+                placeholder={isStatic ? "Search links or pages" : "Search links or posts"}
+                aria-label={isStatic ? "Search links or pages" : "Search links or posts"}
                 className="pl-8"
               />
             </div>
@@ -415,16 +418,19 @@ function UnlinkNotice(props: { result: LinkUnlinkResult; onClose: () => void }) 
 }
 
 /** Shown when a scan stopped at the most addresses it lists for one site. */
-function TruncatedNote(props: { className: string }) {
+function TruncatedNote(props: { site: SiteSummary; className: string }) {
   return (
     <p className={`${props.className} text-sm text-yellow-900 dark:text-yellow-200`}>
-      This site has more links than one scan covers, so links in the newest content were left out.
+      {props.site.kind === "static"
+        ? "This site is larger than one scan covers, so some of its pages were left out."
+        : "This site has more links than one scan covers, so links in the newest content were left out."}
     </p>
   );
 }
 
-function ScanSummary(props: { scan: LinkScan; counts: SiteLinks["counts"] }) {
-  const { scan, counts } = props;
+function ScanSummary(props: { site: SiteSummary; scan: LinkScan }) {
+  const { scan } = props;
+  const isStatic = props.site.kind === "static";
   if (queued(scan)) {
     const minutes = Math.max(1, Math.ceil((scan.started_at - Date.now() / 1000) / 60));
     return (
@@ -440,7 +446,9 @@ function ScanSummary(props: { scan: LinkScan; counts: SiteLinks["counts"] }) {
       <div className="space-y-2 px-4 py-4">
         <p className="text-sm">
           {scan.status === "collecting"
-            ? `Reading published content${scan.posts_scanned ? ` (${plural(scan.posts_scanned, "post")} so far)` : ""}...`
+            ? isStatic
+              ? `Reading pages${scan.posts_scanned ? ` (${plural(scan.posts_scanned, "page")} so far)` : ""}...`
+              : `Reading published content${scan.posts_scanned ? ` (${plural(scan.posts_scanned, "post")} so far)` : ""}...`
             : `Checking links: ${scan.checked_urls.toLocaleString()} of ${scan.total_urls.toLocaleString()}`}
         </p>
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -607,7 +615,9 @@ function LinkCell(props: { link: SiteLink }) {
 
 function Refs(props: { site: SiteSummary; refs: LinkRef[] }) {
   const [all, setAll] = useState(false);
-  if (!props.refs.length) return <p className="text-xs text-muted-foreground">No longer in any post</p>;
+  const isStatic = props.site.kind === "static";
+  if (!props.refs.length)
+    return <p className="text-xs text-muted-foreground">{isStatic ? "No longer on any page" : "No longer in any post"}</p>;
   const shown = all ? props.refs : props.refs.slice(0, REFS_SHOWN);
   return (
     <ul className="space-y-1">
@@ -620,9 +630,10 @@ function Refs(props: { site: SiteSummary; refs: LinkRef[] }) {
             className="min-w-0 wrap-break-word hover:underline"
             title={ref.permalink}
           >
-            {ref.post_title || `(no title) #${ref.post_id}`}
+            {ref.post_title || (isStatic ? ref.permalink.replace(/^https?:\/\//, "") : `(no title) #${ref.post_id}`)}
           </a>
-          {ref.post_id > 0 && (
+          {/* A static site's pages have no editor to open. */}
+          {ref.post_id > 0 && !isStatic && (
             <>
               <span className="shrink-0 text-xs text-muted-foreground">{typeLabel(ref.post_type)}</span>
               <EditButton site={props.site} postId={ref.post_id} />

@@ -135,7 +135,11 @@ the plugins and themes the run updated are reverted through `enqueueRollback`,
 which also holds those versions back from the next run; WordPress core is never
 reverted. When the page passes, the Previous versions the site kept of the
 run's plugins and themes are deleted there (`/updates/rollback/clear`, KontrolWP
-Connect 0.41.0+) and dropped from `site_rollbacks`. The outcome (passed, reverted, broken with nothing to revert, or
+Connect 0.41.0+) and dropped from `site_rollbacks`. Any other kept copy (an update
+run by hand, a run that was not checked) goes the same way at the end of the
+next sync whose plain request for the home page answers below 400 without
+WordPress's critical error (`clearHealthyCopies`), unless a check is pending or
+an update or revert is queued. The outcome (passed, reverted, broken with nothing to revert, or
 skipped when the page was already broken or no browser started) is noted on the
 run. A browser that cannot start never holds up the updates, and updates queued
 by hand are not checked.
@@ -324,6 +328,7 @@ From 0.25.0 the listing reads each post's content as visitors get it (`the_conte
 Broken links on the site itself also get a Redirect button (sites with the redirects feature). It opens the redirect dialog from the Redirects tab with the link's path and query as the From address, so the To address has the same page suggestions. Links to other sites have no button.
 
 From 0.28.0 the first page of the link listing also carries the site's header and footer links, as two pseudo-items with ids -1 (Header) and -2 (Footer) and type `area`. They come from the nav menus assigned to theme locations (a location with "footer" in its name counts as footer) and from the `<header>` and `<footer>` elements of the home page, each address once. Their refs show as Header or Footer in the Links tab with no edit button, and Remove link ignores them (it only edits posts, ids above 0).
+Static sites have the Links tab too, with no plugin: the Worker reads the pages itself (`static-links.ts`). Each `links-collect` message loads up to 10 pages, five at a time, starting with the home page, then the pages in the sitemap (read as for the Pages tab), then every page of the site's own host that a page already read links to, so a site without a sitemap is still covered. Files (images, PDFs, scripts and the like) are checked but not read. A page's id in `site_link_refs` is a hash of its address (`pageId`), and `posts_seen` lists the pages read. Links in a page's `<header>` and `<footer>` are listed under Header and Footer (ids -1 and -2) instead of on every page; the scan's first message replaces them and later ones only add to them. A scan reads at most 1,000 pages and says so when it stops there (`scan.truncated`). Check again loads up to 20 of the pages the link was found on again. Remove link, Edit and Redirect are WordPress only.
 The Enable broken link checks setting in Site settings (`PUT /api/sites/:id/links-excluded`)
 excludes a site: its scan and every link it found are deleted, scheduled
 checks skip it, Scan now answers 409, and its Links tab says detection is off.

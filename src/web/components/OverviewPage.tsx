@@ -105,7 +105,7 @@ function BrokenLinksList(props: { links: FleetLinks }) {
                   {[
                     link.site_name,
                     link.post_title &&
-                      `in ${link.post_title}${link.post_count > 1 ? ` and ${plural(link.post_count - 1, "more post")}` : ""}`,
+                      `in ${link.post_title}${link.post_count > 1 ? ` and ${plural(link.post_count - 1, link.site_kind === "static" ? "more page" : "more post")}` : ""}`,
                     link.checked_at && `checked ${timeAgo(link.checked_at).toLowerCase()}`,
                   ]
                     .filter(Boolean)

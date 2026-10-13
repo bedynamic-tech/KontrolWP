@@ -133,6 +133,7 @@ const STATIC_TABS = [
   "analytics",
   "pages",
   "tools",
+  "links",
   "uptime",
   "performance",
   "seo",
@@ -146,6 +147,7 @@ const CLOUDFLARE_TABS = [
   "pages",
   "deployments",
   "tools",
+  "links",
   "uptime",
   "performance",
   "seo",
@@ -296,7 +298,7 @@ export function SitePage() {
   const isStatic = site.kind === "static";
   const onCloudflare = isStatic && site.cf_hosted;
   const toolItems: NavItem[] = [
-    ...(!isStatic && !site.links_excluded ? [{ value: "links", label: "Links", icon: <Link2Icon /> }] : []),
+    ...(!site.links_excluded ? [{ value: "links", label: "Links", icon: <Link2Icon /> }] : []),
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets", icon: <CodeIcon /> }]),
     ...(isStatic ? [] : [{ value: "database", label: "Database", icon: <DatabaseIcon /> }]),
     ...(site.uptime_excluded ? [] : [{ value: "uptime", label: "Uptime", icon: <ActivityIcon /> }]),
@@ -649,39 +651,39 @@ export function SitePage() {
               </div>
             )}
             {!isStatic && <UpdateEmailsRow site={site} />}
-            {!isStatic && (
-              <label className="flex cursor-pointer items-center gap-3 py-3">
-                <div
-                  className={`min-w-0 flex-1 ${site.links_excluded ? "opacity-60" : ""}`}
-                >
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    Enable broken link checks
-                    <HelpTip>
-                      {site.links_excluded
-                        ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
+            <label className="flex cursor-pointer items-center gap-3 py-3">
+              <div
+                className={`min-w-0 flex-1 ${site.links_excluded ? "opacity-60" : ""}`}
+              >
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  Enable broken link checks
+                  <HelpTip>
+                    {site.links_excluded
+                      ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
+                      : isStatic
+                        ? "KontrolWP reads this site's pages and checks their links and images."
                         : "KontrolWP scans this site's posts and pages for broken links."}
-                    </HelpTip>
+                  </HelpTip>
+                </p>
+                {excludeLinks.error && (
+                  <p className="mt-1 text-xs text-destructive">
+                    {excludeLinks.error.message}
                   </p>
-                  {excludeLinks.error && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {excludeLinks.error.message}
-                    </p>
-                  )}
-                </div>
-                {excludeLinks.isPending && (
-                  <Spinner className="size-4 text-muted-foreground" />
                 )}
-                <Switch
-                  checked={
-                    excludeLinks.isPending
-                      ? excludeLinks.variables === false
-                      : !site.links_excluded
-                  }
-                  disabled={excludeLinks.isPending}
-                  onCheckedChange={(value) => excludeLinks.mutate(!value)}
-                />
-              </label>
-            )}
+              </div>
+              {excludeLinks.isPending && (
+                <Spinner className="size-4 text-muted-foreground" />
+              )}
+              <Switch
+                checked={
+                  excludeLinks.isPending
+                    ? excludeLinks.variables === false
+                    : !site.links_excluded
+                }
+                disabled={excludeLinks.isPending}
+                onCheckedChange={(value) => excludeLinks.mutate(!value)}
+              />
+            </label>
             {analyticsSource.configured ? (
               <div>
                 <FeatureSwitchRow

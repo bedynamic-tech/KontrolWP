@@ -9,7 +9,7 @@ A WordPress install the owner added to KontrolWP, identified by its public https
 _Avoid_: Website, install, instance
 
 **Static site**:
-A static website hosted on Cloudflare Workers, added by its public https address with no plugin. KontrolWP checks that it answers, shows its Umami analytics and Domain, and, only when the owner says it is hosted on Cloudflare Workers, a Cloudflare API token is saved in Settings and its Worker is chosen, its Deployments. A static site hosted elsewhere gets no Cloudflare features. Its Pages tab lists the pages in its sitemap. It has no Updates, Plugins, Users, Links or Magic Login.
+A static website hosted on Cloudflare Workers, added by its public https address with no plugin. KontrolWP checks that it answers, shows its Umami analytics and Domain, and, only when the owner says it is hosted on Cloudflare Workers, a Cloudflare API token is saved in Settings and its Worker is chosen, its Deployments. A static site hosted elsewhere gets no Cloudflare features. Its Pages tab lists the pages in its sitemap, and its Links tab checks the links and images on its pages, which KontrolWP reads itself. It has no Updates, Plugins, Users or Magic Login, and links can't be removed from it.
 _Avoid_: Jamstack site, Pages site
 
 **Deployment**:
@@ -49,7 +49,7 @@ The Updates the owner asked KontrolWP to install on one Site, run one at a time 
 _Avoid_: Job list, batch
 
 **Previous version**:
-The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme for 30 days, or until the check after a scheduled run finds the home page unchanged, which deletes the copies of what that run updated. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
+The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme. It is deleted as soon as the update is seen to break nothing: by the check after a scheduled run, or else by the next Sync that finds the home page working. A copy the site could not be asked to delete expires there after 30 days. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
 _Avoid_: Backup, snapshot, downgrade
 
 **Pending Comment**:
