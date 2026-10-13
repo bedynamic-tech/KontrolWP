@@ -114,11 +114,12 @@ export async function runScheduledLinkScans(env: Env, now = Math.floor(Date.now(
   await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('link_scan_last_date', ?)").bind(date).run();
 
   const { results } = await env.DB.prepare(
-    `SELECT s.id, s.plugin_version, l.status, l.updated_at FROM sites s
+    `SELECT s.id, s.kind, s.plugin_version, l.status, l.updated_at FROM sites s
      LEFT JOIN link_scans l ON l.site_id = s.id WHERE s.links_excluded = 0`,
-  ).all<{ id: number; plugin_version: string | null; status: string | null; updated_at: number | null }>();
+  ).all<{ id: number; kind: string; plugin_version: string | null; status: string | null; updated_at: number | null }>();
   const due = results.filter((site) => {
-    if (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0) return false;
+    // Static sites need no plugin: the Worker reads their pages itself.
+    if (site.kind !== "static" && (!site.plugin_version || compareVersions(site.plugin_version, LINK_CHECK_SINCE) < 0)) return false;
     // A scan someone started by hand is still going; leave it be.
     return !((site.status === "collecting" || site.status === "checking") && now - (site.updated_at ?? 0) < 15 * 60);
   });

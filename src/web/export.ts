@@ -12,17 +12,17 @@ const STATUS_NAMES: Record<LinkStatus, string> = {
 };
 
 /** One row per link: what was found, where it points, and the posts it appears in. */
-export function linksTable(links: SiteLink[]): Table {
+export function linksTable(links: SiteLink[], noun: "Post" | "Page" = "Post"): Table {
   const rows = links.map((link) => [
     link.ignored ? `${STATUS_NAMES[link.status]} (ignored)` : STATUS_NAMES[link.status],
     link.http_status === null ? "" : String(link.http_status),
     link.error ?? "",
     link.url,
     link.checked_at ? new Date(link.checked_at * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "",
-    [...new Set(link.refs.map((ref) => ref.post_title || `Post ${ref.post_id}`))].join("; "),
+    [...new Set(link.refs.map((ref) => ref.post_title || (noun === "Page" ? ref.permalink : `Post ${ref.post_id}`)))].join("; "),
     [...new Set(link.refs.map((ref) => ref.permalink))].join("; "),
   ]);
-  return [["Status", "HTTP status", "Error", "URL", "Last checked", "Posts", "Post URLs"], ...rows];
+  return [["Status", "HTTP status", "Error", "URL", "Last checked", `${noun}s`, `${noun} URLs`], ...rows];
 }
 
 /** CSV that Excel opens correctly: a byte order mark, CRLF rows, and cells that could run as formulas defused. */

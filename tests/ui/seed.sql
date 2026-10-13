@@ -37,6 +37,18 @@ INSERT INTO site_link_refs (site_id, url, post_id, post_title, post_type, permal
   (1, 'https://supplier.example/a-very-long-path/that-keeps-going/and-going/to-test-wrapping-on-phones.html', 7, 'Sourdough starter guide', 'post', 'https://northwind.example/sourdough/', 'flour supplier', 'link'),
   (1, 'https://northwind.example/about/', 2, 'Home', 'page', 'https://northwind.example/', 'About us', 'link'),
   (1, 'https://social.example/northwind', 2, 'Home', 'page', 'https://northwind.example/', 'Follow us', 'link');
+-- A static site's link check: pages read by the Worker, header links listed once.
+INSERT INTO link_scans (site_id, scan_id, status, posts_scanned, total_urls, checked_urls, started_at, updated_at, finished_at)
+VALUES (3, 1, 'done', 12, 3, 3, unixepoch() - 3600, unixepoch() - 3500, unixepoch() - 3500);
+INSERT INTO site_links (site_id, url, status, http_status, error, checked_at, scan_id, checked_scan) VALUES
+  (3, 'https://docs.example/getting-started/old-install/', 'broken', 404, 'Page not found.', unixepoch() - 3500, 1, 1),
+  (3, 'https://docs.example/images/architecture-diagram.png', 'broken', 404, 'Page not found.', unixepoch() - 3500, 1, 1),
+  (3, 'https://docs.example/guide/', 'ok', 200, NULL, unixepoch() - 3500, 1, 1);
+INSERT INTO site_link_refs (site_id, url, post_id, post_title, post_type, permalink, link_text, kind) VALUES
+  (3, 'https://docs.example/getting-started/old-install/', -1, 'Header', 'area', 'https://docs.example', 'Install', 'link'),
+  (3, 'https://docs.example/getting-started/old-install/', 101, 'Guide', 'page', 'https://docs.example/guide/', 'installation steps', 'link'),
+  (3, 'https://docs.example/images/architecture-diagram.png', 102, 'How it works', 'page', 'https://docs.example/how-it-works/', 'Architecture diagram', 'image'),
+  (3, 'https://docs.example/guide/', 103, 'Docs home', 'page', 'https://docs.example/', 'Guide', 'link');
 -- Two days of uptime checks every 15 minutes, with a one-hour outage.
 WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 191)
 INSERT INTO uptime_checks (site_id, checked_at, up, status_code, response_ms, error)
