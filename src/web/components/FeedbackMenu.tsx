@@ -1,5 +1,4 @@
 import { BugIcon, LightbulbIcon, MessageSquareIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,10 +20,10 @@ function issueUrl(template: string) {
 }
 
 /**
- * Links to report a bug or request a feature on GitHub. compact shows only an icon, for the
- * phone header; folded is the sidebar folded to its icons on a site's page.
+ * Links to report a bug or request a feature on GitHub. folded is the sidebar folded to its
+ * icons on a site's page.
  */
-export function FeedbackMenu(props: { compact?: boolean; folded?: boolean }) {
+export function FeedbackMenu(props: { folded?: boolean }) {
   const label = "Send feedback";
   const sidebarTrigger = (
     <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent/60 [&_svg]:size-4 [&_svg]:shrink-0">
@@ -34,23 +33,7 @@ export function FeedbackMenu(props: { compact?: boolean; folded?: boolean }) {
   );
   return (
     <DropdownMenu>
-      {props.compact ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 text-muted-foreground hover:text-foreground"
-                aria-label={label}
-              >
-                <MessageSquareIcon />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
-      ) : props.folded ? (
+      {props.folded ? (
         // The folded sidebar hides its labels, so the item names itself in a tooltip.
         <Tooltip>
           <TooltipTrigger asChild>{sidebarTrigger}</TooltipTrigger>
@@ -59,7 +42,7 @@ export function FeedbackMenu(props: { compact?: boolean; folded?: boolean }) {
       ) : (
         sidebarTrigger
       )}
-      <DropdownMenuContent align={props.compact ? "end" : "start"} side={props.compact ? "bottom" : "top"}>
+      <DropdownMenuContent align="start" side="top">
         <DropdownMenuItem asChild>
           <a href={issueUrl("bug_report.yml")} target="_blank" rel="noreferrer">
             <BugIcon />
