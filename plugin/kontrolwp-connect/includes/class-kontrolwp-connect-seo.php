@@ -620,6 +620,24 @@ class KontrolWP_Connect_SEO {
 		return $tags ? "<!-- KontrolWP SEO -->\n" . implode( "\n", $tags ) . "\n<!-- /KontrolWP SEO -->\n" : '';
 	}
 
+	/**
+	 * Rebuild WordPress's address rules when they lack the sitemap's, which
+	 * makes /wp-sitemap.xml show page not found. Rules saved before init (by
+	 * another plugin, or an old install) can miss it. Tried at most once an
+	 * hour, in case something keeps taking the rule out again.
+	 */
+	public static function repair_sitemap_rules() {
+		if ( '' === (string) get_option( 'permalink_structure' ) || ! function_exists( 'wp_sitemaps_get_server' ) || ! wp_sitemaps_get_server()->sitemaps_enabled() ) {
+			return;
+		}
+		$rules = get_option( 'rewrite_rules' );
+		if ( ! is_array( $rules ) || isset( $rules['^wp-sitemap\\.xml$'] ) || get_transient( 'kontrolwp_connect_sitemap_rules' ) ) {
+			return;
+		}
+		set_transient( 'kontrolwp_connect_sitemap_rules', 1, HOUR_IN_SECONDS );
+		flush_rewrite_rules( false );
+	}
+
 	/* ---- Front end ---- */
 
 	/** Hook into the front end when SEO is on. Runs every time the plugin loads. */
