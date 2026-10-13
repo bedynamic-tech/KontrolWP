@@ -49,7 +49,7 @@ The Updates the owner asked KontrolWP to install on one Site, run one at a time 
 _Avoid_: Job list, batch
 
 **Previous version**:
-The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme for 30 days, or until the check after a scheduled run finds the home page unchanged, which deletes the copies of what that run updated. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
+The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme. It is deleted as soon as the update is seen to break nothing: by the check after a scheduled run, or else by the next Sync that finds the home page working. A copy the site could not be asked to delete expires there after 30 days. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
 _Avoid_: Backup, snapshot, downgrade
 
 **Pending Comment**:

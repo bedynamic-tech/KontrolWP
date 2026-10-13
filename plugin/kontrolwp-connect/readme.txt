@@ -20,8 +20,8 @@ through a link that works once, for one minute.
 Before KontrolWP updates a plugin or theme, the plugin keeps a zip of the
 installed version in wp-content/kontrolwp-rollback (blocked from being served),
 so you can revert the update from the dashboard. One copy per plugin or theme is
-kept for 30 days, or until the dashboard's check after scheduled updates finds
-the site working.
+kept until the dashboard sees the site working after the update, and for 30
+days at most.
 
 The plugin creates this site's Connection Key. KontrolWP signs every request
 with the secret in that key, which only this site and your dashboard know. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back; when you switch on SEO in KontrolWP, it adds title, description, social and robots tags to your pages' head, and switching it off removes them; when you switch on maintenance mode in KontrolWP, visitors who are not signed in see a "back soon" page until you switch it off);

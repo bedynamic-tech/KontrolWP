@@ -6,6 +6,7 @@ import {
   changedShare,
   checkAfterUpdates,
   checkBeforeUpdates,
+  clearHealthyCopies,
   homeUrl,
   regression,
   UpdateCheckError,
@@ -168,4 +169,56 @@ test("a site that cannot clear its copies keeps them, and the run still passes",
   await checkAfterUpdates(env, 1, looker(fine), 200);
   assert.deepEqual({ ...run(env) }, { check_result: "passed", check_note: "The home page looked the same after the updates." });
   assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_rollbacks").get().n, 1);
+});
+
+/** A site with a kept copy of Shop, whose KontrolWP Connect clears copies, and a home page answering `home`. */
+async function setupHealthy(home) {
+  const { env } = await setup();
+  env.SITE_SECRETS_KEY = randomToken(32);
+  env.DB.sqlite.prepare("UPDATE sites SET key_id = 'k', secret = ? WHERE id = 1").run(await encryptSecret(env.SITE_SECRETS_KEY, 1, randomToken(32)));
+  env.DB.sqlite.exec(
+    "INSERT INTO site_rollbacks (site_id, kind, slug, name, version, current_version, created_at) VALUES (1, 'plugin', 'shop', 'Shop', '1.0', '2.0', 110)",
+  );
+  const calls = { home: [], cleared: [] };
+  globalThis.fetch = async (url, init) => {
+    const route = new URL(url).searchParams.get("rest_route");
+    if (!route) {
+      calls.home.push(String(url));
+      return new Response(home.body, { status: home.status });
+    }
+    calls.cleared.push(JSON.parse(init.body).items);
+    return new Response(JSON.stringify({ ok: true, cleared: 1 }), { headers: { "Content-Type": "application/json" } });
+  };
+  const left = () => env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_rollbacks").get().n;
+  return { env, calls, left };
+}
+
+test("a sync that finds the home page working clears kept copies from earlier or hand-run updates", async () => {
+  const t = await setupHealthy({ status: 200, body: "<html>Welcome</html>" });
+  assert.equal(await clearHealthyCopies(t.env, 1, "https://a.test", 300), true);
+  assert.deepEqual(t.calls.home, ["https://a.test/?kontrolwp_check=300"]);
+  assert.deepEqual(t.calls.cleared, [[{ kind: "plugin", slug: "shop" }]]);
+  assert.equal(t.left(), 0);
+});
+
+test("a broken home page, a pending scheduled check or a queued job keeps the copies", async () => {
+  for (const home of [
+    { status: 500, body: "error" },
+    { status: 200, body: "There has been a critical error on this website." },
+  ]) {
+    const t = await setupHealthy(home);
+    assert.equal(await clearHealthyCopies(t.env, 1, "https://a.test"), false);
+    assert.deepEqual(t.calls.cleared, []);
+    assert.equal(t.left(), 1);
+  }
+
+  const checking = await setupHealthy({ status: 200, body: "ok" });
+  await checkBeforeUpdates(checking.env, 1, 7, looker(fine), 100);
+  assert.equal(await clearHealthyCopies(checking.env, 1, "https://a.test"), false);
+  assert.deepEqual(checking.calls.home, [], "the scheduled run's check decides");
+
+  const queued = await setupHealthy({ status: 200, body: "ok" });
+  queued.env.DB.sqlite.exec("INSERT INTO update_jobs (site_id, kind, slug, action) VALUES (1, 'plugin', 'shop', 'rollback')");
+  assert.equal(await clearHealthyCopies(queued.env, 1, "https://a.test"), false);
+  assert.equal(queued.left(), 1);
 });
