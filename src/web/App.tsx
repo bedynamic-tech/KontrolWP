@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon, UsersIcon } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
+import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, MenuIcon, PlugIcon, SettingsIcon, UsersIcon, XIcon } from "lucide-react";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { useEffect, useState, type ReactNode } from "react";
+import { Navigate, NavLink, Route, Routes, useLocation, useMatch } from "react-router";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { accessSetupError, fetchOverview, secretsKeyMissing, syncAllSites } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
@@ -77,51 +80,14 @@ export function App() {
               <Brand />
               <ThemeToggle />
             </div>
-            <nav className="mt-6 space-y-1">
-              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
-              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
-              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
-              <NavItem to="/users" icon={<UsersIcon />} label="Users" />
-              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
-            </nav>
-            <div className="mt-auto">
-              <FeedbackMenu folded={collapsed} />
-            </div>
-            <a
-              href={PLUGIN_ZIP_URL}
-              download
-              className="mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
-            >
-              <DownloadIcon />
-              <span>KontrolWP Connect</span>
-            </a>
+            <SidebarLinks folded={collapsed} />
           </div>
         </aside>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
-          <Brand compact />
-          <div className="flex items-center gap-2">
-            <nav className="flex gap-1">
-              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
-              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
-              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
-              <NavItem to="/users" icon={<UsersIcon />} label="Users" compact />
-              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" compact />
-            </nav>
-            {/* The sidebar is hidden on small screens, so its download link moves here. */}
-            <a
-              href={PLUGIN_ZIP_URL}
-              download
-              aria-label="Download the KontrolWP Connect plugin"
-              title="KontrolWP Connect plugin"
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
-            >
-              <DownloadIcon />
-            </a>
-            <FeedbackMenu compact />
-            <ThemeToggle />
-          </div>
+          <Brand />
+          <PhoneMenu />
         </header>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8 md:py-10">
           <Routes>
@@ -139,13 +105,12 @@ export function App() {
   );
 }
 
-/** compact keeps only the logo on the narrowest phones, where the header nav needs the room. */
-function Brand(props: { compact?: boolean }) {
+function Brand() {
   return (
     <div className="flex items-center gap-2 px-2">
       <img src="/kontrolwp.svg" alt="KontrolWP" className="size-6" />
       <span
-        className={`text-sm font-semibold tracking-tight ${props.compact ? "max-[439px]:hidden" : ""}`}
+        className="text-sm font-semibold tracking-tight"
         aria-hidden="true"
       >
         KontrolWP
@@ -154,13 +119,10 @@ function Brand(props: { compact?: boolean }) {
   );
 }
 
-/** compact hides the label on phones, where the header has room only for icons. */
-function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: boolean }) {
+function NavItem(props: { to: string; icon: ReactNode; label: string }) {
   return (
     <NavLink
       to={props.to}
-      title={props.compact ? props.label : undefined}
-      aria-label={props.compact ? props.label : undefined}
       end={props.to === "/"}
       className={({ isActive }) =>
         `flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm [&_svg]:size-4 [&_svg]:shrink-0 ${
@@ -171,7 +133,99 @@ function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: 
       }
     >
       {props.icon}
-      <span className={props.compact ? "hidden sm:inline" : undefined}>{props.label}</span>
+      <span>{props.label}</span>
     </NavLink>
+  );
+}
+
+/** The pages, feedback and plugin download, shared by the sidebar and the phone menu. */
+function SidebarLinks(props: { folded?: boolean }) {
+  return (
+    <>
+      <nav className="mt-6 space-y-1">
+        <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
+        <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+        <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
+        <NavItem to="/users" icon={<UsersIcon />} label="Users" />
+        <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
+      </nav>
+      <div className="mt-auto">
+        <FeedbackMenu folded={props.folded} />
+      </div>
+      <a
+        href={PLUGIN_ZIP_URL}
+        download
+        className="mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+      >
+        <DownloadIcon />
+        <span>KontrolWP Connect</span>
+      </a>
+    </>
+  );
+}
+
+/** Phones have no sidebar, so a menu button slides the same links in from the left. */
+function PhoneMenu() {
+  const [open, setOpen] = useState(false);
+  const { pathname, search } = useLocation();
+  useEffect(() => setOpen(false), [pathname, search]);
+  // The page behind is hidden from screen readers while the menu is open; inert also takes its
+  // links out of the tab order.
+  useEffect(() => {
+    const root = document.getElementById("root");
+    root?.toggleAttribute("inert", open);
+    return () => root?.removeAttribute("inert");
+  }, [open]);
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogPrimitive.Trigger asChild>
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" aria-label="Open menu">
+              <MenuIcon />
+            </Button>
+          </DialogPrimitive.Trigger>
+        </TooltipTrigger>
+        <TooltipContent>Open menu</TooltipContent>
+      </Tooltip>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/10 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          // Focus the menu itself, so no button's tooltip opens with it.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement).focus({ preventScroll: true });
+          }}
+          // A link inside closes the menu even when it points at the page already open.
+          onClick={(event) => {
+            if ((event.target as Element).closest("a[href]")) setOpen(false);
+          }}
+          className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100%-3rem)] flex-col overflow-y-auto border-r bg-sidebar px-3 pt-[max(1rem,var(--app-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] outline-none duration-200 data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left motion-reduce:data-open:animate-none motion-reduce:data-closed:animate-none"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <DialogPrimitive.Title asChild>
+              <div>
+                <Brand />
+              </div>
+            </DialogPrimitive.Title>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogPrimitive.Close asChild>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" aria-label="Close menu">
+                      <XIcon />
+                    </Button>
+                  </DialogPrimitive.Close>
+                </TooltipTrigger>
+                <TooltipContent>Close menu</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+          <SidebarLinks />
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

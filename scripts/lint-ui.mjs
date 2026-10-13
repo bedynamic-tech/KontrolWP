@@ -46,6 +46,16 @@ async function checkRoute(browser, url) {
         await page.locator("main h1").first().waitFor({ state: "visible" });
         const result = await checkPage(page, policy);
         findings.push(...result.findings.map((f) => ({ ...f, state: "initial", viewport, colorScheme })));
+        // On phones the header's menu button slides in the app's links; the menu is the same on
+        // every page, so the overview checks it.
+        const menuButton = page.getByRole("button", { name: "Open menu" });
+        if (url === `${base}/` && (await menuButton.isVisible())) {
+          await menuButton.click();
+          await page.getByRole("dialog").waitFor({ state: "visible" });
+          await page.mouse.move(viewport.width - 1, viewport.height - 1);
+          const menu = await checkPage(page, policy);
+          findings.push(...menu.findings.map((f) => ({ ...f, state: "menu open", viewport, colorScheme })));
+        }
       } finally {
         await context.close();
       }
