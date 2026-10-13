@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon, UsersIcon } from "lucide-react";
-import { LayoutGroup, motion } from "framer-motion";
 import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
-import { motionTransitions } from "@/lib/motion";
 import { accessSetupError, fetchOverview, secretsKeyMissing, syncAllSites } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
@@ -78,15 +76,13 @@ export function App() {
               <Brand />
               <ThemeToggle />
             </div>
-            <LayoutGroup id="sidebar-nav">
-              <nav className="mt-6 space-y-1">
-                <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
-                <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
-                <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
-                <NavItem to="/users" icon={<UsersIcon />} label="Users" />
-                <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
-              </nav>
-            </LayoutGroup>
+            <nav className="mt-6 space-y-1">
+              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" />
+              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
+              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
+              <NavItem to="/users" icon={<UsersIcon />} label="Users" />
+              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
+            </nav>
             <a
               href={PLUGIN_ZIP_URL}
               download
@@ -102,15 +98,13 @@ export function App() {
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
           <Brand compact />
           <div className="flex items-center gap-1">
-            <LayoutGroup id="header-nav">
-              <nav className="flex gap-1">
-                <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
-                <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
-                <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
-                <NavItem to="/users" icon={<UsersIcon />} label="Users" compact />
-                <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" compact />
-              </nav>
-            </LayoutGroup>
+            <nav className="flex gap-1">
+              <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
+              <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
+              <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" compact />
+              <NavItem to="/users" icon={<UsersIcon />} label="Users" compact />
+              <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" compact />
+            </nav>
             {/* The sidebar is hidden on small screens, so its download link moves here. */}
             <a
               href={PLUGIN_ZIP_URL}
@@ -164,31 +158,15 @@ function NavItem(props: { to: string; icon: ReactNode; label: string; compact?: 
       aria-label={props.compact ? props.label : undefined}
       end={props.to === "/"}
       className={({ isActive }) =>
-        `relative flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors [&_svg]:size-4 ${
+        `flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm [&_svg]:size-4 [&_svg]:shrink-0 ${
           isActive
-            ? "font-medium text-sidebar-accent-foreground"
+            ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
         }`
       }
     >
-      {({ isActive }) => (
-        <>
-          {/* EasyUI's PillNavigation: one highlight that slides to the open page. */}
-          {isActive && (
-            <motion.div
-              aria-hidden
-              layoutId="nav-active"
-              transition={motionTransitions.springMorph}
-              className="absolute inset-0 rounded-lg bg-sidebar-accent"
-            />
-          )}
-          {/* A div, not a span: the folded sidebar fades out every span, and the icon must stay. */}
-          <div className="relative flex items-center gap-2">
-            {props.icon}
-            <span className={props.compact ? "hidden sm:inline" : undefined}>{props.label}</span>
-          </div>
-        </>
-      )}
+      {props.icon}
+      <span className={props.compact ? "hidden sm:inline" : undefined}>{props.label}</span>
     </NavLink>
   );
 }

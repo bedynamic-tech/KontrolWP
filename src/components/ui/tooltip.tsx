@@ -55,7 +55,7 @@ function TooltipContent({
           role="tooltip"
           sideOffset={sideOffset}
           className={cn(
-            "easy-pop z-50 max-w-72 origin-(--radix-tooltip-content-transform-origin) rounded-md border bg-popover px-2.5 py-1.5 text-xs leading-relaxed text-popover-foreground shadow-elevated",
+            "z-50 max-w-72 rounded-lg bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-md",
             className
           )}
           {...props}
