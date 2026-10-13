@@ -208,7 +208,7 @@ export function PerformanceTab(props: { site: SiteSummary }) {
             <Link to="/settings?tab=integrations" className="underline underline-offset-4">
               Connect Google or add a key in Settings
             </Link>{" "}
-            to avoid refused tests and to test every site once a week.
+            to avoid refused tests.
           </p>
         )}
         {result ? (

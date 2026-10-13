@@ -10,7 +10,7 @@ import { runScheduledUpdates } from "./sites/update-policy.ts";
 import { runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
-import { runScheduledPerformance, testSite } from "./sites/performance.ts";
+import { testSite } from "./sites/performance.ts";
 import { getSite } from "./sites/store.ts";
 import { runScheduledUptime, runUptimeMessage } from "./sites/uptime.ts";
 import { checkAfterUpdates, checkBeforeUpdates } from "./sites/update-check.ts";
@@ -21,7 +21,7 @@ app.route("/api", api);
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller, env, ctx) {
+  async scheduled(controller, env, ctx) {
     ctx.waitUntil(
       ensureSchema(env.DB).then(async () => {
         // Accessibility scans load the sites' pages too, so they wait for a tick with no sync starting.
@@ -30,10 +30,9 @@ export default {
           runScheduledLinkScans(env),
           runScheduledFeedRefresh(env),
           runScheduledUpdates(env),
-          runScheduledUptime(env),
+          runScheduledUptime(env, Math.floor(controller.scheduledTime / 1000)),
           synced ? 0 : runScheduledScans(env),
           synced ? 0 : runScheduledSeoScans(env),
-          synced ? 0 : runScheduledPerformance(env),
         ]);
       }),
     );

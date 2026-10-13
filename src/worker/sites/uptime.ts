@@ -3,14 +3,16 @@ import { checkCertificate, type OpenSocket } from "./certificate.ts";
 
 /**
  * Uptime monitoring for every site, WordPress or static: the cron queues the
- * sites due a check every 15 minutes, a queue message loads a few home pages
+ * sites due a check once an hour, on the hour, a queue message loads a few home pages
  * and records how each answered, and once a day it reads each site's TLS
  * certificate (shown on the Domain & SSL tab). Results stay for 30 days.
  */
 
 const MINUTE = 60;
 const DAY = 86400;
-export const CHECK_INTERVAL = 15 * MINUTE;
+export const CHECK_INTERVAL = 60 * MINUTE;
+/** A site checked this recently (Check now, or a late queue message) is not checked again. */
+const RECHECK_GAP = 5 * MINUTE;
 const HISTORY = 30 * DAY;
 const CERTIFICATE_INTERVAL = DAY;
 /** Sites one queue message checks, which keeps it well inside a Worker's subrequest limit. */
@@ -151,13 +153,14 @@ async function readCertificateIfDue(
 
 /** Queue the sites due a check, a few to a message. Returns how many were queued. */
 export async function runScheduledUptime(env: Env, now = Math.floor(Date.now() / 1000)): Promise<number> {
-  // A minute of slack, so a cron that fires a little early still checks every site each time.
+  // The cron runs every 15 minutes; only the tick at the top of the hour checks.
+  if (now % CHECK_INTERVAL >= 15 * MINUTE) return 0;
   const { results } = await env.DB.prepare(
     `SELECT id FROM sites
      WHERE uptime_excluded = 0 AND (uptime_checked_at IS NULL OR uptime_checked_at <= ?)
      ORDER BY uptime_checked_at IS NOT NULL, uptime_checked_at`,
   )
-    .bind(now - CHECK_INTERVAL + MINUTE)
+    .bind(now - RECHECK_GAP)
     .all<{ id: number }>();
   const ids = results.map((row) => row.id);
   const messages: { body: SyncMessage }[] = [];
@@ -181,7 +184,7 @@ export async function runUptimeMessage(
       .bind(id)
       .first<{ uptime_excluded: number; uptime_checked_at: number | null }>();
     if (!row || row.uptime_excluded) continue;
-    if (row.uptime_checked_at && row.uptime_checked_at > now() - CHECK_INTERVAL / 2) continue;
+    if (row.uptime_checked_at && row.uptime_checked_at > now() - RECHECK_GAP) continue;
     await checkSite(env, id, now(), deps);
   }
 }

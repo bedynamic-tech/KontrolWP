@@ -26,7 +26,7 @@ export function ConnectionBanner(props: { site: SiteSummary; compact?: boolean; 
       )}
     >
       <p className={cn("font-medium", failed ? "text-destructive" : "text-amber-800 dark:text-amber-300")}>{title}</p>
-      {detail && <p className={cn("text-muted-foreground", props.compact ? "mt-0.5 line-clamp-2" : "mt-1")}>{detail}</p>}
+      {detail && <p className={cn("text-muted-foreground", props.compact ? "mt-0.5" : "mt-1", "wrap-break-word")}>{detail}</p>}
     </div>
   );
 }

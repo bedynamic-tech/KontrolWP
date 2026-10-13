@@ -295,7 +295,7 @@ export function UpdatePolicySettingsSection() {
               Update sites on a schedule
               <HelpTip>
                 Every site follows this unless its own settings say otherwise. Updates run one at a time on each site,
-                and sites start a couple of minutes apart. The time zone is the one chosen under Link checks.
+                and sites start a couple of minutes apart. The time zone is the one chosen under General.
               </HelpTip>
             </span>
           </span>

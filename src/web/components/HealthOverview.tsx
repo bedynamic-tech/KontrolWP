@@ -383,7 +383,7 @@ function UptimeCard(props: { site: SiteSummary; onOpen: (tab: string) => void })
     const { latest, since, ratios } = uptime.data;
     const month = ratios.month === null ? null : `${formatRatio(ratios.month)} over 30 days`;
     summary = !latest
-      ? { value: "Not checked yet", detail: "The first check runs within 15 minutes" }
+      ? { value: "Not checked yet", detail: "The first check runs at the top of the hour" }
       : !latest.up
         ? {
             value: "Down",

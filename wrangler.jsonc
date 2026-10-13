@@ -54,9 +54,10 @@
       }
     ]
   },
-  // Checks every 15 minutes whether a sync is due; how often one runs is
-  // the Background sync setting (every hour unless changed). Each site is its
-  // own queue message, so one slow or broken site never delays the others.
+  // Every 15 minutes: syncs every site on the first tick after midnight,
+  // checks uptime on the tick at the top of each hour, and runs the other
+  // scheduled work. Each site is its own queue message, so one slow or broken
+  // site never delays the others.
   "triggers": {
     "crons": ["*/15 * * * *"]
   },

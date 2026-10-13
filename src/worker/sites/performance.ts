@@ -24,12 +24,9 @@ import { decryptSetting, encryptSetting } from "./secrets.ts";
 
 const ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
 const SETTING = "pagespeed";
-const WEEK = 7 * 86400;
 const HISTORY_LIMIT = 90;
 /** A test that has not finished after this long is treated as lost. */
 const RUNNING_LIMIT = 300;
-/** One site per cron run, so tests never pile up. */
-const TESTS_PER_RUN = 1;
 const MAX_OPPORTUNITIES = 6;
 
 /**
@@ -355,31 +352,6 @@ export async function testSite(
       }
     }),
   );
-}
-
-/** Test the sites not tested in the last week, one at a time, from the cron. Needs an API key or a connected Google account. Returns how many were tested. */
-export async function runScheduledPerformance(
-  env: Env,
-  now = Math.floor(Date.now() / 1000),
-  fetcher: typeof fetch = fetch,
-): Promise<number> {
-  if (!(await pagespeedSource(env))) return 0;
-  const { results } = await env.DB.prepare(
-    `SELECT sites.id, sites.url FROM sites
-     LEFT JOIN performance_scans p ON p.site_id = sites.id AND p.strategy = 'mobile'
-     WHERE sites.status != 'error' AND sites.performance_excluded = 0 AND (p.site_id IS NULL OR p.attempted_at < ?)
-     ORDER BY p.attempted_at IS NOT NULL, p.attempted_at
-     LIMIT ?`,
-  )
-    .bind(now - WEEK, TESTS_PER_RUN)
-    .all<{ id: number; url: string }>();
-  let tested = 0;
-  for (const site of results) {
-    if (!(await claimTest(env, site.id, now))) continue;
-    await testSite(env, site, now, fetcher);
-    tested++;
-  }
-  return tested;
 }
 
 type Row = {

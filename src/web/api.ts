@@ -57,7 +57,6 @@ import type {
   CoreAutoUpdate,
   AnalyticsRange,
   FleetPlugins,
-  SyncSettings,
   SiteAnalytics,
   SiteAnalyticsDetails,
   AnalyticsProvider,
@@ -346,9 +345,8 @@ export const fetchSiteAnalytics = (siteId: number, range: AnalyticsRange) => {
 export const fetchLinkScanSettings = () => request<LinkScanSchedule>("/settings/links");
 export const saveLinkScanSettings = (settings: Partial<LinkScanSettings>) =>
   request<LinkScanSchedule>("/settings/links", { method: "PUT", json: settings });
-export const fetchSyncSettings = () => request<SyncSettings>("/settings/sync");
-export const saveSyncSettings = (settings: SyncSettings) =>
-  request<SyncSettings>("/settings/sync", { method: "PUT", json: settings });
+/** Sync every site; the Worker skips it when one started a few minutes ago. */
+export const syncAllSites = () => request<{ started: boolean }>("/sync", { method: "POST" });
 
 export const fetchDomain = (siteId: number, refresh = false) =>
   request<SiteDomain>(`/sites/${siteId}/domain${refresh ? "?refresh=1" : ""}`);

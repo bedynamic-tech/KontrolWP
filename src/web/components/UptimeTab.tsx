@@ -21,7 +21,7 @@ export function UptimeTab(props: { site: SiteSummary }) {
     queryKey: key,
     queryFn: () => fetchUptime(site.id),
     staleTime: 30_000,
-    // A new check lands every 15 minutes.
+    // A new check lands every hour, on the hour.
     refetchInterval: 5 * 60_000,
   });
   const check = useMutation({
@@ -60,7 +60,7 @@ export function UptimeTab(props: { site: SiteSummary }) {
     <div className="mt-8">
       <Section
         title="Uptime"
-        hint="KontrolWP loads the home page every 15 minutes, from Cloudflare's network. A page that does not answer, or answers with an error, is tried once more before the site counts as down. Response time is how long the site took to start answering."
+        hint="KontrolWP loads the home page every hour on the hour, from Cloudflare's network. A page that does not answer, or answers with an error, is tried once more before the site counts as down. Response time is how long the site took to start answering."
         action={action}
       >
         {check.error && <p className="border-b px-4 py-3 text-sm text-destructive">{check.error.message}</p>}
@@ -102,7 +102,7 @@ export function UptimeTab(props: { site: SiteSummary }) {
           <EmptyRow>
             {site.uptime_excluded
               ? "Uptime checks are off for this site."
-              : "The first check runs within 15 minutes. Select Check now to run it at once."}
+              : "The first check runs at the top of the hour. Select Check now to run it at once."}
           </EmptyRow>
         )}
       </Section>
@@ -224,14 +224,14 @@ function DayStrip(props: { days: UptimeDay[] }) {
       <div className="flex h-8 gap-0.5" role="list" aria-label="Uptime by day">
         {props.days.map((day) => {
           const share = day.checks ? (day.up / day.checks) * 100 : null;
-          // A check every 15 minutes: more than four failed is more than an hour.
+          // A check every hour: more than one failed is more than an hour down.
           const failed = day.checks - day.up;
           const tone =
             share === null
               ? "bg-muted"
               : failed === 0
                 ? "bg-green-500/80 dark:bg-green-400/70"
-                : failed > 4
+                : failed > 1
                   ? "bg-red-500/80 dark:bg-red-400/80"
                   : "bg-amber-400/90 dark:bg-amber-300/80";
           const label = `${formatDate(day.day, "UTC")}: ${share === null ? "no checks" : `${formatRatio(share)} up`}`;

@@ -25,15 +25,15 @@ The string (starting `kontrolwp2.`) that pairs one Site with the dashboard. Kont
 _Avoid_: API key, token, password
 
 **PageSpeed test**:
-One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a phone or as a desktop: four scores out of 100, lab measurements, Core Web Vitals from real visits when Google has enough, and the biggest time savings. Shown on the Site's Performance tab; weekly once Google is connected or an API key is saved.
+One run of Google's PageSpeed Insights (Lighthouse) on a Site's home page, as a phone or as a desktop: four scores out of 100, lab measurements, Core Web Vitals from real visits when Google has enough, and the biggest time savings. Shown on the Site's Performance tab; run only when asked.
 _Avoid_: Speed scan, audit, benchmark
 
 **Uptime check**:
-One load of a Site's home page by KontrolWP, every 15 minutes: up when it answers with a 2xx status (after a second try), down otherwise, with the time to the first answer. Kept for 30 days and shown on the Site's Uptime tab with its outages. The Site's SSL certificate is read once a day too, and shown on its Domain & SSL tab. Separate from Sync: a Site can be up while KontrolWP Connect cannot be reached.
+One load of a Site's home page by KontrolWP, every hour on the hour: up when it answers with a 2xx status (after a second try), down otherwise, with the time to the first answer. Kept for 30 days and shown on the Site's Uptime tab with its outages. The Site's SSL certificate is read once a day too, and shown on its Domain & SSL tab. Separate from Sync: a Site can be up while KontrolWP Connect cannot be reached.
 _Avoid_: Ping, heartbeat, health check
 
 **Sync**:
-One pull of status, available Updates and Pending Comments from a Site, replacing what KontrolWP stored for it. Runs every 6 hours and on Sync now.
+One pull of status, available Updates and Pending Comments from a Site, replacing what KontrolWP stored for it. Runs for every Site at midnight in the owner's time zone, when the dashboard is opened in a new tab, and on Sync now.
 _Avoid_: Refresh, poll, crawl
 
 **Update**:
