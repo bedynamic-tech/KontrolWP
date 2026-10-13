@@ -1,4 +1,8 @@
+import { REST_NAMESPACE } from "../../shared/protocol.ts";
+import { callSite, SiteRequestError } from "./client.ts";
 import { SELF_UPDATE } from "./kontrolwp-connect.ts";
+import { SecretsKeyError } from "./secrets.ts";
+import { getCredentials } from "./store.ts";
 import { enqueueRollback, RollbackError } from "./updates.ts";
 
 /**
@@ -8,7 +12,10 @@ import { enqueueRollback, RollbackError } from "./updates.ts";
  * critical error, answers with a new HTTP error or looks very different, the
  * updated plugins and themes are reverted through the Update Queue (which also
  * holds those versions back from the next scheduled run). The result is noted
- * on the scheduled run. Updates queued by hand are not checked.
+ * on the scheduled run. When the page looks fine, the previous versions the
+ * site kept of those plugins and themes are deleted, since nothing needs
+ * reverting. Updates queued by hand are not checked, and their copies stay
+ * until they expire on the site (30 days) or the owner reverts.
  */
 
 /** Screenshots are compared in squares of this many pixels... */
@@ -187,21 +194,28 @@ export async function checkAfterUpdates(env: Env, siteId: number, looker?: Looke
       grid: { cols: check.grid_cols, rows: check.grid_rows, pixels: new Uint8Array(check.grid as ArrayLike<number>) },
     };
     const broken = regression(before, after);
-    if (!broken) {
-      await note(env, check.run_id, "passed", "The home page looked the same after the updates.");
-      return;
-    }
-
     // The plugins and themes this run updated (core cannot be reverted).
     const { results: updated } = await env.DB.prepare(
-      `SELECT j.kind, j.slug, COALESCE(r.name, j.slug) AS name FROM update_jobs j
+      `SELECT j.kind, j.slug, COALESCE(r.name, j.slug) AS name, r.slug IS NOT NULL AS kept FROM update_jobs j
        LEFT JOIN site_rollbacks r ON r.site_id = j.site_id AND r.kind = j.kind AND r.slug = j.slug
        WHERE j.site_id = ? AND j.action = 'update' AND j.status = 'done' AND j.kind IN ('plugin', 'theme')
          AND j.slug != ? AND j.started_at >= ?
        ORDER BY j.started_at, j.id`,
     )
       .bind(siteId, SELF_UPDATE.slug, check.started_at)
-      .all<{ kind: "plugin" | "theme"; slug: string; name: string }>();
+      .all<{ kind: "plugin" | "theme"; slug: string; name: string; kept: number }>();
+    if (!broken) {
+      const cleared = await clearKeptCopies(env, siteId, updated.filter((item) => item.kept));
+      await note(
+        env,
+        check.run_id,
+        "passed",
+        "The home page looked the same after the updates." +
+          (cleared ? " The previous versions kept for reverting them were deleted." : ""),
+      );
+      return;
+    }
+
     const reverted: string[] = [];
     const kept: string[] = [];
     for (const item of updated) {
@@ -231,4 +245,30 @@ export async function checkAfterUpdates(env: Env, siteId: number, looker?: Looke
   } finally {
     await done();
   }
+}
+
+/**
+ * Delete the site's kept copies of plugins and themes whose updates broke
+ * nothing. Best effort: a site that cannot be reached, or a KontrolWP Connect
+ * without the route (before 0.41.0), keeps them until they expire there.
+ * Returns whether they were deleted.
+ */
+async function clearKeptCopies(env: Env, siteId: number, items: { kind: "plugin" | "theme"; slug: string }[]) {
+  if (!items.length) return false;
+  try {
+    const site = await getCredentials(env, siteId);
+    if (!site) return false;
+    await callSite(site, "POST", `${REST_NAMESPACE}/updates/rollback/clear`, {
+      items: items.map(({ kind, slug }) => ({ kind, slug })),
+    });
+  } catch (error) {
+    if (error instanceof SiteRequestError || error instanceof SecretsKeyError) return false;
+    throw error;
+  }
+  await env.DB.batch(
+    items.map((item) =>
+      env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ? AND kind = ? AND slug = ?").bind(siteId, item.kind, item.slug),
+    ),
+  );
+  return true;
 }

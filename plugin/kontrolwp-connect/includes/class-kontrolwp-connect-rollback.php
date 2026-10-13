@@ -3,7 +3,8 @@
  * Previous versions. Before KontrolWP updates a plugin or theme, the
  * installed copy is zipped into wp-content/kontrolwp-rollback, so the owner
  * can put it back with one click. One copy per plugin or theme, kept for
- * KEEP_DAYS; reverting installs it and then deletes it.
+ * KEEP_DAYS; reverting installs it and then deletes it, and the dashboard
+ * clears it sooner once its check after a scheduled run found nothing broken.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -33,6 +34,32 @@ class KontrolWP_Connect_Rollback {
 					'slug' => array(
 						'required' => true,
 						'type'     => 'string',
+					),
+				),
+			)
+		);
+		register_rest_route(
+			KontrolWP_Connect_Rest::NAMESPACE_V1,
+			'/updates/rollback/clear',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'clear' ),
+				'permission_callback' => $auth,
+				'args'                => array(
+					'items' => array(
+						'required' => true,
+						'type'     => 'array',
+						'maxItems' => 500,
+						'items'    => array(
+							'type'       => 'object',
+							'properties' => array(
+								'kind' => array(
+									'type' => 'string',
+									'enum' => array( 'plugin', 'theme' ),
+								),
+								'slug' => array( 'type' => 'string' ),
+							),
+						),
 					),
 				),
 			)
@@ -205,6 +232,32 @@ class KontrolWP_Connect_Rollback {
 		return array(
 			'ok'      => true,
 			'version' => $backup['version'],
+		);
+	}
+
+	/**
+	 * Delete the kept copies of the given plugins and themes, once the
+	 * dashboard has seen that their updates broke nothing.
+	 *
+	 * @param WP_REST_Request $request Incoming request.
+	 */
+	public static function clear( $request ) {
+		$all     = self::stored();
+		$cleared = 0;
+		foreach ( (array) $request['items'] as $item ) {
+			$key = ( isset( $item['kind'] ) ? (string) $item['kind'] : '' ) . ':' . ( isset( $item['slug'] ) ? (string) $item['slug'] : '' );
+			if ( isset( $all[ $key ] ) ) {
+				self::delete_file( $all[ $key ]['file'] );
+				unset( $all[ $key ] );
+				++$cleared;
+			}
+		}
+		if ( $cleared ) {
+			update_option( self::OPTION, $all, false );
+		}
+		return array(
+			'ok'      => true,
+			'cleared' => $cleared,
 		);
 	}
 

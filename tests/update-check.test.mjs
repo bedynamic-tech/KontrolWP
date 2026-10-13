@@ -10,6 +10,8 @@ import {
   regression,
   UpdateCheckError,
 } from "../src/worker/sites/update-check.ts";
+import { randomToken } from "../src/shared/protocol.ts";
+import { encryptSecret } from "../src/worker/sites/secrets.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 /** A grid of one colour, with the first `painted` blocks in black. */
@@ -123,4 +125,47 @@ test("no check when the page was already broken or no browser starts", async () 
   await checkBeforeUpdates(env, 1, 7, looker(new UpdateCheckError("Cloudflare Browser Rendering was busy or out of time for today.")), 100);
   assert.equal(run(env).check_note, "Not checked: Cloudflare Browser Rendering was busy or out of time for today.");
   assert.equal(sent.at(-1)[0].type, "update");
+});
+
+test("a run that passes clears the previous versions the site kept of what it updated", async () => {
+  const { env } = await setup();
+  env.SITE_SECRETS_KEY = randomToken(32);
+  env.DB.sqlite.prepare("UPDATE sites SET key_id = 'k', secret = ? WHERE id = 1").run(await encryptSecret(env.SITE_SECRETS_KEY, 1, randomToken(32)));
+  const cleared = [];
+  globalThis.fetch = async (url, init) => {
+    assert.equal(new URL(url).searchParams.get("rest_route"), "/kontrolwp/v1/updates/rollback/clear");
+    cleared.push(JSON.parse(init.body).items);
+    return new Response(JSON.stringify({ ok: true, cleared: 1 }), { headers: { "Content-Type": "application/json" } });
+  };
+  await checkBeforeUpdates(env, 1, 7, looker(fine), 100);
+  env.DB.sqlite.exec(`
+    INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES
+      (1, 'plugin', 'shop', 'done', 110), (1, 'plugin', 'nocopy', 'done', 115), (1, 'plugin', 'older', 'done', 50);
+    INSERT INTO site_rollbacks (site_id, kind, slug, name, version, current_version, created_at) VALUES
+      (1, 'plugin', 'shop', 'Shop', '1.0', '2.0', 110), (1, 'plugin', 'older', 'Older', '1.0', '2.0', 50);
+  `);
+  await checkAfterUpdates(env, 1, looker(fine), 200);
+  assert.deepEqual(cleared, [[{ kind: "plugin", slug: "shop" }]]);
+  assert.equal(
+    run(env).check_note,
+    "The home page looked the same after the updates. The previous versions kept for reverting them were deleted.",
+  );
+  const left = env.DB.sqlite.prepare("SELECT slug FROM site_rollbacks").all().map((row) => row.slug);
+  assert.deepEqual(left, ["older"], "copies from updates outside the run stay");
+});
+
+test("a site that cannot clear its copies keeps them, and the run still passes", async () => {
+  const { env } = await setup();
+  env.SITE_SECRETS_KEY = randomToken(32);
+  env.DB.sqlite.prepare("UPDATE sites SET key_id = 'k', secret = ? WHERE id = 1").run(await encryptSecret(env.SITE_SECRETS_KEY, 1, randomToken(32)));
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ code: "rest_no_route", message: "No route" }), { status: 404, headers: { "Content-Type": "application/json" } });
+  await checkBeforeUpdates(env, 1, 7, looker(fine), 100);
+  env.DB.sqlite.exec(`
+    INSERT INTO update_jobs (site_id, kind, slug, status, started_at) VALUES (1, 'plugin', 'shop', 'done', 110);
+    INSERT INTO site_rollbacks (site_id, kind, slug, name, version, current_version, created_at) VALUES (1, 'plugin', 'shop', 'Shop', '1.0', '2.0', 110);
+  `);
+  await checkAfterUpdates(env, 1, looker(fine), 200);
+  assert.deepEqual({ ...run(env) }, { check_result: "passed", check_note: "The home page looked the same after the updates." });
+  assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM site_rollbacks").get().n, 1);
 });

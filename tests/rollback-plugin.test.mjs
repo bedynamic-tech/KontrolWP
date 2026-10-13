@@ -126,3 +126,24 @@ test("uninstall removes the folder and the list", { skip }, () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the dashboard can clear kept copies once their updates broke nothing", { skip }, () => {
+  const dir = content();
+  try {
+    const [, , , cleared, again, items, files] = run(dir, [
+      ["plugins", installed("5.2")],
+      ["prepare_commit", "plugin", "akismet/akismet.php"],
+      ["plugins", installed("5.3")],
+      ["clear", { items: [{ kind: "plugin", slug: "akismet/akismet.php" }, { kind: "theme", slug: "missing" }] }],
+      ["clear", { items: [{ kind: "plugin", slug: "akismet/akismet.php" }] }],
+      ["items"],
+      ["files"],
+    ]);
+    assert.deepEqual(cleared, { ok: true, cleared: 1 });
+    assert.deepEqual(again, { ok: true, cleared: 0 });
+    assert.deepEqual(items, []);
+    assert.deepEqual(files.filter((name) => name.endsWith(".zip")), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
