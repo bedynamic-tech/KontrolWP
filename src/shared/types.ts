@@ -905,6 +905,18 @@ export interface SiteSeo {
   taxonomies: { name: string; label: string }[];
   /** A plugin before 0.22.0 sends none. */
   category?: SeoCategoryPreview;
+  /** Whether WordPress's sitemap really loads; a plugin before 0.37.0 sends none. */
+  sitemap_check?: SeoSitemapCheck;
+}
+
+export interface SeoSitemapCheck {
+  url: string;
+  /** False when WordPress's sitemap is switched off, by this plugin's setting, the Reading setting, or another plugin. */
+  enabled: boolean;
+  /** The plugin or theme that switched it off, or active plugins that may have; empty when none can be named. */
+  blocked_by: string;
+  /** What the site answered when it asked for its own sitemap; 0 when it could not ask. */
+  status: number;
 }
 
 /** One page's SEO overrides; an empty value means the site-wide defaults apply. */

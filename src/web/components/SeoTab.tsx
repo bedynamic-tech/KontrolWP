@@ -23,6 +23,7 @@ import {
   type SeoLocation,
   type SeoPage,
   type SeoSettings,
+  type SeoSitemapCheck,
   type SiteSeo,
   type SiteSummary,
 } from "../../shared/types";
@@ -76,6 +77,40 @@ function CheckRow(props: {
       </div>
       <Switch checked={props.checked} onCheckedChange={props.onChange} />
     </label>
+  );
+}
+
+/** Why /wp-sitemap.xml shows page not found while the sitemap switch is on, or a link to it when it loads. */
+function SitemapStatus(props: { check: SeoSitemapCheck; discouraged: boolean }) {
+  const { check } = props;
+  let problem = "";
+  if (!check.enabled) {
+    if (props.discouraged) {
+      problem =
+        "WordPress turns its sitemap off while Discourage search engines is ticked (Settings, Reading), so the sitemap shows page not found.";
+    } else if (check.blocked_by.includes(",")) {
+      problem = `Another plugin has turned WordPress's sitemap off, so it shows page not found. It is likely one of: ${check.blocked_by}. Turn off that plugin's sitemap option, or deactivate it.`;
+    } else if (check.blocked_by) {
+      problem = `${check.blocked_by} has turned WordPress's sitemap off, so it shows page not found. Turn off its sitemap option, or deactivate it.`;
+    } else {
+      problem =
+        "Another plugin or the theme has turned WordPress's sitemap off, so it shows page not found. Look for a plugin with its own sitemap option.";
+    }
+  } else if (check.status >= 400) {
+    problem = `The sitemap is on, but the site answered ${check.status} when it was opened. The web server, a security plugin or a cache is stopping the address before WordPress sees it.`;
+  }
+  return (
+    <div className="space-y-1 px-4 py-3 text-sm">
+      {problem && (
+        <p className="flex items-start gap-2 text-destructive">
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+          <span className="wrap-break-word">{problem}</span>
+        </p>
+      )}
+      <a href={check.url} target="_blank" rel="noreferrer" className="wrap-break-word text-primary underline-offset-4 hover:underline">
+        {check.url}
+      </a>
+    </div>
   );
 }
 
@@ -1247,6 +1282,9 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
             checked={draft.sitemap}
             onChange={(value) => set("sitemap", value)}
           />
+          {draft.sitemap && data.settings.sitemap && data.sitemap_check && (
+            <SitemapStatus check={data.sitemap_check} discouraged={data.discouraged} />
+          )}
           {archives && data.category && (
             <>
               <CheckRow

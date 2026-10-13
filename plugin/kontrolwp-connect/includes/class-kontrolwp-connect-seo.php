@@ -866,7 +866,126 @@ class KontrolWP_Connect_SEO {
 			'category'       => KontrolWP_Connect_SEO_Archives::category_report(),
 			'post_types'     => self::public_names( get_post_types( array( 'public' => true ), 'objects' ), array( 'attachment' ) ),
 			'taxonomies'     => self::public_names( get_taxonomies( array( 'public' => true ), 'objects' ), array( 'post_format' ) ),
+			'sitemap_check'  => self::sitemap_check(),
 		);
+	}
+
+	/**
+	 * Whether WordPress's sitemap really loads: switched on, and answered by
+	 * the site itself rather than stopped by the web server or a cache. When
+	 * something switched it off, the plugin that did, if one can be named.
+	 */
+	public static function sitemap_check() {
+		$url = function_exists( 'get_sitemap_url' ) ? (string) get_sitemap_url( 'index' ) : home_url( '/wp-sitemap.xml' );
+		$out = array(
+			'url'        => $url,
+			'enabled'    => function_exists( 'wp_sitemaps_get_server' ) && wp_sitemaps_get_server()->sitemaps_enabled(),
+			'blocked_by' => '',
+			'status'     => 0,
+		);
+		if ( ! $out['enabled'] ) {
+			$out['blocked_by'] = self::sitemap_blocker();
+			return $out;
+		}
+		// The same request a search engine makes, from the site to itself, as Site Health does.
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout'     => 5,
+				'redirection' => 3,
+				'sslverify'   => false,
+				'headers'     => array( 'Cache-Control' => 'no-cache' ),
+			)
+		);
+		if ( ! is_wp_error( $response ) ) {
+			$out['status'] = (int) wp_remote_retrieve_response_code( $response );
+		}
+		return $out;
+	}
+
+	/** The name of the plugin or theme that hooked wp_sitemaps_enabled, other than this one; empty when none can be named. */
+	private static function sitemap_blocker() {
+		global $wp_filter;
+		if ( empty( $wp_filter['wp_sitemaps_enabled'] ) ) {
+			return '';
+		}
+		$own = wp_normalize_path( dirname( __DIR__ ) );
+		foreach ( $wp_filter['wp_sitemaps_enabled']->callbacks as $callbacks ) {
+			foreach ( $callbacks as $callback ) {
+				$file = self::callback_file( $callback['function'] );
+				if ( '' === $file || 0 === strpos( $file, $own . '/' ) ) {
+					continue;
+				}
+				$name = self::owner_name( $file );
+				if ( '' !== $name ) {
+					return $name;
+				}
+			}
+		}
+		// A plugin that hooks a core helper such as __return_false cannot be traced; name the active ones that make sitemaps.
+		if ( ! function_exists( 'get_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$names = array();
+		$data  = get_plugins();
+		foreach ( (array) get_option( 'active_plugins', array() ) as $plugin_file ) {
+			$plugin_file = (string) $plugin_file;
+			if ( 0 === strpos( $plugin_file, 'kontrolwp-connect/' ) ) {
+				continue;
+			}
+			$name = isset( $data[ $plugin_file ]['Name'] ) ? (string) $data[ $plugin_file ]['Name'] : $plugin_file;
+			if ( preg_match( '/sitemap|seo|jetpack/i', $plugin_file . ' ' . $name ) ) {
+				$names[] = $name;
+			}
+		}
+		return implode( ', ', array_slice( $names, 0, 3 ) );
+	}
+
+	/** The file a hooked callback is defined in; empty for a built-in like __return_false. */
+	private static function callback_file( $callback ) {
+		try {
+			if ( is_string( $callback ) && false !== strpos( $callback, '::' ) ) {
+				$callback = explode( '::', $callback, 2 );
+			}
+			if ( is_array( $callback ) && 2 === count( $callback ) ) {
+				$reflection = new ReflectionMethod( $callback[0], $callback[1] );
+			} elseif ( is_string( $callback ) || $callback instanceof Closure ) {
+				$reflection = new ReflectionFunction( $callback );
+			} else {
+				return '';
+			}
+			$file = $reflection->getFileName();
+			return $file ? wp_normalize_path( $file ) : '';
+		} catch ( ReflectionException $error ) {
+			return '';
+		}
+	}
+
+	/** The plugin or theme a file belongs to, by name. */
+	private static function owner_name( $file ) {
+		$plugins = wp_normalize_path( WP_PLUGIN_DIR ) . '/';
+		$mu      = wp_normalize_path( WPMU_PLUGIN_DIR ) . '/';
+		if ( 0 === strpos( $file, $plugins ) ) {
+			$folder = strtok( substr( $file, strlen( $plugins ) ), '/' );
+			if ( ! function_exists( 'get_plugins' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+			foreach ( get_plugins() as $plugin_file => $data ) {
+				if ( strtok( $plugin_file, '/' ) === $folder && ! empty( $data['Name'] ) ) {
+					return (string) $data['Name'];
+				}
+			}
+			return (string) $folder;
+		}
+		if ( 0 === strpos( $file, $mu ) ) {
+			return basename( $file );
+		}
+		$themes = wp_normalize_path( get_theme_root() ) . '/';
+		if ( 0 === strpos( $file, $themes ) ) {
+			$theme = wp_get_theme( strtok( substr( $file, strlen( $themes ) ), '/' ) );
+			return $theme->exists() ? (string) $theme->get( 'Name' ) . ' (theme)' : '';
+		}
+		return '';
 	}
 
 	/** Names and labels of public types or taxonomies, for the dashboard's checkboxes. */
