@@ -53,6 +53,7 @@ class KontrolWP_Connect_SEO_Tools {
 		foreach ( array(
 			'/seo/tools'      => 'report_route',
 			'/seo/tools/save' => 'save_route',
+			'/seo/tools/remove-robots-file' => 'remove_robots_file_route',
 		) as $path => $method ) {
 			register_rest_route(
 				$ns,
@@ -431,6 +432,7 @@ class KontrolWP_Connect_SEO_Tools {
 			'conflict'          => KontrolWP_Connect_SEO::conflict(),
 			'public'            => '0' !== (string) get_option( 'blog_public', '1' ),
 			'robots_file_exists' => file_exists( ABSPATH . 'robots.txt' ),
+			'robots_file_text'  => self::robots_file_text(),
 			'robots_default'    => $default,
 			'llms_auto'         => self::llms_auto(
 				html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' ),
@@ -459,6 +461,46 @@ class KontrolWP_Connect_SEO_Tools {
 	}
 
 	public static function report_route() {
+		return self::report();
+	}
+
+	/** The real robots.txt in the site folder, as far as the dashboard shows it; empty when there is none. */
+	private static function robots_file_text() {
+		$file = ABSPATH . 'robots.txt';
+		if ( ! is_file( $file ) || ! is_readable( $file ) ) {
+			return '';
+		}
+		$text = (string) file_get_contents( $file, false, null, 0, self::MAX_ROBOTS ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		return str_replace( array( "\r\n", "\r" ), "\n", $text );
+	}
+
+	/**
+	 * Delete the real robots.txt so WordPress answers for the address. Its
+	 * rules move into the custom robots.txt first, unless custom rules are
+	 * already set or the file would block the whole site, and a copy is kept
+	 * in an option either way.
+	 */
+	public static function remove_robots_file_route() {
+		$file = ABSPATH . 'robots.txt';
+		if ( ! file_exists( $file ) ) {
+			return self::report();
+		}
+		$text = self::robots_file_text();
+		update_option( 'kontrolwp_connect_robots_file_backup', array( 'text' => $text, 'removed_at' => time() ), false );
+		$texts = self::texts();
+		if ( '' !== trim( $text ) && '' === trim( $texts['robots'] ) && '' === self::robots_error( $text ) ) {
+			$settings                = self::settings();
+			$settings['robots_mode'] = 'custom';
+			update_option( self::OPTION, $settings, true );
+			update_option( self::TEXTS_OPTION, array( 'robots' => $text, 'llms' => $texts['llms'] ), false );
+		}
+		if ( ! @unlink( $file ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
+			return new WP_Error(
+				'kontrolwp_robots_file',
+				'The web server is not allowed to delete robots.txt in the site folder. Delete it with your host\'s file manager or FTP.',
+				array( 'status' => 500 )
+			);
+		}
 		return self::report();
 	}
 

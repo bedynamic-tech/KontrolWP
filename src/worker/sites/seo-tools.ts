@@ -1,5 +1,5 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
-import { compareVersions, SEO_TOOLS_SINCE } from "../../shared/plugin-version.ts";
+import { compareVersions, ROBOTS_FILE_REMOVE_SINCE, SEO_TOOLS_SINCE } from "../../shared/plugin-version.ts";
 import type { SeoFileCheck, SeoTools, SeoToolsSettings, SiteSummary } from "../../shared/types.ts";
 import { cachedRead, clearContentCache } from "../content-cache.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
@@ -82,6 +82,20 @@ export async function saveSeoTools(
   settings: SeoToolsSettings,
 ): Promise<SeoTools> {
   const saved = await call<SeoTools>(requireSupported(site, credentials), "/seo/tools/save", settings);
+  await clearContentCache(env.DB, site.id);
+  return withLiveChecks(saved);
+}
+
+/** Delete the real robots.txt so WordPress answers; the plugin moves its rules into the custom robots.txt first. */
+export async function removeRobotsFile(env: Env, site: SiteSummary, credentials: SiteCredentials | null): Promise<SeoTools> {
+  const creds = requireSupported(site, credentials);
+  if (compareVersions(site.plugin_version ?? "", ROBOTS_FILE_REMOVE_SINCE) < 0) {
+    throw new SeoError(
+      `Removing robots.txt needs KontrolWP Connect ${ROBOTS_FILE_REMOVE_SINCE} or later. It updates automatically; select Sync now to check.`,
+      400,
+    );
+  }
+  const saved = await call<SeoTools>(creds, "/seo/tools/remove-robots-file", {});
   await clearContentCache(env.DB, site.id);
   return withLiveChecks(saved);
 }
