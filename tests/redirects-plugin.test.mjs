@@ -27,6 +27,17 @@ test("a rule keeps only known fields and defaults to a 301", { skip }, () => {
   assert.deepEqual(rule, { source: "/old", match_type: "exact", target: "/new", status_code: 301, enabled: true });
 });
 
+test("an address copied with %XX escapes is decoded, so it matches the request", { skip }, () => {
+  const [rule] = call("clean_rule", { source: "https://example.com/caf%C3%A9%20menu/", target: "/new" });
+  assert.equal(rule.source, "/café menu");
+  // Requests reach the rule decoded.
+  assert.deepEqual(call("match_rule", rule, "/Café Menu/"), ["/new", 301]);
+  const [prefix] = call("clean_rule", { source: "/old%20docs", match_type: "prefix", target: "/docs/$1" });
+  assert.deepEqual(call("match_rule", prefix, "/old docs/a b"), ["/docs/a b", 301]);
+  // A regex pattern is left as written.
+  assert.equal(call("clean_rule", { source: "^/a%20b$", match_type: "regex", target: "/x" })[0].source, "^/a%20b$");
+});
+
 test("rules that cannot work are refused with a reason", { skip }, () => {
   assert.ok(call("clean_rule", { source: "", target: "/x" })[1]);
   assert.ok(call("clean_rule", { source: "/a", target: "" })[1]);
