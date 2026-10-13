@@ -1,8 +1,10 @@
 import { compareVersions, LINK_RECHECK_SINCE, LINK_UNLINK_SINCE } from "../../shared/plugin-version.ts";
-import { clearContentCache } from "../content-cache.ts";
+import { cachedRead, clearContentCache } from "../content-cache.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import type { LinkRef, LinkScan, LinkStatus, LinkUnlinkResult, SiteLink, SiteLinks } from "../../shared/types.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
+import { readSitemap } from "./sitemap.ts";
+import { bareHost, fetchPage, isSitePage, pageId } from "./static-links.ts";
 import { getCredentials } from "./store.ts";
 
 /**
@@ -115,10 +117,18 @@ async function failScan(env: Env, siteId: number, scanId: number, error: string)
 }
 
 /** Read one page of the site's links into the database, then queue the next page or the checks. */
-export async function collectLinks(env: Env, siteId: number, scanId: number, page: number): Promise<void> {
+export async function collectLinks(
+  env: Env,
+  siteId: number,
+  scanId: number,
+  page: number,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
   const scan = await loadScan(env.DB, siteId);
   // A newer scan replaced this one.
   if (!scan || scan.scan_id !== scanId || scan.status !== "collecting") return;
+  const row = await env.DB.prepare("SELECT kind, url FROM sites WHERE id = ?").bind(siteId).first<{ kind: string; url: string }>();
+  if (row?.kind === "static") return collectStaticLinks(env, siteId, row.url, scan, page, fetcher);
   const site = await getCredentials(env, siteId);
   if (!site) return;
 
@@ -139,8 +149,128 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
   }
 
   const items = Array.isArray(listing.items) ? listing.items : [];
+  const read = await storeLinks(env.DB, siteId, scanId, items);
+  const lastPage = page >= (Number(listing.total_pages) || 0);
+  const seen = new Set([...parseIds(scan.posts_seen), ...read]);
+  await env.DB.prepare(
+    "UPDATE link_scans SET posts_scanned = MIN(posts_scanned + ?, ?), posts_seen = ?, updated_at = ? WHERE site_id = ? AND scan_id = ?",
+  )
+    .bind(POSTS_PER_PAGE, Number(listing.total_posts) || 0, JSON.stringify([...seen]), nowSeconds(), siteId, scanId)
+    .run();
+  if (!lastPage) {
+    await env.SYNC_QUEUE.send({ type: "links-collect", siteId, scanId, page: page + 1 });
+    return;
+  }
+  await finishCollecting(env, siteId, scanId, seen, Number(listing.total_posts) || 0);
+}
+
+/** Pages of a static site read per queue message. */
+export const PAGES_PER_COLLECT = 10;
+const PAGE_CONCURRENCY = 5;
+/** Pages read per scan of a static site. */
+export const MAX_STATIC_PAGES = 1000;
+/** The pseudo-posts that hold header and footer links, as on WordPress sites. */
+const HEADER_ID = -1;
+/** Pages of a static site loaded again when one link is checked again. */
+const STATIC_REREAD = 20;
+const FOOTER_ID = -2;
+
+/**
+ * Read the next few pages of a static site. The pages to read are its home
+ * page, the pages in its sitemap, and every page of the site linked from a
+ * page already read, so a site without a sitemap is still covered. Pages
+ * read are kept in `posts_seen` by `pageId`, and the scan moves on to the
+ * checks once none are left.
+ */
+async function collectStaticLinks(
+  env: Env,
+  siteId: number,
+  siteUrl: string,
+  scan: ScanRow,
+  page: number,
+  fetcher: typeof fetch,
+): Promise<void> {
+  const scanId = scan.scan_id;
+  const seen = new Set(parseIds(scan.posts_seen));
+  const sitemap = await cachedRead(env.DB, siteId, "pages", siteUrl, () => readSitemap(siteUrl, fetcher)).catch(() => null);
+  const sitemapUrls = sitemap?.items.map((item) => item.url) ?? [];
+  const pagesRead = () => [...seen].filter((id) => id > 0).length;
+  const unread = async () =>
+    (await staticPagesToRead(env.DB, siteId, scanId, siteUrl, sitemapUrls)).filter((url) => !seen.has(pageId(url)));
+
+  // Pages read here can link to more, so keep going until this message has read its share.
+  let readHere = 0;
+  let left = await unread();
+  while (left.length && readHere < PAGES_PER_COLLECT && pagesRead() < MAX_STATIC_PAGES) {
+    const batch = left.slice(0, Math.min(PAGES_PER_COLLECT - readHere, MAX_STATIC_PAGES - pagesRead()));
+    const pages = await mapLimit(batch, PAGE_CONCURRENCY, (url) => fetchPage(url, siteUrl, fetcher));
+    const area = (id: number, title: string, links: ListedPost["links"]): ListedPost => ({
+      post_id: id,
+      title,
+      type: "area",
+      permalink: siteUrl,
+      // Each address once, however many pages share the header or footer.
+      links: [...new Map(links.map((link) => [`${link.kind} ${link.url}`, link])).values()],
+    });
+    const items: ListedPost[] = [
+      // A page that isn't HTML still counts as read, with no links of its own.
+      ...batch.map((url, i) => ({ post_id: pageId(url), title: pages[i]?.title ?? "", type: "page", permalink: url, links: pages[i]?.links ?? [] })),
+      area(HEADER_ID, "Header", pages.flatMap((read) => read?.header ?? [])),
+      area(FOOTER_ID, "Footer", pages.flatMap((read) => read?.footer ?? [])),
+    ];
+    // The scan's first pages replace the header and footer links; later ones only add to them.
+    const additive = page > 1 || readHere > 0 ? new Set([HEADER_ID, FOOTER_ID]) : undefined;
+    for (const id of await storeLinks(env.DB, siteId, scanId, items, additive)) seen.add(id);
+    readHere += batch.length;
+    left = await unread();
+  }
+
+  const full = pagesRead() >= MAX_STATIC_PAGES;
+  await env.DB.prepare(
+    `UPDATE link_scans SET posts_scanned = ?, posts_seen = ?, updated_at = ?, truncated = MAX(truncated, ?)
+     WHERE site_id = ? AND scan_id = ?`,
+  )
+    .bind(pagesRead(), JSON.stringify([...seen]), nowSeconds(), full && left.length ? 1 : 0, siteId, scanId)
+    .run();
+  if (left.length && !full) {
+    await env.SYNC_QUEUE.send({ type: "links-collect", siteId, scanId, page: page + 1 });
+    return;
+  }
+  await finishCollecting(env, siteId, scanId, seen, pagesRead());
+}
+
+/** The static site's pages to read, home page first, without repeats. */
+async function staticPagesToRead(db: D1Database, siteId: number, scanId: number, siteUrl: string, sitemap: string[]): Promise<string[]> {
+  // Only addresses on the site's host can be pages to read; match them in SQL so other sites' links aren't loaded.
+  const host = bareHost(siteUrl) ?? "";
+  const prefixes = ["https://", "http://", "https://www.", "http://www."].map((scheme) => `${scheme}${host}/%`);
+  const { results } = await db
+    .prepare(
+      `SELECT url FROM site_links WHERE site_id = ? AND scan_id = ? AND (${prefixes.map(() => "url LIKE ?").join(" OR ")})
+       ORDER BY rowid`,
+    )
+    .bind(siteId, scanId, ...prefixes)
+    .all<{ url: string }>();
+  const pages = [siteUrl, ...sitemap, ...results.map((row) => row.url)]
+    .map((url) => cleanUrl(url))
+    .filter((url): url is string => !!url && isSitePage(url, siteUrl));
+  return [...new Set(pages)];
+}
+
+/**
+ * Store where links appear in these posts, and their addresses for this scan.
+ * Posts in `additive` keep the links they already have and only gain new ones.
+ * Returns the ids of the posts read.
+ */
+async function storeLinks(
+  db: D1Database,
+  siteId: number,
+  scanId: number,
+  items: ListedPost[],
+  additive?: Set<number>,
+): Promise<number[]> {
   const statements: D1PreparedStatement[] = [];
-  const known = await env.DB.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND scan_id = ?")
+  const known = await db.prepare("SELECT COUNT(*) AS n FROM site_links WHERE site_id = ? AND scan_id = ?")
     .bind(siteId, scanId)
     .first<{ n: number }>();
   let room = MAX_URLS - (known?.n ?? 0);
@@ -161,7 +291,7 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
         added.add(url);
         room--;
         statements.push(
-          env.DB.prepare(
+          db.prepare(
             `INSERT INTO site_links (site_id, url, scan_id) VALUES (?, ?, ?)
              ON CONFLICT (site_id, url) DO UPDATE SET scan_id = excluded.scan_id`,
           ).bind(siteId, url, scanId),
@@ -170,28 +300,20 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
       refs.get(postId)!.push(refValues(url, post, link));
     }
   }
-  statements.push(...(await refChanges(env.DB, siteId, refs)));
+  statements.push(...(await refChanges(db, siteId, refs, additive)));
   if (dropped) {
-    statements.push(env.DB.prepare("UPDATE link_scans SET truncated = 1 WHERE site_id = ? AND scan_id = ?").bind(siteId, scanId));
+    statements.push(db.prepare("UPDATE link_scans SET truncated = 1 WHERE site_id = ? AND scan_id = ?").bind(siteId, scanId));
   }
-  for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100));
+  for (let i = 0; i < statements.length; i += 100) await db.batch(statements.slice(i, i + 100));
+  return [...refs.keys()];
+}
 
-  const lastPage = page >= (Number(listing.total_pages) || 0);
-  const now = nowSeconds();
-  const seen = new Set([...parseIds(scan.posts_seen), ...refs.keys()]);
-  await env.DB.prepare(
-    "UPDATE link_scans SET posts_scanned = MIN(posts_scanned + ?, ?), posts_seen = ?, updated_at = ? WHERE site_id = ? AND scan_id = ?",
-  )
-    .bind(POSTS_PER_PAGE, Number(listing.total_posts) || 0, JSON.stringify([...seen]), now, siteId, scanId)
-    .run();
-  if (!lastPage) {
-    await env.SYNC_QUEUE.send({ type: "links-collect", siteId, scanId, page: page + 1 });
-    return;
-  }
-
-  // Every page is in: forget where links appeared in posts no longer listed,
-  // drop links no longer in the content, then check the rest (ignored links
-  // stay listed but are never checked again).
+/**
+ * Every post is in: forget where links appeared in posts no longer listed,
+ * drop links no longer in the content, then check the rest (ignored links
+ * stay listed but are never checked again).
+ */
+async function finishCollecting(env: Env, siteId: number, scanId: number, seen: Set<number>, postsScanned: number): Promise<void> {
   const { results: listed } = await env.DB.prepare("SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ?")
     .bind(siteId)
     .all<{ post_id: number }>();
@@ -207,11 +329,12 @@ export async function collectLinks(env: Env, siteId: number, scanId: number, pag
     .bind(siteId)
     .first<{ n: number }>();
   const totalUrls = total?.n ?? 0;
+  const now = nowSeconds();
   await env.DB.prepare(
     `UPDATE link_scans SET status = ?, posts_scanned = ?, total_urls = ?, updated_at = ?, finished_at = ?
      WHERE site_id = ? AND scan_id = ?`,
   )
-    .bind(totalUrls ? "checking" : "done", Number(listing.total_posts) || 0, totalUrls, now, totalUrls ? null : now, siteId, scanId)
+    .bind(totalUrls ? "checking" : "done", postsScanned, totalUrls, now, totalUrls ? null : now, siteId, scanId)
     .run();
   if (totalUrls) await env.SYNC_QUEUE.send({ type: "links-check", siteId, scanId });
 }
@@ -407,7 +530,7 @@ export async function recheckLink(env: Env, siteId: number, url: string, fetcher
   if (!row) return false;
   // Ignored links are never checked again.
   if (row.ignored) return true;
-  if (!(await stillLinked(env, siteId, url))) return true;
+  if (!(await stillLinked(env, siteId, url, fetcher))) return true;
   const check = await checkUrl(url, fetcher);
   await env.DB.prepare("UPDATE site_links SET status = ?, http_status = ?, error = ?, checked_at = ? WHERE site_id = ? AND url = ?")
     .bind(check.status, check.http_status, check.error, nowSeconds(), siteId, url)
@@ -421,25 +544,37 @@ export async function recheckLink(env: Env, siteId: number, url: string, fetcher
  * one is still in any. Sites before 0.9.2 can't list chosen posts, so the
  * answer there is always yes, as is any failure to reach the site.
  */
-async function stillLinked(env: Env, siteId: number, url: string): Promise<boolean> {
-  const version = await env.DB.prepare("SELECT plugin_version FROM sites WHERE id = ?")
+async function stillLinked(env: Env, siteId: number, url: string, fetcher: typeof fetch): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT kind, url, plugin_version FROM sites WHERE id = ?")
     .bind(siteId)
-    .first<{ plugin_version: string | null }>();
-  if (!version?.plugin_version || compareVersions(version.plugin_version, LINK_RECHECK_SINCE) < 0) return true;
+    .first<{ kind: string; url: string; plugin_version: string | null }>();
+  if (!row) return true;
+  const isStatic = row.kind === "static";
+  if (!isStatic && (!row.plugin_version || compareVersions(row.plugin_version, LINK_RECHECK_SINCE) < 0)) return true;
   const { results } = await env.DB.prepare(
-    "SELECT DISTINCT post_id FROM site_link_refs WHERE site_id = ? AND url = ? ORDER BY post_id LIMIT 50",
+    "SELECT DISTINCT post_id, permalink FROM site_link_refs WHERE site_id = ? AND url = ? AND post_id > 0 ORDER BY post_id LIMIT ?",
   )
-    .bind(siteId, url)
-    .all<{ post_id: number }>();
-  const postIds = results.map((row) => row.post_id).filter((id) => id > 0);
-  if (!postIds.length) return true;
-  const site = await getCredentials(env, siteId);
-  if (!site) return true;
-  try {
-    await rereadPosts(env, site, postIds);
-  } catch (error) {
-    if (error instanceof SiteRequestError) return true;
-    throw error;
+    .bind(siteId, url, isStatic ? STATIC_REREAD : 50)
+    .all<{ post_id: number; permalink: string }>();
+  if (!results.length) return true;
+  if (isStatic) {
+    // Load the pages again; one that can't be read keeps what was found on it.
+    const pages = await mapLimit(results, PAGE_CONCURRENCY, (ref) => fetchPage(ref.permalink, row.url, fetcher));
+    const items = results.flatMap((ref, i): ListedPost[] => {
+      const page = pages[i];
+      return page ? [{ post_id: ref.post_id, title: page.title, type: "page", permalink: ref.permalink, links: page.links }] : [];
+    });
+    if (!items.length) return true;
+    await replaceRefs(env, siteId, items.map((item) => item.post_id), items);
+  } else {
+    const site = await getCredentials(env, siteId);
+    if (!site) return true;
+    try {
+      await rereadPosts(env, site, results.map((ref) => ref.post_id));
+    } catch (error) {
+      if (error instanceof SiteRequestError) return true;
+      throw error;
+    }
   }
 
   const still = await env.DB.prepare("SELECT 1 AS found FROM site_links WHERE site_id = ? AND url = ?")
@@ -450,9 +585,12 @@ async function stillLinked(env: Env, siteId: number, url: string): Promise<boole
 
 /** Ask the site for these posts again (up to 50: D1 binds at most 100 values per statement) and replace where their links appear. */
 async function rereadPosts(env: Env, site: SiteCredentials, postIds: number[]): Promise<void> {
-  const siteId = site.id;
   const listing = await callSite<LinksPage>(site, "POST", `${REST_NAMESPACE}/links`, { post_ids: postIds, per_page: 100 });
+  await replaceRefs(env, site.id, postIds, Array.isArray(listing.items) ? listing.items : []);
+}
 
+/** Replace where links appear in these posts with what was just read from them. */
+async function replaceRefs(env: Env, siteId: number, postIds: number[], items: ListedPost[]): Promise<void> {
   const inPosts = `site_id = ? AND post_id IN (${postIds.map(() => "?").join(", ")})`;
   const { results: before } = await env.DB.prepare(`SELECT DISTINCT url FROM site_link_refs WHERE ${inPosts}`)
     .bind(siteId, ...postIds)
@@ -460,7 +598,7 @@ async function rereadPosts(env: Env, site: SiteCredentials, postIds: number[]): 
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(`DELETE FROM site_link_refs WHERE ${inPosts}`).bind(siteId, ...postIds),
   ];
-  for (const post of Array.isArray(listing.items) ? listing.items : []) {
+  for (const post of items) {
     // Only the posts asked about; anything else is not ours to replace.
     if (!postIds.includes(Number(post.post_id))) continue;
     for (const link of Array.isArray(post.links) ? post.links : []) {
@@ -516,8 +654,14 @@ const parseIds = (text: string | null | undefined): number[] => {
 /**
  * Rewrite where links appear only for the posts whose links changed since
  * the last scan; most posts are unchanged, and D1 counts every row written.
+ * Posts in `additive` only gain the rows they don't have yet.
  */
-async function refChanges(db: D1Database, siteId: number, refs: Map<number, unknown[][]>): Promise<D1PreparedStatement[]> {
+async function refChanges(
+  db: D1Database,
+  siteId: number,
+  refs: Map<number, unknown[][]>,
+  additive?: Set<number>,
+): Promise<D1PreparedStatement[]> {
   const ids = [...refs.keys()];
   if (!ids.length) return [];
   const stored = new Map<number, string[]>();
@@ -537,6 +681,16 @@ async function refChanges(db: D1Database, siteId: number, refs: Map<number, unkn
   }
   const statements: D1PreparedStatement[] = [];
   for (const [postId, rows] of refs) {
+    if (additive?.has(postId)) {
+      const have = new Set(stored.get(postId));
+      for (const values of rows) {
+        const key = JSON.stringify(values);
+        if (have.has(key)) continue;
+        have.add(key);
+        statements.push(insertRef(db, siteId, values));
+      }
+      continue;
+    }
     const fresh = rows.map((values) => JSON.stringify(values)).sort();
     const old = (stored.get(postId) ?? []).sort();
     if (fresh.length === old.length && fresh.every((row, i) => row === old[i])) continue;

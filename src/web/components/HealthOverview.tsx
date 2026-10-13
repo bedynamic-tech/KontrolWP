@@ -438,7 +438,6 @@ export function HealthOverview(props: {
   const { site, onOpen } = props;
   const wordpress = site.kind !== "static";
   const links =
-    wordpress &&
     !site.links_excluded &&
     (!site.plugin_version ||
       compareVersions(site.plugin_version, LINK_CHECK_SINCE) >= 0);
