@@ -3,17 +3,26 @@ import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { compareVersions, SEO_TOOLS_SINCE } from "../../shared/plugin-version";
+import { compareVersions, ROBOTS_FILE_REMOVE_SINCE, SEO_TOOLS_SINCE } from "../../shared/plugin-version";
 import {
   MAX_LLMS_TEXT,
   MAX_ROBOTS_TEXT,
+  type SeoTools,
   type SeoToolsSettings,
   type SeoVerifyService,
   type SiteSummary,
 } from "../../shared/types";
-import { fetchSeoTools, saveSeoTools } from "../api";
+import { fetchSeoTools, removeRobotsFile, saveSeoTools } from "../api";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
@@ -45,6 +54,66 @@ export function Warning(props: { children: ReactNode }) {
     <div className="flex items-start gap-3 border-t border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
       <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
       <p>{props.children}</p>
+    </div>
+  );
+}
+
+/** The real robots.txt in the site folder hides these settings; offer to remove it, keeping its rules. */
+function RobotsFileWarning(props: { site: SiteSummary; data: SeoTools; onRemoved: (data: SeoTools) => void }) {
+  const { site, data } = props;
+  const [confirming, setConfirming] = useState(false);
+  const canRemove = !!site.plugin_version && compareVersions(site.plugin_version, ROBOTS_FILE_REMOVE_SINCE) >= 0;
+  const remove = useMutation({
+    mutationFn: () => removeRobotsFile(site.id),
+    onSuccess: (next) => {
+      setConfirming(false);
+      props.onRemoved(next);
+    },
+  });
+  const fileText = data.robots_file_text ?? "";
+  const keepsRules = fileText.trim() !== "" && !(data.settings.robots_mode === "custom" && data.settings.robots_text.trim());
+  return (
+    <div className="flex flex-col gap-3 border-t border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 sm:flex-row sm:items-start dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-200">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+        <p className="wrap-break-word">
+          A real robots.txt file is in the site's folder, so the web server shows that and WordPress never gets to
+          answer. Remove the file for these rules to apply.
+          {!canRemove && ` Removing it from here needs KontrolWP Connect ${ROBOTS_FILE_REMOVE_SINCE} or later.`}
+        </p>
+      </div>
+      {canRemove && (
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setConfirming(true)}>
+          Remove file
+        </Button>
+      )}
+      {confirming && (
+        <Dialog open onOpenChange={(open) => !open && !remove.isPending && setConfirming(false)}>
+          <DialogContent className="sm:max-w-lg [&>*]:min-w-0">
+            <DialogHeader>
+              <DialogTitle>Remove robots.txt from the site folder?</DialogTitle>
+              <DialogDescription>
+                {keepsRules
+                  ? "Its rules move into the custom robots.txt here, so crawlers see the same rules, and WordPress adds your sitemap to them. You can change them afterwards."
+                  : "WordPress then answers for robots.txt with the rules set here. A copy of the file is kept in the site's settings."}
+              </DialogDescription>
+            </DialogHeader>
+            {fileText.trim() && (
+              <pre className="max-h-48 overflow-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">{fileText}</pre>
+            )}
+            {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirming(false)} disabled={remove.isPending}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                {remove.isPending && <Spinner className="size-4" />}
+                Remove file
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -222,10 +291,11 @@ export function ToolsTab(props: { site: SiteSummary }) {
           </div>
         )}
         {data.robots_file_exists && (
-          <Warning>
-            A real robots.txt file is in the site's folder, so the web server shows that and WordPress never gets to
-            answer. Remove the file for these rules to apply.
-          </Warning>
+          <RobotsFileWarning
+            site={site}
+            data={data}
+            onRemoved={(next) => queryClient.setQueryData(["site", site.id, "seo", "tools"], next)}
+          />
         )}
         {!data.public && (
           <Warning>

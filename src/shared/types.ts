@@ -1098,6 +1098,8 @@ export interface SeoTools {
   public: boolean;
   /** A real robots.txt file sits in the site folder, so WordPress never gets to answer. */
   robots_file_exists: boolean;
+  /** What that file says; a plugin before 0.38.0 sends none. */
+  robots_file_text?: string;
   robots_default: string;
   llms_auto: string;
   urls: { robots: string; llms: string };

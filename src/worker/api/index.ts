@@ -145,7 +145,7 @@ import {
   setRedirectSettings,
 } from "../sites/redirects.ts";
 import { saveSeoContent, siteSeoContent } from "../sites/seo-content.ts";
-import { saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
+import { removeRobotsFile, saveSeoTools, siteSeoTools } from "../sites/seo-tools.ts";
 import { saveSnippets, siteSnippets } from "../sites/snippets.ts";
 import { cleanDatabase, siteDatabase } from "../sites/database.ts";
 import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
@@ -1482,6 +1482,11 @@ const seoToolsBody = z.object({
   llms_text: z.string().max(MAX_LLMS_TEXT),
   indexnow: z.boolean(),
 });
+
+/** Delete the site's real robots.txt file, keeping its rules as the custom robots.txt. */
+api.post("/sites/:id/seo/tools/remove-robots-file", async (c) =>
+  redirectsCall(c, (site, credentials) => removeRobotsFile(c.env, site, credentials)),
+);
 
 api.put("/sites/:id/seo/tools", async (c) => {
   const parsed = seoToolsBody.safeParse(await c.req.json().catch(() => null));

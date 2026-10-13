@@ -493,6 +493,8 @@ export const fetchSnippets = (siteId: number) => request<Snippets>(`/sites/${sit
 export const saveSnippets = (siteId: number, settings: SnippetsSettings) =>
   request<Snippets>(`/sites/${siteId}/snippets`, { method: "PUT", json: settings });
 export const fetchSeoTools = (siteId: number) => request<SeoTools>(`/sites/${siteId}/seo/tools`);
+export const removeRobotsFile = (siteId: number) =>
+  request<SeoTools>(`/sites/${siteId}/seo/tools/remove-robots-file`, { method: "POST" });
 export const saveSeoTools = (siteId: number, settings: SeoToolsSettings) =>
   request<SeoTools>(`/sites/${siteId}/seo/tools`, { method: "PUT", json: settings });
 export const fetchSeoContent = (siteId: number) => request<SeoContent>(`/sites/${siteId}/seo/content`);
