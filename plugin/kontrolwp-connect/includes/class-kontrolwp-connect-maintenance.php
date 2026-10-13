@@ -215,7 +215,7 @@ class KontrolWP_Connect_Maintenance {
 	}
 
 	/** Empties the common page caches, so visitors get the change instead of a stored copy. */
-	private static function flush_caches() {
+	public static function flush_caches() {
 		if ( function_exists( 'wp_cache_clear_cache' ) ) {
 			wp_cache_clear_cache(); // WP Super Cache.
 		}

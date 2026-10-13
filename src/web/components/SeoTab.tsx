@@ -97,7 +97,7 @@ function SitemapStatus(props: { check: SeoSitemapCheck; discouraged: boolean }) 
         "Another plugin or the theme has turned WordPress's sitemap off, so it shows page not found. Look for a plugin with its own sitemap option.";
     }
   } else if (check.status >= 400) {
-    problem = `The sitemap is on, but the site answered ${check.status} when it was opened. In WordPress, go to Settings, Permalinks and select Save Changes to rebuild its address rules. If that does not help, the web server, a security plugin or a cache is stopping the address before WordPress sees it.`;
+    problem = `The sitemap is on, but the site answered ${check.status} when it was opened. KontrolWP already rebuilt WordPress's address rules and emptied the page cache it knows about. Empty any other cache (the host's or Cloudflare's), then check the web server or a security plugin, which may be stopping the address before WordPress sees it.`;
   }
   return (
     <div className="space-y-1 px-4 py-3 text-sm">

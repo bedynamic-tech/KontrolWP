@@ -222,3 +222,13 @@ test("the placeholder tagline is not used, and later pages get a page number", {
   assert.equal(call("with_page_number", "Blog | Shop", "|", 1, "Page %s"), "Blog | Shop");
   assert.equal(call("with_page_number", "Blog | Shop", "|", 3, "Page %s"), "Blog | Shop | Page 3");
 });
+
+test("the sitemap rule counts only when WordPress would match it first", { skip }, () => {
+  const sitemap = { "^wp-sitemap\\.xml$": "index.php?sitemap=index", "(.?.+?)(?:/([0-9]+))?/?$": "index.php?pagename=$matches[1]" };
+  assert.equal(call("sitemap_rule_first", sitemap), true);
+  assert.equal(call("sitemap_rule_first", { "(.?.+?)(?:/([0-9]+))?/?$": "index.php?pagename=$matches[1]" }), false);
+  assert.equal(
+    call("sitemap_rule_first", { "(.?.+?)(?:/([0-9]+))?/?$": "index.php?pagename=$matches[1]", "^wp-sitemap\\.xml$": "index.php?sitemap=index" }),
+    false,
+  );
+});

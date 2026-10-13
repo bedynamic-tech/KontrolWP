@@ -631,11 +631,23 @@ class KontrolWP_Connect_SEO {
 			return;
 		}
 		$rules = get_option( 'rewrite_rules' );
-		if ( ! is_array( $rules ) || isset( $rules['^wp-sitemap\\.xml$'] ) || get_transient( 'kontrolwp_connect_sitemap_rules' ) ) {
+		if ( ! is_array( $rules ) || self::sitemap_rule_first( $rules ) || get_transient( 'kontrolwp_connect_sitemap_rules' ) ) {
 			return;
 		}
 		set_transient( 'kontrolwp_connect_sitemap_rules', 1, HOUR_IN_SECONDS );
 		flush_rewrite_rules( false );
+		// A page cache may have kept the page-not-found answer from before.
+		KontrolWP_Connect_Maintenance::flush_caches();
+	}
+
+	/** Whether WordPress, matching its rules in order as it does for a request, sends /wp-sitemap.xml to the sitemap. */
+	public static function sitemap_rule_first( $rules ) {
+		foreach ( $rules as $match => $query ) {
+			if ( @preg_match( '#^' . $match . '#', 'wp-sitemap.xml' ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+				return false !== strpos( (string) $query, 'sitemap=index' );
+			}
+		}
+		return false;
 	}
 
 	/* ---- Front end ---- */
@@ -905,7 +917,20 @@ class KontrolWP_Connect_SEO {
 			$out['blocked_by'] = self::sitemap_blocker();
 			return $out;
 		}
-		// The same request a search engine makes, from the site to itself, as Site Health does.
+		$out['status'] = self::sitemap_status( $url );
+		// Still page not found: rebuild the rules and empty the page cache, once an hour at most, and look again.
+		if ( 404 === $out['status'] && ! get_transient( 'kontrolwp_connect_sitemap_cache' ) ) {
+			// What saving Settings, Permalinks and then emptying the cache does by hand.
+			set_transient( 'kontrolwp_connect_sitemap_cache', 1, HOUR_IN_SECONDS );
+			flush_rewrite_rules( false );
+			KontrolWP_Connect_Maintenance::flush_caches();
+			$out['status'] = self::sitemap_status( $url );
+		}
+		return $out;
+	}
+
+	/** What the site answers for its sitemap: the same request a search engine makes, from the site to itself, as Site Health does. */
+	private static function sitemap_status( $url ) {
 		$response = wp_remote_get(
 			$url,
 			array(
@@ -915,10 +940,7 @@ class KontrolWP_Connect_SEO {
 				'headers'     => array( 'Cache-Control' => 'no-cache' ),
 			)
 		);
-		if ( ! is_wp_error( $response ) ) {
-			$out['status'] = (int) wp_remote_retrieve_response_code( $response );
-		}
-		return $out;
+		return is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
 	}
 
 	/** The name of the plugin or theme that hooked wp_sitemaps_enabled, other than this one; empty when none can be named. */
