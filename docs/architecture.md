@@ -135,7 +135,11 @@ the plugins and themes the run updated are reverted through `enqueueRollback`,
 which also holds those versions back from the next run; WordPress core is never
 reverted. When the page passes, the Previous versions the site kept of the
 run's plugins and themes are deleted there (`/updates/rollback/clear`, KontrolWP
-Connect 0.41.0+) and dropped from `site_rollbacks`. The outcome (passed, reverted, broken with nothing to revert, or
+Connect 0.41.0+) and dropped from `site_rollbacks`. Any other kept copy (an update
+run by hand, a run that was not checked) goes the same way at the end of the
+next sync whose plain request for the home page answers below 400 without
+WordPress's critical error (`clearHealthyCopies`), unless a check is pending or
+an update or revert is queued. The outcome (passed, reverted, broken with nothing to revert, or
 skipped when the page was already broken or no browser started) is noted on the
 run. A browser that cannot start never holds up the updates, and updates queued
 by hand are not checked.

@@ -17,6 +17,7 @@ import { clearContentCache } from "../content-cache.ts";
 import { siteRowChanges } from "../db/site-rows.ts";
 import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
+import { clearHealthyCopies } from "./update-check.ts";
 import { loadLinkScanSettings, localTime } from "./link-schedule.ts";
 
 /** Wait before the second try at an unreachable site. */
@@ -215,6 +216,8 @@ async function runSync(
   // KontrolWP Connect's own update comes from this dashboard and runs by itself,
   // even on a site excluded from update checks.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
+  // Kept previous versions are deleted once the site is seen working after its updates.
+  await clearHealthyCopies(env, siteId, site.url);
   return { ok: true };
 }
 

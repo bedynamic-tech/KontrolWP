@@ -14,8 +14,9 @@ import { enqueueRollback, RollbackError } from "./updates.ts";
  * holds those versions back from the next scheduled run). The result is noted
  * on the scheduled run. When the page looks fine, the previous versions the
  * site kept of those plugins and themes are deleted, since nothing needs
- * reverting. Updates queued by hand are not checked, and their copies stay
- * until they expire on the site (30 days) or the owner reverts.
+ * reverting. Any other kept copy (an update run by hand, or one from before
+ * this check) is deleted by the next sync that finds the home page working
+ * (clearHealthyCopies).
  */
 
 /** Screenshots are compared in squares of this many pixels... */
@@ -28,6 +29,9 @@ export const THRESHOLD = 0.3;
 const AFTER_DELAY_SECONDS = 20;
 /** Added to the address so page caches serve what WordPress renders now. */
 const CACHE_BUSTER = "kontrolwp_check";
+/** WordPress's page for a fatal error, which it serves with HTTP 500 or, behind some caches, 200. */
+const CRITICAL_ERROR = /There has been a critical error on this website/i;
+const HOME_TIMEOUT_MS = 15_000;
 
 export class UpdateCheckError extends Error {}
 
@@ -271,4 +275,37 @@ async function clearKeptCopies(env: Env, siteId: number, items: { kind: "plugin"
     ),
   );
   return true;
+}
+
+/**
+ * After a sync: when the site kept previous versions and its home page works,
+ * nothing they could fix is broken, so delete them. Skipped while a scheduled
+ * run's check is pending (that check decides, and reverts when the page broke)
+ * and while an update or revert is queued or running.
+ */
+export async function clearHealthyCopies(env: Env, siteId: number, siteUrl: string, time = now()): Promise<boolean> {
+  const { results: kept } = await env.DB.prepare(
+    `SELECT r.kind, r.slug FROM site_rollbacks r WHERE r.site_id = ?
+       AND NOT EXISTS (SELECT 1 FROM update_checks c WHERE c.site_id = r.site_id)
+       AND NOT EXISTS (SELECT 1 FROM update_jobs j WHERE j.site_id = r.site_id AND j.status IN ('queued', 'running'))`,
+  )
+    .bind(siteId)
+    .all<{ kind: "plugin" | "theme"; slug: string }>();
+  if (!kept.length || !(await homeWorks(siteUrl, time))) return false;
+  return clearKeptCopies(env, siteId, kept);
+}
+
+/** The home page answers below HTTP 400 without WordPress's critical error. */
+async function homeWorks(siteUrl: string, time: number): Promise<boolean> {
+  try {
+    const response = await fetch(homeUrl(siteUrl, time), {
+      redirect: "follow",
+      headers: { "Cache-Control": "no-cache" },
+      signal: AbortSignal.timeout(HOME_TIMEOUT_MS),
+    });
+    if (response.status >= 400) return false;
+    return !CRITICAL_ERROR.test(await response.text());
+  } catch {
+    return false;
+  }
 }
