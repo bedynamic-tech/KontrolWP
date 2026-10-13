@@ -17,7 +17,7 @@ class KontrolWP_Connect_Redirects {
 
 	const DB_OPTION    = 'kontrolwp_connect_redirects_db';
 	const STATE_OPTION = 'kontrolwp_connect_redirects_state';
-	const DB_VERSION   = '2';
+	const DB_VERSION   = '3';
 
 	/** Statuses a rule can answer with. 410 and 451 have no target. */
 	const CODES = array( 301, 302, 307, 308, 410, 451 );
@@ -67,6 +67,15 @@ class KontrolWP_Connect_Redirects {
 		$value = '/' . ltrim( (string) $value, '/' );
 		$value = preg_replace( '#/{2,}#', '/', $value );
 		return strlen( $value ) > 1 ? rtrim( $value, '/' ) : '/';
+	}
+
+	/**
+	 * A rule's From address as the path visitors request. Requests are matched
+	 * decoded, so an address copied with %XX escapes (a space, an accent) is
+	 * decoded too, or it would never match.
+	 */
+	public static function from_path( $value ) {
+		return self::normalize_path( rawurldecode( self::normalize_path( $value ) ) );
 	}
 
 	/** The lower case form used to look an exact rule up. */
@@ -130,7 +139,7 @@ class KontrolWP_Connect_Redirects {
 				return array( null, 'That pattern is not a valid regular expression, or it is longer than 200 characters.' );
 			}
 		} else {
-			$source = self::normalize_path( $raw );
+			$source = self::from_path( $raw );
 			if ( strlen( $source ) > 400 ) {
 				return array( null, 'That address is too long.' );
 			}
@@ -222,7 +231,8 @@ class KontrolWP_Connect_Redirects {
 	/** Create or update the tables when this plugin version needs it. */
 	public static function install() {
 		global $wpdb;
-		if ( self::DB_VERSION === get_option( self::DB_OPTION ) ) {
+		$installed = get_option( self::DB_OPTION );
+		if ( self::DB_VERSION === $installed ) {
 			return;
 		}
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -255,7 +265,24 @@ class KontrolWP_Connect_Redirects {
 				KEY last_seen (last_seen)
 			) $charset;"
 		);
+		if ( $installed && version_compare( $installed, '3', '<' ) ) {
+			self::decode_sources();
+		}
 		update_option( self::DB_OPTION, self::DB_VERSION, true );
+	}
+
+	/** Rules saved before 0.42.0 kept %XX escapes in their From address and never matched; decode them. */
+	private static function decode_sources() {
+		global $wpdb;
+		$rows = $wpdb->get_results( 'SELECT id, source, match_type FROM ' . self::table() . " WHERE match_type <> 'regex' AND INSTR(source, '%') > 0", ARRAY_A ); // phpcs:ignore WordPress.DB
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$source = self::from_path( $row['source'] );
+			$key    = self::key( $source );
+			$clash  = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::table() . ' WHERE match_type = %s AND source_key = %s AND id <> %d LIMIT 1', $row['match_type'], $key, (int) $row['id'] ) ); // phpcs:ignore WordPress.DB
+			if ( ! $clash ) {
+				$wpdb->update( self::table(), array( 'source' => $source, 'source_key' => $key ), array( 'id' => (int) $row['id'] ) ); // phpcs:ignore WordPress.DB
+			}
+		}
 	}
 
 	/** Cheap facts read on every request: how many rules there are, and whether 404s are logged. */
@@ -296,6 +323,8 @@ class KontrolWP_Connect_Redirects {
 	public static function boot() {
 		$state = self::state();
 		if ( $state['rules'] > 0 ) {
+			// Brings rules saved by an older version up to date (a cheap option read once it has).
+			self::install();
 			add_action( 'template_redirect', array( __CLASS__, 'handle' ), 1 );
 		}
 		if ( $state['log_404'] ) {
@@ -784,6 +813,8 @@ class KontrolWP_Connect_Redirects {
 			}
 		}
 		self::refresh_state();
+		// A page cache may still hold the old address's "not found" page.
+		KontrolWP_Connect_Maintenance::flush_caches();
 		return array( 'ok' => true );
 	}
 
@@ -810,6 +841,8 @@ class KontrolWP_Connect_Redirects {
 			}
 		}
 		self::refresh_state();
+		// A page cache may still hold the old address's "not found" page.
+		KontrolWP_Connect_Maintenance::flush_caches();
 		return array( 'ok' => true );
 	}
 
@@ -850,6 +883,8 @@ class KontrolWP_Connect_Redirects {
 			}
 		}
 		self::refresh_state();
+		// A page cache may still hold the old address's "not found" page.
+		KontrolWP_Connect_Maintenance::flush_caches();
 		return array(
 			'added'   => $added,
 			'skipped' => $skipped,

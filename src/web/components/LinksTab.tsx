@@ -63,14 +63,21 @@ function supported(site: SiteSummary): boolean {
 const removable = (link: SiteLink) =>
   !link.ignored && link.status !== "blocked" && link.refs.some((ref) => ref.kind === "link" && ref.post_id > 0);
 
-/** The site-relative address of a broken link on this site, or null for other sites' links, which cannot be redirected. */
+/**
+ * The path a broken link on this site requests, as a redirect's From address:
+ * decoded (redirects match the decoded path, so %20 would never match), without
+ * the query (redirects ignore it) and without the folder of a site in a
+ * sub-folder. Null for other sites' links and the home page, which cannot be redirected.
+ */
 function sitePath(site: SiteSummary, url: string): string | null {
   try {
     const link = new URL(url);
     const home = new URL(site.url);
     const bare = (host: string) => host.replace(/^www\./, "");
     if (bare(link.hostname) !== bare(home.hostname)) return null;
-    const path = link.pathname + link.search;
+    let path = decodeURIComponent(link.pathname).replace(/\/+$/, "") || "/";
+    const base = decodeURIComponent(home.pathname).replace(/\/+$/, "");
+    if (base && (path === base || path.startsWith(`${base}/`))) path = path.slice(base.length) || "/";
     return path === "/" ? null : path;
   } catch {
     return null;
