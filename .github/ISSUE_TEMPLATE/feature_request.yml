@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest something KontrolWP could do, or do better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like KontrolWP to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
+      description: The problem it solves, or how you handle it today.
+  - type: input
+    id: version
+    attributes:
+      label: KontrolWP version
+      description: Filled in when you open this from the dashboard's Send feedback menu.
