@@ -9,7 +9,6 @@ import {
   pagespeedFailure,
   parsePagespeed,
   resetFieldsCheck,
-  runScheduledPerformance,
   savePagespeedKey,
   sitePerformance,
   testSite,
@@ -249,25 +248,6 @@ test("a connected Google account signs the test when no key is saved", async () 
     [null, "Bearer tok"],
     [null, null],
   ]);
-});
-
-test("weekly tests need a saved key, skip switched off sites and take the oldest first", async () => {
-  resetFieldsCheck();
-  const env = setup();
-  const tested = [];
-  const fetcher = async (url) => {
-    tested.push(new URL(url).searchParams.get("url"));
-    return Response.json(answer());
-  };
-  assert.equal(await runScheduledPerformance(env, 10_000_000, fetcher), 0);
-
-  await savePagespeedKey(env, "secret-key");
-  env.DB.sqlite.exec("UPDATE sites SET performance_excluded = 1 WHERE id = 1");
-  assert.equal(await runScheduledPerformance(env, 10_000_000, fetcher), 1);
-  assert.deepEqual(tested, ["https://b.test/", "https://b.test/"]);
-  // Tested this week already.
-  assert.equal(await runScheduledPerformance(env, 10_000_100, fetcher), 0);
-  assert.equal((await sitePerformance(env, { id: 2 })).key_configured, true);
 });
 
 test("scores and measurements are banded the way Lighthouse colours them", () => {

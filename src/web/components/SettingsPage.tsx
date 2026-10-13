@@ -8,10 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LINK_SCAN_INTERVALS,
-  SYNC_INTERVALS,
   type GoogleSettings,
   type LinkScanInterval,
-  type SyncInterval,
   type UmamiMode,
 } from "../../shared/types";
 import {
@@ -31,10 +29,8 @@ import {
   fetchCloudflareSettings,
   saveCloudflareSettings,
   fetchLinkScanSettings,
-  fetchSyncSettings,
   fetchUmamiSettings,
   saveLinkScanSettings,
-  saveSyncSettings,
   saveUmamiSettings,
 } from "../api";
 import { CopyField } from "./CopyField";
@@ -104,53 +100,57 @@ export function SettingsPage() {
   );
 }
 
-const SYNC_LABELS: Record<SyncInterval, string> = {
-  15: "Every 15 minutes",
-  30: "Every 30 minutes",
-  60: "Every hour",
-  180: "Every 3 hours",
-  360: "Every 6 hours",
-};
-
+/** Sites sync every night and when the dashboard opens; this sets where midnight is, for link checks too. */
 function SyncSettingsSection() {
   const queryClient = useQueryClient();
-  const sync = useQuery({ queryKey: ["settings", "sync"], queryFn: fetchSyncSettings, refetchInterval: false });
-  const save = useMutation({
-    mutationFn: saveSyncSettings,
-    onMutate: (next) => queryClient.setQueryData(["settings", "sync"], next),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings", "sync"] }),
+  const settings = useQuery({
+    queryKey: ["settings", "links"],
+    queryFn: fetchLinkScanSettings,
+    refetchInterval: false,
   });
+  const save = useMutation({
+    mutationFn: saveLinkScanSettings,
+    onSuccess: (data) => queryClient.setQueryData(["settings", "links"], data),
+  });
+  const zone = settings.data?.time_zone ?? browserTimeZone();
   return (
     <Section
       title="Background sync"
       action={save.isPending ? <Spinner className="size-4 text-muted-foreground" label="Saving" /> : undefined}
     >
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <span>
+      <div className="divide-y">
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-center gap-1.5 text-sm font-medium">
             Check every site
             <HelpTip>
-              Updates, plugins, users and comments are refreshed on this schedule. Sync now on a site refreshes it at
-              once.
+              Updates, plugins, users and comments are refreshed every day at midnight and each time you open
+              KontrolWP. Sync now on a site refreshes it at once.
             </HelpTip>
           </span>
-        </span>
-        <select
-          aria-label="Background sync interval"
-          className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-          value={sync.data?.interval_minutes ?? 60}
-          disabled={sync.isPending}
-          onChange={(e) => save.mutate({ interval_minutes: Number(e.target.value) as SyncInterval })}
-        >
-          {SYNC_INTERVALS.map((minutes) => (
-            <option key={minutes} value={minutes}>
-              {SYNC_LABELS[minutes]}
-            </option>
-          ))}
-        </select>
+          <span className="text-sm text-muted-foreground">Every day at midnight</span>
+        </div>
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            Time zone
+            <HelpTip>Where midnight is, for background sync and link checks. Set from this browser at first.</HelpTip>
+          </span>
+          <select
+            aria-label="Time zone"
+            className={SELECT_CLASS}
+            value={zone}
+            disabled={settings.isPending || save.isPending}
+            onChange={(e) => save.mutate({ time_zone: e.target.value })}
+          >
+            {timeZones(zone).map((name) => (
+              <option key={name} value={name}>
+                {name.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      {(sync.error || save.error) && (
-        <p className="px-4 pb-3 text-sm text-destructive">{(sync.error ?? save.error)!.message}</p>
+      {(settings.error || save.error) && (
+        <p className="px-4 pb-3 text-sm text-destructive">{(settings.error ?? save.error)!.message}</p>
       )}
     </Section>
   );
@@ -225,7 +225,7 @@ function LinkScanSettingsSection() {
           <span>
             <span className="flex items-center gap-1.5 text-sm font-medium">
               Check every site's links
-              <HelpTip>At midnight, one site at a time, a couple of minutes apart.</HelpTip>
+              <HelpTip>At midnight in the time zone under General, one site at a time, a couple of minutes apart.</HelpTip>
             </span>
             {data?.next_run_at ? (
               <span className="block text-xs text-muted-foreground">
@@ -250,27 +250,6 @@ function LinkScanSettingsSection() {
             {LINK_SCAN_INTERVALS.map((days) => (
               <option key={days} value={days}>
                 {LINK_SCAN_LABELS[days]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            <span className="flex items-center gap-1.5 text-sm font-medium">
-              Time zone
-              <HelpTip>Where midnight is. Set from this browser at first.</HelpTip>
-            </span>
-          </span>
-          <select
-            aria-label="Time zone"
-            className={SELECT_CLASS}
-            value={zone}
-            disabled={settings.isPending || save.isPending}
-            onChange={(e) => save.mutate({ time_zone: e.target.value })}
-          >
-            {timeZones(zone).map((name) => (
-              <option key={name} value={name}>
-                {name.replace(/_/g, " ")}
               </option>
             ))}
           </select>
@@ -571,7 +550,7 @@ function PagespeedSettingsSection() {
         title="Google PageSpeed Insights"
         hint={
           settings.data?.configured
-            ? "Saved. Each site's Performance tab runs Google's Lighthouse tests with this key, and every site is tested once a week."
+            ? "Saved. Each site's Performance tab runs Google's Lighthouse tests with this key when you select Run test."
             : "Optional. When Google is connected below, PageSpeed Insights tests use that account and no key is needed; turn on the PageSpeed Insights API in the Google Cloud project that owns your client ID. A key here is used instead when saved."
         }
       >

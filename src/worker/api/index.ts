@@ -39,7 +39,6 @@ import type {
   SiteSecurity,
   SiteSitemap,
   SiteUsers,
-  SyncSettings,
   UmamiSettings,
 } from "../../shared/types.ts";
 import {
@@ -55,7 +54,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, DATABASE_ITEMS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS, SYNC_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, DATABASE_ITEMS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -84,7 +83,7 @@ import { SECURITY_FIXES } from "../../shared/security-fixes.ts";
 import { deleteFeedKey, FeedKeyError, loadFeedKey, refreshFeed, saveFeedKey, setSiteFixes, siteSecurity } from "../sites/vulnerabilities.ts";
 import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
-import { coreAutoUpdate, loadSyncSettings, syncSite } from "../sites/sync.ts";
+import { coreAutoUpdate, syncAllOnOpen, syncSite } from "../sites/sync.ts";
 import { enqueueRollback, enqueueUpdate, RollbackError } from "../sites/updates.ts";
 import { inspectStaticSite, readStaticSiteName, syncStaticSite } from "../sites/static.ts";
 import {
@@ -465,6 +464,9 @@ api.post("/sites/:id/connection-key", async (c) => {
   await syncSite(c.env, id);
   return c.json(await getSite(c.env.DB, id));
 });
+
+/** The dashboard was opened: sync every site, unless one started a few minutes ago. */
+api.post("/sync", async (c) => c.json({ started: await syncAllOnOpen(c.env) }));
 
 api.post("/sites/:id/sync", async (c) => {
   const id = siteId(c);
@@ -2514,19 +2516,6 @@ function validTimeZone(value: string | undefined): string {
     return "UTC";
   }
 }
-
-api.get("/settings/sync", async (c) => c.json(await loadSyncSettings(c.env)));
-
-api.put("/settings/sync", async (c) => {
-  const body = (await c.req.json().catch(() => null)) as { interval_minutes?: unknown } | null;
-  const interval = SYNC_INTERVALS.find((minutes) => minutes === body?.interval_minutes);
-  if (!interval) return c.json({ error: "Choose one of the offered intervals" }, 400);
-  const settings: SyncSettings = { interval_minutes: interval };
-  await c.env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', ?)")
-    .bind(JSON.stringify(settings))
-    .run();
-  return c.json(settings);
-});
 
 /** Scheduled link checks: how often, and the time zone midnight is in. */
 api.get("/settings/links", async (c) => c.json(await linkScanSchedule(c.env)));

@@ -22,7 +22,7 @@ Cloudflare Access.
 - **Content and comments.** Posts and pages, custom post types and pending
   comments for every site.
 - **Analytics.** Umami or Google Analytics, plus Search Console.
-- **Uptime.** Every site's home page is checked every 15 minutes, with
+- **Uptime.** Every site's home page is checked every hour on the hour, with
   response times and 30 days of outages. SSL certificate expiry sits with
   the domain details.
 - **Tools.** Per-site link checks, code snippets, database cleanup, PageSpeed performance, SEO

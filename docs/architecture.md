@@ -18,7 +18,7 @@
 | Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below) and the link checker. The consumer takes one message per run: a Worker run opens at most six connections at once and queues the rest with their timeouts already running, so syncing several sites in one run made healthy sites time out. A sync that can't reach a site, or gets a 5xx, tries once more three seconds later before the site shows as unreachable. |
 | Browser Rendering | `BROWSER` | Loads a site's home page before and after its scheduled updates, for the regression check (below). Two short browser sessions per scheduled run that queued updates; nothing else uses it. |
-| Cron Trigger | | `*/15 * * * *` checks whether a sync is due and, once the Background sync interval (Settings; every hour by default) has passed since the last run, enqueues every site. |
+| Cron Trigger | | `*/15 * * * *` enqueues every site for a sync on the first tick after midnight in the saved time zone (Settings, General; UTC until the dashboard saves one), and queues uptime checks on the tick at the top of each hour. Opening the dashboard in a new tab also syncs every site (`POST /api/sync`), skipped when a full sync started in the last ten minutes. |
 
 KontrolWP only makes outbound requests to sites. Sites never call the
 dashboard, so nothing needs an Access bypass, and the dashboard can sit on a
@@ -376,11 +376,10 @@ The latest result per device is in `performance_scans` and the scores per test
 in `performance_history` (last 90 per device). A test takes about half a
 minute, longer than a request may keep working after it answers, so Run test
 claims the site (`running_since`, cleared after five minutes if lost) and sends
-a `performance` message to the queue; the tab polls until it finishes. The
-15-minute cron tests one site not tested in the last week, only when an API key
-is saved in Settings, Integrations (stored encrypted like the Wordfence key) or
-Google is connected there: without either, Google's shared quota refuses most
-tests. A saved key wins; otherwise the test carries the connected account's
+a `performance` message to the queue; the tab polls until it finishes. Tests
+only run when asked; nothing tests sites on a schedule. An API key can be saved
+in Settings, Integrations (stored encrypted like the Wordfence key) or Google
+connected there: without either, Google's shared quota refuses most tests. A saved key wins; otherwise the test carries the connected account's
 access token (the `openid` scope every sign-in has), so the quota is the OAuth
 client's Google Cloud project, which needs the PageSpeed Insights API turned on. A failed test keeps the
 previous result and shows why.

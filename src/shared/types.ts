@@ -356,14 +356,6 @@ export interface SiteAnalyticsDetails extends SiteAnalytics {
   active: number | null;
 }
 
-/** How often every site is synced in the background, in minutes. */
-export const SYNC_INTERVALS = [15, 30, 60, 180, 360] as const;
-export type SyncInterval = (typeof SYNC_INTERVALS)[number];
-
-export interface SyncSettings {
-  interval_minutes: SyncInterval;
-}
-
 /** How often every site's links are checked, in days, at midnight; 0 is off. */
 export const LINK_SCAN_INTERVALS = [0, 1, 3, 5, 7] as const;
 export type LinkScanInterval = (typeof LINK_SCAN_INTERVALS)[number];

@@ -267,15 +267,17 @@ test("a plain http site gets no certificate check", async () => {
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM ssl_certificates").get().n, 0);
 });
 
-test("runScheduledUptime queues due sites and skips switched off ones", async () => {
+test("runScheduledUptime checks every site on the hour and skips switched off ones", async () => {
   const db = await database();
   const env = { DB: db, SYNC_QUEUE: queue() };
+  const hour = 3600 * 1000;
   db.sqlite.exec("UPDATE sites SET uptime_excluded = 1 WHERE id = 3");
-  db.sqlite.exec("UPDATE sites SET uptime_checked_at = 10000 WHERE id = 2");
-  assert.equal(await runScheduledUptime(env, 10000 + 300), 1);
+  assert.equal(await runScheduledUptime(env, hour + 15 * 60), 0, "not on the quarter hours");
+  db.sqlite.exec(`UPDATE sites SET uptime_checked_at = ${hour - 60} WHERE id = 2`);
+  assert.equal(await runScheduledUptime(env, hour), 1, "a site checked a minute ago waits");
   assert.deepEqual(env.SYNC_QUEUE.sent, [{ type: "uptime", siteIds: [1] }]);
-  // A cron a little early still counts a check from the last run as due.
-  assert.equal(await runScheduledUptime(env, 10000 + 900 - 30), 2);
+  db.sqlite.exec(`UPDATE sites SET uptime_checked_at = ${hour} WHERE id IN (1, 2)`);
+  assert.equal(await runScheduledUptime(env, hour + 3600), 2, "the next hour checks both again");
 });
 
 test("runUptimeMessage skips a site checked since it was queued", async () => {

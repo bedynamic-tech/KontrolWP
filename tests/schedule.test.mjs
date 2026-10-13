@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyMigrations } from "../src/worker/db/migrate.ts";
-import { runScheduledSync } from "../src/worker/sites/sync.ts";
+import { runScheduledSync, syncAllOnOpen } from "../src/worker/sites/sync.ts";
 import { fakeD1, migrations } from "./helpers/d1.mjs";
 
 async function setup() {
@@ -13,17 +13,32 @@ async function setup() {
   return { db, env, sent };
 }
 
-test("the scheduled sync runs every hour unless Settings says otherwise", async () => {
+test("the scheduled sync runs once a day, on the first tick after midnight", async () => {
   const { db, env, sent } = await setup();
-  const start = 1_800_000_000;
-  assert.equal(await runScheduledSync(env, start), true, "the first tick syncs");
+  // 2027-01-15 00:00 UTC
+  const midnight = Date.UTC(2027, 0, 15) / 1000;
+  assert.equal(await runScheduledSync(env, midnight - 15 * 60), false, "not before midnight");
+  assert.equal(await runScheduledSync(env, midnight), true, "the midnight tick syncs");
   assert.equal(sent.length, 1);
-  assert.equal(await runScheduledSync(env, start + 15 * 60), false, "15 minutes later is too soon");
-  assert.equal(await runScheduledSync(env, start + 59 * 60), true, "a late tick near the hour still runs");
+  assert.equal(await runScheduledSync(env, midnight + 15 * 60), false, "once that day");
+  assert.equal(await runScheduledSync(env, midnight + 12 * 3600), false, "not at noon");
+  assert.equal(await runScheduledSync(env, midnight + 86400 + 15 * 60), true, "a late tick the next night still runs");
+  assert.equal(sent.length, 2);
 
-  db.sqlite.exec(`INSERT OR REPLACE INTO settings (name, value) VALUES ('sync', '{"interval_minutes":15}')`);
-  assert.equal(await runScheduledSync(env, start + 74 * 60), true, "every 15 minutes when chosen");
-  assert.equal(sent.length, 3);
+  // Midnight is in the saved time zone.
+  db.sqlite.exec(`INSERT INTO settings (name, value) VALUES ('link_scan', '{"interval_days":7,"time_zone":"America/Chicago"}')`);
+  assert.equal(await runScheduledSync(env, midnight + 2 * 86400), false, "UTC midnight is evening in Chicago");
+  assert.equal(await runScheduledSync(env, midnight + 2 * 86400 + 6 * 3600), true, "Chicago midnight");
+});
+
+test("opening the dashboard syncs every site, once in a few minutes", async () => {
+  const { env, sent } = await setup();
+  const start = 1_800_000_000;
+  assert.equal(await syncAllOnOpen(env, start), true);
+  assert.equal(sent.length, 1);
+  assert.equal(await syncAllOnOpen(env, start + 60), false, "another tab right after does not");
+  assert.equal(await syncAllOnOpen(env, start + 11 * 60), true);
+  assert.equal(sent.length, 2);
 });
 
 test("an older KontrolWP Connect is queued on every tick, not only when a sync is due", async () => {

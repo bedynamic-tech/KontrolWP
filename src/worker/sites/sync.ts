@@ -1,7 +1,6 @@
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { compareVersions, MAGIC_LOGIN_SINCE, PLUGIN_MANAGEMENT_SINCE, USER_MANAGEMENT_SINCE } from "../../shared/plugin-version.ts";
 import {
-  SYNC_INTERVALS,
   type CoreAutoUpdate,
   type PluginComments,
   type PluginStatus,
@@ -9,8 +8,6 @@ import {
   type SiteAdmin,
   type SitePlugins,
   type SiteUsers,
-  type SyncInterval,
-  type SyncSettings,
 } from "../../shared/types.ts";
 import { callSite, DATABASE_DOWN_CODE, SiteRequestError, type SiteCredentials } from "./client.ts";
 import { discoverIcon } from "./icons.ts";
@@ -20,6 +17,7 @@ import { clearContentCache } from "../content-cache.ts";
 import { siteRowChanges } from "../db/site-rows.ts";
 import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
+import { loadLinkScanSettings, localTime } from "./link-schedule.ts";
 
 /** Wait before the second try at an unreachable site. */
 const RETRY_DELAY_MS = 3000;
@@ -375,30 +373,37 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-export const DEFAULT_SYNC_INTERVAL: SyncInterval = 60;
-
-export async function loadSyncSettings(env: Env): Promise<SyncSettings> {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = 'sync'").first<{ value: string }>();
-  try {
-    const value = row ? (JSON.parse(row.value) as Partial<SyncSettings>) : {};
-    const interval = SYNC_INTERVALS.find((minutes) => minutes === value.interval_minutes) ?? DEFAULT_SYNC_INTERVAL;
-    return { interval_minutes: interval };
-  } catch {
-    return { interval_minutes: DEFAULT_SYNC_INTERVAL };
-  }
-}
+/** A page load within this long of the last full sync does not start another. */
+export const OPEN_SYNC_GAP = 10 * 60;
 
 /**
- * Called by the cron trigger every 15 minutes: syncs every site once the
- * Background sync interval has passed since the last run. A couple of
- * minutes' slack keeps a run that started late from skipping a tick.
+ * Called by the cron trigger every 15 minutes: syncs every site once a day,
+ * on the first tick after midnight in the owner's time zone (the one saved
+ * for link checks; UTC until the dashboard has saved one).
  */
 export async function runScheduledSync(env: Env, now = Math.floor(Date.now() / 1000)): Promise<boolean> {
   // A new KontrolWP Connect never waits for the full sync.
   await queueSelfUpdates(env);
-  const { interval_minutes } = await loadSyncSettings(env);
+  const { time_zone } = await loadLinkScanSettings(env);
+  const { date, hour } = localTime(now, time_zone);
+  if (hour !== 0) return false;
+  const last = await env.DB.prepare("SELECT value FROM settings WHERE name = 'sync_last_date'").first<{ value: string }>();
+  if (last?.value === date) return false;
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync_last_date', ?)").bind(date),
+    env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync_last_run', ?)").bind(String(now)),
+  ]);
+  await enqueueAllSites(env);
+  return true;
+}
+
+/**
+ * Called when the dashboard is opened: syncs every site, unless a full sync
+ * started in the last few minutes (another tab, or the midnight run).
+ */
+export async function syncAllOnOpen(env: Env, now = Math.floor(Date.now() / 1000)): Promise<boolean> {
   const last = await env.DB.prepare("SELECT value FROM settings WHERE name = 'sync_last_run'").first<{ value: string }>();
-  if (last && now - Number(last.value) < interval_minutes * 60 - 120) return false;
+  if (last && now - Number(last.value) < OPEN_SYNC_GAP) return false;
   await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('sync_last_run', ?)").bind(String(now)).run();
   await enqueueAllSites(env);
   return true;

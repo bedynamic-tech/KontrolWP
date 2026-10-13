@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, PlugIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import { LayoutGroup, motion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import { motionTransitions } from "@/lib/motion";
-import { accessSetupError, fetchOverview, secretsKeyMissing } from "./api";
+import { accessSetupError, fetchOverview, secretsKeyMissing, syncAllSites } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
@@ -17,10 +17,31 @@ import { SitesPage } from "./components/SitesPage";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { UsersPage } from "./components/UsersPage";
 
+const OPENED_KEY = "kontrolwp-opened";
+
+/**
+ * Opening KontrolWP syncs every site. A reload keeps this tab's session
+ * storage, so only a new tab or window starts one; the Worker also skips it
+ * when another tab started one a few minutes ago.
+ */
+function useSyncOnOpen(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    try {
+      if (sessionStorage.getItem(OPENED_KEY)) return;
+      sessionStorage.setItem(OPENED_KEY, "1");
+    } catch {
+      // No session storage: let the Worker's own check decide.
+    }
+    syncAllSites().catch(() => {});
+  }, [enabled]);
+}
+
 export function App() {
   // The overview doubles as the Access check: every page needs the API.
   const overview = useQuery({ queryKey: ["overview"], queryFn: fetchOverview, retry: false });
   useSaveTimeZoneOnce(overview.isSuccess);
+  useSyncOnOpen(overview.isSuccess);
   const collapsed = !!useMatch("/sites/:siteId");
   const setupError = accessSetupError(overview.error);
   if (setupError) {

@@ -721,14 +721,14 @@ export function SitePage() {
               site={site}
               feature="uptime"
               title="Enable uptime checks"
-              on="KontrolWP checks that this site answers every 15 minutes and reads its SSL certificate once a day."
+              on="KontrolWP checks that this site answers every hour on the hour and reads its SSL certificate once a day."
               off="KontrolWP does not check whether this site is up, and its Uptime tab is off."
             />
             <FeatureSwitchRow
               site={site}
               feature="performance"
               title="Enable performance checks"
-              on="KontrolWP tests this site with Google PageSpeed Insights when asked and once a week."
+              on="KontrolWP tests this site with Google PageSpeed Insights when you select Run test."
               off="KontrolWP does not test this site's speed, and its Performance tab is off."
             />
             {!isStatic && (
