@@ -13,7 +13,7 @@ import { enqueueUpdate } from "./updates.ts";
 
 /**
  * Scheduled updates. A global policy says which updates (WordPress, plugins,
- * themes) run on which day and hour, in the time zone chosen under Link checks;
+ * themes) run on which day and hour, in the time zone chosen under Settings, General;
  * a site can follow it, use its own schedule, or run none. Plugins can be left
  * out globally and per site. The 15-minute cron starts each due site once per
  * due day by queueing its waiting updates, which then run one at a time like any

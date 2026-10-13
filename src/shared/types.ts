@@ -1153,7 +1153,7 @@ export interface UpdateSchedule {
   weekday: number;
   /** 1 to 28, for monthly. */
   day: number;
-  /** 0 to 23, in the time zone chosen under Link checks. */
+  /** 0 to 23, in the time zone chosen under General. */
   hour: number;
 }
 
