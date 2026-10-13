@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in KontrolWP or KontrolWP Connect is not working as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect to see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Where in the dashboard it happened and what you did, step by step.
+      placeholder: |
+        1. Open a site's Plugins tab
+        2. Select Update all
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: KontrolWP version
+      description: Filled in when you open this from the dashboard's Send feedback menu.
+  - type: dropdown
+    id: site-type
+    attributes:
+      label: Site type
+      options:
+        - WordPress
+        - Static site
+        - Not about a site
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else?
+      description: Browser, screenshots, error messages, or the WordPress and PHP versions of the site.

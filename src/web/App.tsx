@@ -5,6 +5,7 @@ import { Navigate, NavLink, Route, Routes, useMatch } from "react-router";
 import { accessSetupError, fetchOverview, secretsKeyMissing, syncAllSites } from "./api";
 import { AccessSetup } from "./components/AccessSetup";
 import { ActivityBar } from "./components/ActivityBar";
+import { FeedbackMenu } from "./components/FeedbackMenu";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { SettingsPage, useSaveTimeZoneOnce } from "./components/SettingsPage";
@@ -83,10 +84,13 @@ export function App() {
               <NavItem to="/users" icon={<UsersIcon />} label="Users" />
               <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
             </nav>
+            <div className="mt-auto">
+              <FeedbackMenu folded={collapsed} />
+            </div>
             <a
               href={PLUGIN_ZIP_URL}
               download
-              className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
+              className="mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground [&_svg]:size-4"
             >
               <DownloadIcon />
               <span>KontrolWP Connect</span>
@@ -97,7 +101,7 @@ export function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
           <Brand compact />
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <nav className="flex gap-1">
               <NavItem to="/" icon={<LayoutDashboardIcon />} label="Overview" compact />
               <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" compact />
@@ -115,6 +119,7 @@ export function App() {
             >
               <DownloadIcon />
             </a>
+            <FeedbackMenu compact />
             <ThemeToggle />
           </div>
         </header>
