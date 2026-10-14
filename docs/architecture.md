@@ -226,6 +226,20 @@ label at a time from the host until the registry knows the name, so
 (some country-code domains) show DNS only, with a note. The tab warns when the
 domain expires within 30 days.
 
+## New posts
+
+**New post** on the Posts and pages tab opens an editor with a visual and an
+HTML view. The visual view is a frame sandboxed without scripts, so HTML
+written or pasted into a post never runs in the dashboard. Images go to the
+site's media library first (`POST /media/upload`, base64 in the signed body,
+up to the site's own upload limit), and the post body links them by URL with
+a `wp-image-<id>` class so WordPress adds responsive sizes. An embed is the
+address on its own paragraph, which WordPress turns into the embed. The post
+is saved with `POST /posts/create` as a draft or published, written as the
+chosen author (the site's Magic Login user by default) with its HTML kept as
+written. The editor's choices (types, authors, categories, upload limit) come
+from `POST /posts/form` and are cached like the list.
+
 ## Cached live reads
 
 The Posts and pages list, a site's plugin, administrator and user lists, its

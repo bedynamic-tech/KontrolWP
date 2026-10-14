@@ -11,6 +11,10 @@ import type {
   FleetUsers,
   NewUser,
   SiteContent,
+  CreatedPost,
+  NewPost,
+  PostForm,
+  UploadedImage,
   SecurityFix,
   GlobalUpdatePolicy,
   GlobalUpdatePolicyView,
@@ -236,6 +240,14 @@ export const fetchContent = (siteId: number, filter: ContentFilter) => {
   const query = new URLSearchParams({ ...filter, page: String(filter.page) });
   return request<SiteContent>(`/sites/${siteId}/content?${query}`);
 };
+
+export const fetchPostForm = (siteId: number) => request<PostForm>(`/sites/${siteId}/posts/new`);
+
+export const createPost = (siteId: number, post: NewPost) =>
+  request<CreatedPost>(`/sites/${siteId}/posts`, { method: "POST", json: post });
+
+export const uploadImage = (siteId: number, image: { name: string; image: string; alt?: string }) =>
+  request<UploadedImage>(`/sites/${siteId}/media`, { method: "POST", json: image });
 
 export const setLinksExcluded = (siteId: number, excluded: boolean) =>
   request<SiteSummary>(`/sites/${siteId}/links-excluded`, { method: "PUT", json: { excluded } });

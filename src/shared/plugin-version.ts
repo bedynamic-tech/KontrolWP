@@ -3,7 +3,7 @@
  * public/downloads/kontrolwp-connect-<version>.zip. Sites running an older one are offered
  * an update. tests/plugin-lint.test.mjs checks it matches the plugin header.
  */
-export const KONTROLWP_CONNECT_VERSION = "0.42.0";
+export const KONTROLWP_CONNECT_VERSION = "0.43.0";
 
 /** The zip's name in public/downloads, as scripts/build-plugin-zip.mjs writes it. */
 export const KONTROLWP_CONNECT_ZIP = `kontrolwp-connect-${KONTROLWP_CONNECT_VERSION}.zip`;
@@ -108,3 +108,6 @@ export const DATABASE_CLEANUP_SINCE = "0.35.0";
 
 /** Tools > SEO can remove a real robots.txt file, keeping its rules, in this version. */
 export const ROBOTS_FILE_REMOVE_SINCE = "0.38.0";
+
+/** Writing new posts and pages, with images uploaded to the media library, arrived in this version. */
+export const POST_CREATE_SINCE = "0.43.0";

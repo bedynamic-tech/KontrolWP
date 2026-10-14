@@ -24,6 +24,7 @@ const routes = [
     "uptime", "performance", "seo", "branding", "maintenance", "security", "accessibility", "domain",
   ].map((tab) => `/sites/1?tab=${tab}`),
   "/sites/1?tab=analytics&view=analytics",
+  "/sites/1?tab=content&new=post",
   "/sites/2",
   ...["overview", "analytics", "pages", "tools", "links", "uptime", "performance", "seo", "accessibility", "domain"].map(
     (tab) => `/sites/3?tab=${tab}`,

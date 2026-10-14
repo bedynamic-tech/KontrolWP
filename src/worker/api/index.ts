@@ -54,7 +54,7 @@ import {
   SEO_SEPARATORS,
   UPDATE_FREQUENCIES,
 } from "../../shared/types.ts";
-import { ANALYTICS_PROVIDERS, DATABASE_ITEMS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS } from "../../shared/types.ts";
+import { ANALYTICS_PROVIDERS, DATABASE_ITEMS, LOGIN_LOGO_SIZES, LOGIN_LOGO_SOURCES, LOGIN_URL_REDIRECTS, MAINTENANCE_LOGOS, NEW_POST_STATUSES, SNIPPET_LOCATIONS, SNIPPET_SCOPES, CONTENT_STATUSES, SEARCH_CONSOLE_RANGES, LINK_SCAN_INTERVALS } from "../../shared/types.ts";
 import {
   linkScanSchedule,
   loadLinkScanSettings,
@@ -152,6 +152,7 @@ import { saveUpdateEmails, siteUpdateEmails } from "../sites/update-emails.ts";
 import { saveMaintenance, siteMaintenance } from "../sites/maintenance.ts";
 import { saveLoginUrl, siteLoginUrl } from "../sites/login-url.ts";
 import { saveLoginLogo, siteLoginLogo } from "../sites/login-logo.ts";
+import { createSitePost, sitePostForm, uploadSiteImage } from "../sites/posts.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
@@ -300,7 +301,7 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
 }
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links\/unlink|content|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links\/unlink|content|posts|media|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -1418,6 +1419,54 @@ api.put("/sites/:id/login-url", async (c) => {
     .safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid login address" }, 400);
   return redirectsCall(c, (site, credentials) => saveLoginUrl(site, credentials, parsed.data));
+});
+
+/** What the New post editor offers: content types, authors, categories and the upload limit. */
+api.get("/sites/:id/posts/new", async (c) =>
+  redirectsCall(c, (site, credentials) =>
+    cachedRead(c.env.DB, site.id, "content", "post-form", () => sitePostForm(site, credentials)),
+  ),
+);
+
+const newPostBody = z.object({
+  type: z.string().regex(/^[a-z0-9_-]{1,20}$/),
+  title: z.string().max(1000),
+  content: z.string().max(5_000_000),
+  status: z.enum(NEW_POST_STATUSES),
+  author: z.number().int().min(1).optional(),
+  categories: z.array(z.number().int().min(1)).max(500).optional(),
+  tags: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+  featured: z.number().int().min(1).optional(),
+});
+
+/** Write a new post or page on the site, as a draft or published. */
+api.post("/sites/:id/posts", async (c) => {
+  const parsed = newPostBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid post" }, 400);
+  return redirectsCall(c, async (site, credentials) => {
+    const created = await createSitePost(site, credentials, parsed.data);
+    await c.env.DB.prepare("DELETE FROM content_cache WHERE site_id = ? AND kind = 'content'").bind(site.id).run();
+    return created;
+  });
+});
+
+/** Images up to 10 MB, as base64; the site checks the bytes and its own limit. */
+const MAX_IMAGE_BASE64 = 14_000_000;
+
+/** Add an image to the site's media library, for a post being written. */
+api.post("/sites/:id/media", async (c) => {
+  const parsed = z
+    .object({
+      name: z.string().max(255),
+      image: z.string().min(1).max(MAX_IMAGE_BASE64).regex(/^[A-Za-z0-9+/]*={0,2}$/),
+      alt: z.string().max(1000).optional(),
+    })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    const tooLarge = parsed.error.issues.some((issue) => issue.code === "too_big");
+    return c.json({ error: tooLarge ? "Images can be up to 10 MB." : "Invalid image" }, 400);
+  }
+  return redirectsCall(c, (site, credentials) => uploadSiteImage(site, credentials, parsed.data));
 });
 
 /** The logo above a site's login form. */

@@ -476,6 +476,57 @@ export interface SiteContent {
   types?: ContentTypeInfo[];
 }
 
+/** A content type the New post editor can write, and what it supports. */
+export interface PostFormType {
+  slug: string;
+  singular: string;
+  categories: boolean;
+  tags: boolean;
+  /** Takes a featured image (the type and the theme support one). */
+  featured: boolean;
+}
+
+/** What the New post editor offers for one site. */
+export interface PostForm {
+  types: PostFormType[];
+  authors: { id: number; name: string }[];
+  /** The site's first administrator, who writes the post when no author is chosen. */
+  default_author: number;
+  categories: { id: number; name: string; parent: number }[];
+  /** The largest image, in bytes, the site takes in one upload. */
+  max_upload: number;
+}
+
+export const NEW_POST_STATUSES = ["draft", "publish"] as const;
+
+export interface NewPost {
+  type: string;
+  title: string;
+  /** HTML. */
+  content: string;
+  status: (typeof NEW_POST_STATUSES)[number];
+  author?: number;
+  categories?: number[];
+  tags?: string[];
+  /** A media library image id. */
+  featured?: number;
+}
+
+export interface CreatedPost {
+  id: number;
+  status: string;
+  permalink: string;
+}
+
+/** An image added to a site's media library: src is the large size for a post, url the original. */
+export interface UploadedImage {
+  id: number;
+  url: string;
+  src: string;
+  width: number;
+  height: number;
+}
+
 export interface SiteUsers {
   users: SiteUser[];
   roles: UserRole[];
