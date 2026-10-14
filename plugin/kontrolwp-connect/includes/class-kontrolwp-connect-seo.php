@@ -1110,13 +1110,11 @@ class KontrolWP_Connect_SEO {
 		);
 	}
 
-	/** Save one page's overrides; an empty value removes the override. */
-	public static function save_page( $request ) {
-		$id   = (int) $request->get_param( 'id' );
-		$post = get_post( $id );
-		if ( ! $post ) {
-			return new WP_Error( 'kontrolwp_not_found', 'That page no longer exists.', array( 'status' => 404 ) );
-		}
+	/**
+	 * Set a post's SEO overrides from array( seo_title, description, noindex, image, keyword ).
+	 * A null field is left as it is; an empty one removes the override. Also used for new posts (0.43.0).
+	 */
+	public static function save_overrides( $id, $fields ) {
 		$set = function ( $key, $value ) use ( $id ) {
 			if ( '' === $value || false === $value ) {
 				delete_post_meta( $id, $key );
@@ -1124,21 +1122,48 @@ class KontrolWP_Connect_SEO {
 				update_post_meta( $id, $key, $value );
 			}
 		};
-		if ( null !== $request->get_param( 'seo_title' ) ) {
-			$set( self::META_TITLE, self::line( (string) $request->get_param( 'seo_title' ), 200 ) );
+		$field = function ( $name ) use ( $fields ) {
+			return isset( $fields[ $name ] ) ? $fields[ $name ] : null;
+		};
+		if ( null !== $field( 'seo_title' ) ) {
+			$set( self::META_TITLE, self::line( (string) $field( 'seo_title' ), 200 ) );
 		}
-		if ( null !== $request->get_param( 'description' ) ) {
-			$set( self::META_DESCRIPTION, self::line( (string) $request->get_param( 'description' ), 320 ) );
+		if ( null !== $field( 'description' ) ) {
+			$set( self::META_DESCRIPTION, self::line( (string) $field( 'description' ), 320 ) );
 		}
-		if ( null !== $request->get_param( 'noindex' ) ) {
-			$set( self::META_NOINDEX, $request->get_param( 'noindex' ) ? '1' : '' );
+		if ( null !== $field( 'noindex' ) ) {
+			$set( self::META_NOINDEX, $field( 'noindex' ) ? '1' : '' );
 		}
-		if ( null !== $request->get_param( 'image' ) ) {
-			$set( self::META_IMAGE, self::url( (string) $request->get_param( 'image' ) ) );
+		if ( null !== $field( 'image' ) ) {
+			$set( self::META_IMAGE, self::url( (string) $field( 'image' ) ) );
 		}
-		if ( null !== $request->get_param( 'keyword' ) ) {
-			$set( KontrolWP_Connect_SEO_Score::META_KEYWORD, KontrolWP_Connect_SEO_Score::clean_keyword( (string) $request->get_param( 'keyword' ) ) );
+		if ( null !== $field( 'keyword' ) ) {
+			$set( KontrolWP_Connect_SEO_Score::META_KEYWORD, KontrolWP_Connect_SEO_Score::clean_keyword( (string) $field( 'keyword' ) ) );
 		}
+	}
+
+	/** Whether KontrolWP's SEO is switched on and printing tags on this site. */
+	public static function is_active() {
+		return self::active( self::settings() );
+	}
+
+	/** Save one page's overrides; an empty value removes the override. */
+	public static function save_page( $request ) {
+		$id   = (int) $request->get_param( 'id' );
+		$post = get_post( $id );
+		if ( ! $post ) {
+			return new WP_Error( 'kontrolwp_not_found', 'That page no longer exists.', array( 'status' => 404 ) );
+		}
+		self::save_overrides(
+			$id,
+			array(
+				'seo_title'   => $request->get_param( 'seo_title' ),
+				'description' => $request->get_param( 'description' ),
+				'noindex'     => $request->get_param( 'noindex' ),
+				'image'       => $request->get_param( 'image' ),
+				'keyword'     => $request->get_param( 'keyword' ),
+			)
+		);
 		return array(
 			'id'          => $id,
 			'seo_title'   => (string) get_post_meta( $id, self::META_TITLE, true ),

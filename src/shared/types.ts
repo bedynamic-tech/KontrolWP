@@ -476,6 +476,67 @@ export interface SiteContent {
   types?: ContentTypeInfo[];
 }
 
+/** A content type the New post editor can write, and what it supports. */
+export interface PostFormType {
+  slug: string;
+  singular: string;
+  categories: boolean;
+  tags: boolean;
+  /** Takes a featured image (the type and the theme support one). */
+  featured: boolean;
+  /** Takes an excerpt; an older KontrolWP Connect sends none. */
+  excerpt?: boolean;
+}
+
+/** What the New post editor offers for one site. */
+export interface PostForm {
+  types: PostFormType[];
+  authors: { id: number; name: string }[];
+  /** The site's first administrator, who writes the post when no author is chosen. */
+  default_author: number;
+  categories: { id: number; name: string; parent: number }[];
+  /** The largest image, in bytes, the site takes in one upload. */
+  max_upload: number;
+  /** KontrolWP's SEO is on, so the SEO fields show on the site now. */
+  seo_active?: boolean;
+  /** Each type's address with %slug% where the slug goes; missing or '' when slugs do not show. */
+  permalinks?: Record<string, string>;
+}
+
+export const NEW_POST_STATUSES = ["draft", "publish"] as const;
+
+export interface NewPost {
+  type: string;
+  title: string;
+  /** HTML. */
+  content: string;
+  status: (typeof NEW_POST_STATUSES)[number];
+  author?: number;
+  categories?: number[];
+  tags?: string[];
+  /** A media library image id. */
+  featured?: number;
+  /** The last part of the address; WordPress makes one from the title when empty. */
+  slug?: string;
+  excerpt?: string;
+  seo?: { seo_title?: string; description?: string; keyword?: string; noindex?: boolean };
+}
+
+export interface CreatedPost {
+  id: number;
+  status: string;
+  permalink: string;
+}
+
+/** An image added to a site's media library: src is the large size for a post, url the original. */
+export interface UploadedImage {
+  id: number;
+  url: string;
+  src: string;
+  width: number;
+  height: number;
+}
+
 export interface SiteUsers {
   users: SiteUser[];
   roles: UserRole[];

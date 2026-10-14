@@ -1,17 +1,19 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ExternalLinkIcon, SearchIcon } from "lucide-react";
+import { ExternalLinkIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { compareVersions, CONTENT_LIST_SINCE } from "../../shared/plugin-version";
+import { compareVersions, CONTENT_LIST_SINCE, POST_CREATE_SINCE } from "../../shared/plugin-version";
 import type { ContentStatus, ContentTypeInfo, SiteContentItem, SiteSummary } from "../../shared/types";
 import { fetchContent, type ContentFilter } from "../api";
 import { plural } from "../format";
 import { EditButton } from "./LinksTab";
 import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
+import { PostEditor } from "./PostEditor";
 
 const PAGE_SIZE = 25;
 
@@ -37,8 +39,8 @@ const CORE_TYPES: ContentTypeInfo[] = [
   { slug: "page", name: "Pages", singular: "Page" },
 ];
 
-function supported(site: SiteSummary): boolean {
-  return !site.plugin_version || compareVersions(site.plugin_version, CONTENT_LIST_SINCE) >= 0;
+function supported(site: SiteSummary, since = CONTENT_LIST_SINCE): boolean {
+  return !site.plugin_version || compareVersions(site.plugin_version, since) >= 0;
 }
 
 const formatDate = (seconds: number) =>
@@ -52,6 +54,19 @@ export function ContentTab(props: { site: SiteSummary }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  // The editor's open state is in the address (?new=post), so Back and a reload keep it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const writing = searchParams.get("new") === "post" && supported(site, POST_CREATE_SINCE);
+  const setWriting = (open: boolean) =>
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (open) next.set("new", "post");
+        else next.delete("new");
+        return next;
+      },
+      { replace: !open },
+    );
 
   // Search once typing pauses, from the first page.
   useEffect(() => {
@@ -65,11 +80,12 @@ export function ContentTab(props: { site: SiteSummary }) {
   const content = useQuery({
     queryKey: ["site", site.id, "content", status, type, query, page],
     queryFn: () => fetchContent(site.id, { status, type, search: query, page }),
-    enabled: supported(site),
+    enabled: supported(site) && !writing,
     placeholderData: keepPreviousData,
     refetchInterval: false,
   });
 
+  if (writing) return <PostEditor site={site} onClose={() => setWriting(false)} />;
   if (!supported(site)) {
     return (
       <Section title="Posts and pages">
@@ -149,15 +165,22 @@ export function ContentTab(props: { site: SiteSummary }) {
               </option>
             ))}
           </select>
-          <div className="relative w-full sm:w-64">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search titles and content"
-              aria-label="Search titles and content"
-              className="pl-8"
-            />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search titles and content"
+                aria-label="Search titles and content"
+                className="pl-8"
+              />
+            </div>
+            {supported(site, POST_CREATE_SINCE) && (
+              <Button size="sm" onClick={() => setWriting(true)}>
+                <PlusIcon /> New post
+              </Button>
+            )}
           </div>
         </div>
       </div>

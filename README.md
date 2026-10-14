@@ -20,7 +20,8 @@ Cloudflare Access.
 - **Plugins and users.** Install, activate, update and remove plugins, and
   manage users, on one site or many at once.
 - **Content and comments.** Posts and pages, custom post types and pending
-  comments for every site.
+  comments for every site. Write new posts and pages in a visual or HTML
+  editor, with images uploaded to the site's media library and embeds.
 - **Analytics.** Umami or Google Analytics, plus Search Console.
 - **Uptime.** Every site's home page is checked every hour on the hour, with
   response times and 30 days of outages. SSL certificate expiry sits with

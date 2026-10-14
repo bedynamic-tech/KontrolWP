@@ -27,7 +27,7 @@ const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_BYTES = 1024 * 1024;
 
 /** The file's bytes as base64, without the data URL prefix. */
-function readBase64(file: File): Promise<string> {
+export function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
