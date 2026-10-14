@@ -1437,6 +1437,16 @@ const newPostBody = z.object({
   categories: z.array(z.number().int().min(1)).max(500).optional(),
   tags: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
   featured: z.number().int().min(1).optional(),
+  slug: z.string().trim().max(200).optional(),
+  excerpt: z.string().max(5000).optional(),
+  seo: z
+    .object({
+      seo_title: z.string().max(200).optional(),
+      description: z.string().max(320).optional(),
+      keyword: z.string().max(100).optional(),
+      noindex: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /** Write a new post or page on the site, as a draft or published. */

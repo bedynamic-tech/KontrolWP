@@ -17,8 +17,21 @@ test("a new post keeps its HTML and only known fields", { skip }, () => {
   const html = '<p>Hi</p><iframe src="https://www.youtube.com/embed/x"></iframe>';
   assert.deepEqual(
     call("clean_post", { type: "post", title: " Hello ", content: html, status: "publish", author: "3", categories: [2, "2", -1, 0, 5], tags: [" a ", "", "a", "b", 4], bogus: 1 }, ["post", "page"]),
-    { type: "post", title: "Hello", content: html, status: "publish", author: 3, categories: [2, 5], tags: ["a", "b"], featured: 0 },
+    { slug: "", excerpt: "", seo: [], type: "post", title: "Hello", content: html, status: "publish", author: 3, categories: [2, 5], tags: ["a", "b"], featured: 0 },
   );
+});
+
+test("a new post's slug, excerpt and SEO fields are kept when sent", { skip }, () => {
+  const post = call("clean_post", {
+    type: "page",
+    title: "About",
+    slug: " about-us ",
+    excerpt: " Who we are ",
+    seo: { seo_title: " About us ", description: "", keyword: " bakery ", noindex: true, image: "x" },
+  }, ["page"]);
+  assert.equal(post.slug, "about-us");
+  assert.equal(post.excerpt, "Who we are");
+  assert.deepEqual(post.seo, { seo_title: "About us", keyword: "bakery", noindex: true });
 });
 
 test("a new post needs a known type and status, and a title to publish", { skip }, () => {

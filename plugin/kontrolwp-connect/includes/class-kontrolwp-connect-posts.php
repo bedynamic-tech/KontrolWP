@@ -92,7 +92,24 @@ class KontrolWP_Connect_Posts {
 				$tags[] = $tag;
 			}
 		}
+		$text = function ( $name ) use ( $body ) {
+			return isset( $body[ $name ] ) && is_string( $body[ $name ] ) ? trim( $body[ $name ] ) : '';
+		};
+		// Only the SEO fields sent are set; the rest are left to the SEO settings' defaults.
+		$seo  = array();
+		$sent = isset( $body['seo'] ) && is_array( $body['seo'] ) ? $body['seo'] : array();
+		foreach ( array( 'seo_title', 'description', 'keyword' ) as $name ) {
+			if ( isset( $sent[ $name ] ) && is_string( $sent[ $name ] ) && '' !== trim( $sent[ $name ] ) ) {
+				$seo[ $name ] = trim( $sent[ $name ] );
+			}
+		}
+		if ( ! empty( $sent['noindex'] ) ) {
+			$seo['noindex'] = true;
+		}
 		return array(
+			'slug'       => $text( 'slug' ),
+			'excerpt'    => $text( 'excerpt' ),
+			'seo'        => $seo,
 			'type'       => $type,
 			'title'      => $title,
 			'content'    => $content,
@@ -226,6 +243,7 @@ class KontrolWP_Connect_Posts {
 				'categories' => is_object_in_taxonomy( $slug, 'category' ),
 				'tags'       => is_object_in_taxonomy( $slug, 'post_tag' ),
 				'featured'   => post_type_supports( $slug, 'thumbnail' ) && current_theme_supports( 'post-thumbnails' ),
+				'excerpt'    => post_type_supports( $slug, 'excerpt' ),
 			);
 		}
 		$categories = array();
@@ -249,11 +267,46 @@ class KontrolWP_Connect_Posts {
 			'default_author' => self::default_author(),
 			'categories'     => $categories,
 			'max_upload'     => self::max_upload(),
+			// The SEO fields are saved either way; they show on the site while KontrolWP's SEO is on.
+			'seo_active'     => KontrolWP_Connect_SEO::is_active(),
+			// Where a post's slug goes, for the permalink preview: the address with %postname% in it.
+			'permalinks'     => self::permalinks(),
 		);
 	}
 
 	/**
-	 * Body: { type, title, content (HTML), status: 'draft'|'publish', author?, categories?: int[], tags?: string[], featured? }.
+	 * Each type's address with %postname% (or %pagename%) where the slug goes, or '' when
+	 * the site uses plain ?p= addresses and a slug does not appear.
+	 */
+	private static function permalinks() {
+		$out = array();
+		if ( ! get_option( 'permalink_structure' ) ) {
+			return (object) $out;
+		}
+		foreach ( array_keys( self::types() ) as $slug ) {
+			$sample = new WP_Post(
+				(object) array(
+					'ID'          => -1,
+					'post_type'   => $slug,
+					'post_status' => 'publish',
+					'post_name'   => 'kontrolwp-slug',
+					'post_date'   => current_time( 'mysql' ),
+					'filter'      => 'raw',
+				)
+			);
+			try {
+				$link = (string) get_permalink( $sample );
+			} catch ( Throwable $error ) {
+				$link = '';
+			}
+			$out[ $slug ] = false !== strpos( $link, 'kontrolwp-slug' ) ? str_replace( 'kontrolwp-slug', '%slug%', $link ) : '';
+		}
+		return (object) $out;
+	}
+
+	/**
+	 * Body: { type, title, content (HTML), status: 'draft'|'publish', author?, categories?: int[], tags?: string[], featured?,
+	 * slug?, excerpt?, seo?: { seo_title?, description?, keyword?, noindex? } }.
 	 * Answers { id, status, permalink }.
 	 */
 	public static function create_route( $request ) {
@@ -276,6 +329,12 @@ class KontrolWP_Connect_Posts {
 			'post_status'  => $post['status'],
 			'post_author'  => $author->ID,
 		);
+		if ( '' !== $post['slug'] ) {
+			$data['post_name'] = sanitize_title( $post['slug'] );
+		}
+		if ( '' !== $post['excerpt'] && post_type_supports( $post['type'], 'excerpt' ) ) {
+			$data['post_excerpt'] = $post['excerpt'];
+		}
 		if ( $post['categories'] && is_object_in_taxonomy( $post['type'], 'category' ) ) {
 			$data['post_category'] = $post['categories'];
 		}
@@ -296,6 +355,9 @@ class KontrolWP_Connect_Posts {
 		}
 		if ( ! is_wp_error( $id ) && $post['featured'] && 'attachment' === get_post_type( $post['featured'] ) ) {
 			set_post_thumbnail( $id, $post['featured'] );
+		}
+		if ( ! is_wp_error( $id ) && $post['seo'] ) {
+			KontrolWP_Connect_SEO::save_overrides( $id, $post['seo'] );
 		}
 		wp_set_current_user( $previous );
 

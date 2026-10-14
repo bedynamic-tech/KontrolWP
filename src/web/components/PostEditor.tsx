@@ -56,6 +56,18 @@ const FALLBACK_FORM: PostForm = {
   max_upload: 2 * 1048576,
 };
 
+const EMPTY_SEO = { seo_title: "", description: "", keyword: "", noindex: false };
+
+/** Roughly what WordPress makes of a title or slug, for the permalink preview. */
+const slugify = (text: string) =>
+  text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 200);
+
 const escapeHtml = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -491,6 +503,9 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
   const [categories, setCategories] = useState<number[]>([]);
   const [tags, setTags] = useState("");
   const [featured, setFeatured] = useState<UploadedImage | null>(null);
+  const [slug, setSlug] = useState("");
+  const [excerpt, setExcerpt] = useState("");
+  const [seo, setSeo] = useState(EMPTY_SEO);
   const [dialog, setDialog] = useState<"image" | "link" | "embed" | "featured" | "discard" | null>(null);
   const [notice, setNotice] = useState("");
   const [saved, setSaved] = useState<CreatedPost | null>(null);
@@ -537,6 +552,9 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
         categories: kind?.categories && categories.length ? categories : undefined,
         tags: kind?.tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : undefined,
         featured: kind?.featured && featured ? featured.id : undefined,
+        slug: slug.trim() || undefined,
+        excerpt: kind?.excerpt !== false && excerpt.trim() ? excerpt.trim() : undefined,
+        seo: { ...seo, seo_title: seo.seo_title.trim(), description: seo.description.trim(), keyword: seo.keyword.trim() },
       });
     },
     onSuccess: (created) => {
@@ -551,6 +569,9 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
     setCategories([]);
     setTags("");
     setFeatured(null);
+    setSlug("");
+    setExcerpt("");
+    setSeo(EMPTY_SEO);
     setSaved(null);
     save.reset();
   }
@@ -614,6 +635,8 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
   const tree = categoryTree(options.categories);
   const busy = save.isPending;
   const canPublish = !!title.trim();
+  const pattern = options.permalinks?.[type];
+  const address = pattern ? pattern.replace("%slug%", slugify(slug) || slugify(title) || "...") : "";
 
   return (
     <div className="mt-8 space-y-3">
@@ -646,6 +669,67 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
             }}
           />
           {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
+          <div className="space-y-4 rounded-xl border bg-background p-4">
+            <Field label="Permalink">
+              <Input
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                placeholder={slugify(title) || "made-from-the-title"}
+                maxLength={200}
+              />
+            </Field>
+            {address && <p className="-mt-2 text-xs wrap-break-word text-muted-foreground">{address}</p>}
+            {kind?.excerpt !== false && (
+              <Field label="Excerpt">
+                <Textarea value={excerpt} onChange={(event) => setExcerpt(event.target.value)} rows={3} maxLength={5000} />
+              </Field>
+            )}
+            <fieldset className="space-y-4">
+              <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                SEO
+                <HelpTip>
+                  How the {singular.toLowerCase()} shows in search results and when shared. Empty fields use the
+                  defaults from the SEO tab.
+                </HelpTip>
+              </legend>
+              {form.data && !form.data.seo_active && (
+                <p className="text-xs text-muted-foreground">
+                  SEO is off for this site. These are saved and used once it is on in the SEO tab.
+                </p>
+              )}
+              <Field label={`SEO title (${seo.seo_title.length}/60)`}>
+                <Input
+                  value={seo.seo_title}
+                  onChange={(event) => setSeo({ ...seo, seo_title: event.target.value })}
+                  placeholder={title.trim()}
+                  maxLength={200}
+                />
+              </Field>
+              <Field label={`Meta description (${seo.description.length}/160)`}>
+                <Textarea
+                  value={seo.description}
+                  onChange={(event) => setSeo({ ...seo, description: event.target.value })}
+                  rows={3}
+                  maxLength={320}
+                />
+              </Field>
+              <Field label="Focus keyword">
+                <Input
+                  value={seo.keyword}
+                  onChange={(event) => setSeo({ ...seo, keyword: event.target.value })}
+                  maxLength={100}
+                />
+              </Field>
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={seo.noindex}
+                  onChange={(event) => setSeo({ ...seo, noindex: event.target.checked })}
+                />
+                <span>Hide from search engines</span>
+              </label>
+            </fieldset>
+          </div>
         </div>
         <div className="min-w-0 space-y-4 self-start rounded-xl border bg-background p-4">
           {options.types.length > 1 && (

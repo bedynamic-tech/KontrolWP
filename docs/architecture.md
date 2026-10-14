@@ -237,7 +237,8 @@ a `wp-image-<id>` class so WordPress adds responsive sizes. An embed is the
 address on its own paragraph, which WordPress turns into the embed. The post
 is saved with `POST /posts/create` as a draft or published, written as the
 chosen author (the site's Magic Login user by default) with its HTML kept as
-written. The editor's choices (types, authors, categories, upload limit) come
+written, its slug and excerpt, and its SEO title, description, focus keyword
+and noindex in the same post meta the SEO tab edits. The editor's choices (types, authors, categories, upload limit) come
 from `POST /posts/form` and are cached like the list.
 
 ## Cached live reads

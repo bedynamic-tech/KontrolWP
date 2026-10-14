@@ -484,6 +484,8 @@ export interface PostFormType {
   tags: boolean;
   /** Takes a featured image (the type and the theme support one). */
   featured: boolean;
+  /** Takes an excerpt; an older KontrolWP Connect sends none. */
+  excerpt?: boolean;
 }
 
 /** What the New post editor offers for one site. */
@@ -495,6 +497,10 @@ export interface PostForm {
   categories: { id: number; name: string; parent: number }[];
   /** The largest image, in bytes, the site takes in one upload. */
   max_upload: number;
+  /** KontrolWP's SEO is on, so the SEO fields show on the site now. */
+  seo_active?: boolean;
+  /** Each type's address with %slug% where the slug goes; missing or '' when slugs do not show. */
+  permalinks?: Record<string, string>;
 }
 
 export const NEW_POST_STATUSES = ["draft", "publish"] as const;
@@ -510,6 +516,10 @@ export interface NewPost {
   tags?: string[];
   /** A media library image id. */
   featured?: number;
+  /** The last part of the address; WordPress makes one from the title when empty. */
+  slug?: string;
+  excerpt?: string;
+  seo?: { seo_title?: string; description?: string; keyword?: string; noindex?: boolean };
 }
 
 export interface CreatedPost {
