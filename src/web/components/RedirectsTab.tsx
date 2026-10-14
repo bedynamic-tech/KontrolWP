@@ -358,6 +358,25 @@ function ImportDialog(props: {
   );
 }
 
+/** A path on the site as a full address, for opening it in a new tab. */
+function siteAddress(site: SiteSummary, path: string): string {
+  return site.url.replace(/\/+$/, "") + path;
+}
+
+/** An address on the site in bold, linked so it opens in a new tab. */
+function AddressLink(props: { site: SiteSummary; path: string }) {
+  return (
+    <a
+      href={siteAddress(props.site, props.path)}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="hover:underline"
+    >
+      {props.path}
+    </a>
+  );
+}
+
 function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
   const link = document.createElement("a");
@@ -609,7 +628,7 @@ function RulesSection(props: {
                 )}
                 <div className={`min-w-0 flex-1 ${item.enabled ? "" : "opacity-60"}`}>
                   <p className="wrap-break-word font-medium">
-                    {item.source}
+                    {item.match_type === "regex" ? item.source : <AddressLink site={site} path={item.source} />}
                     {!item.enabled && <span className="sr-only"> (off)</span>}
                   </p>
                   <p className="wrap-break-word text-xs text-muted-foreground">
@@ -914,7 +933,9 @@ function NotFoundSection(props: {
                   className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
-                    <p className="wrap-break-word font-medium">{item.path}</p>
+                    <p className="wrap-break-word font-medium">
+                      <AddressLink site={site} path={item.path} />
+                    </p>
                     <p className="wrap-break-word text-xs text-muted-foreground">
                       {item.hits} {item.hits === 1 ? "request" : "requests"} ·
                       last {timeAgo(item.last_seen)}
