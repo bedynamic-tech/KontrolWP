@@ -14,6 +14,7 @@ import type {
   LinkUnlinkResult,
   SiteLinks,
   AnalyticsProvider,
+  GoogleFeatures,
   GoogleSettings,
   SiteAnalytics,
   SearchConsoleSetup,
@@ -118,10 +119,13 @@ import {
   googleAccount,
   googleCanSetUpSites,
   googleRedirectUri,
+  deleteGoogleFeatures,
   loadGoogleClient,
   loadGoogleCredential,
+  loadGoogleFeatures,
   saveGoogleClient,
   saveGoogleCredential,
+  saveGoogleFeatures,
   startGoogleSignIn,
   type GoogleCredential,
 } from "../google.ts";
@@ -156,7 +160,7 @@ import { createSitePost, sitePostForm, uploadSiteImage } from "../sites/posts.ts
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
 import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
-import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, sitePerformance } from "../sites/performance.ts";
+import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, pagespeedSource, sitePerformance } from "../sites/performance.ts";
 import { checkSite, siteCertificate, siteUptime } from "../sites/uptime.ts";
 import {
   cleanExcluded,
@@ -1071,6 +1075,9 @@ api.post("/sites/:id/performance/run", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
+  if (!(await pagespeedSource(c.env))) {
+    return c.json({ error: "Set up PageSpeed Insights under Google in Integrations first" }, 409);
+  }
   if (await claimTest(c.env, id)) await c.env.SYNC_QUEUE.send({ type: "performance", siteId: id });
   return c.json<SitePerformance>(await sitePerformance(c.env, site));
 });
@@ -1970,7 +1977,7 @@ function umamiSettings(config: UmamiConfig | null): UmamiSettings {
 async function umamiRequest(c: AppContext, request: (config: UmamiConfig) => Promise<Response>) {
   try {
     const config = await loadUmamiConfig(c.env);
-    if (!config) return c.json({ error: "Connect Umami in Settings first", code: "umami_not_configured" }, 409);
+    if (!config) return c.json({ error: "Connect Umami in Integrations first", code: "umami_not_configured" }, 409);
     return await request(config);
   } catch (error) {
     if (error instanceof UmamiError) return c.json({ error: error.message }, error.status === 400 ? 400 : 502);
@@ -2056,7 +2063,7 @@ async function cloudflareRequest(c: AppContext, request: (token: string) => Prom
   try {
     const token = await loadCloudflareToken(c.env);
     if (!token)
-      return c.json({ error: "Connect Cloudflare in Settings first" }, 409);
+      return c.json({ error: "Connect Cloudflare in Integrations first" }, 409);
     return await request(token);
   } catch (error) {
     if (error instanceof CloudflareError) {
@@ -2262,10 +2269,17 @@ async function analyticsProvider(c: AppContext): Promise<AnalyticsProvider> {
 type GoogleAccess = (scope: string) => Promise<string>;
 
 /** Run a Google request with the saved connection, turning its failures into messages for the page. */
-async function googleRequest(c: AppContext, request: (access: GoogleAccess, credential: GoogleCredential) => Promise<Response>) {
+async function googleRequest(
+  c: AppContext,
+  request: (access: GoogleAccess, credential: GoogleCredential) => Promise<Response>,
+  feature?: keyof GoogleFeatures,
+) {
   try {
     const credential = await loadGoogleCredential(c.env);
-    if (!credential) return c.json({ error: "Connect Google in Settings first", code: "google_not_configured" }, 409);
+    if (!credential) return c.json({ error: "Connect Google in Integrations first", code: "google_not_configured" }, 409);
+    if (feature && !(await loadGoogleFeatures(c.env))[feature]) {
+      return c.json({ error: "This Google feature is switched off in Integrations", code: "google_feature_off" }, 409);
+    }
     const client = credential.kind === "oauth" ? await loadGoogleClient(c.env) : null;
     return await request((scope) => googleAccessToken(credential, scope, Date.now(), client), credential);
   } catch (error) {
@@ -2315,7 +2329,7 @@ function ga4Analytics_(c: AppContext, detailed: boolean) {
       ANALYTICS_CACHE,
     );
     return c.json(data);
-  });
+  }, "analytics");
 }
 
 api.get("/sites/:id/analytics", async (c) => {
@@ -2330,7 +2344,11 @@ api.get("/sites/:id/analytics/details", async (c) => {
 
 /** What Settings shows about the Google connection and the OAuth client it signs in with. */
 async function googleSettings(c: AppContext): Promise<GoogleSettings> {
-  const [credential, client] = await Promise.all([loadGoogleCredential(c.env), loadGoogleClient(c.env)]);
+  const [credential, client, features] = await Promise.all([
+    loadGoogleCredential(c.env),
+    loadGoogleClient(c.env),
+    loadGoogleFeatures(c.env),
+  ]);
   return {
     configured: !!credential,
     kind: credential ? (credential.kind === "oauth" ? "oauth" : "service_account") : null,
@@ -2339,8 +2357,20 @@ async function googleSettings(c: AppContext): Promise<GoogleSettings> {
     client_configured: !!client,
     can_setup: !!credential && googleCanSetUpSites(credential),
     redirect_uri: googleRedirectUri(new URL(c.req.url).origin),
+    features,
   };
 }
+
+/** Switch Google's services (Analytics, Search Console, PageSpeed Insights) on or off one at a time. */
+api.put("/settings/google/features", async (c) => {
+  const parsed = z
+    .object({ analytics: z.boolean(), search_console: z.boolean(), pagespeed: z.boolean() })
+    .partial()
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose which Google features to use" }, 400);
+  await saveGoogleFeatures(c.env, { ...(await loadGoogleFeatures(c.env)), ...parsed.data });
+  return c.json<GoogleSettings>(await googleSettings(c));
+});
 
 api.get("/settings/google", async (c) => {
   try {
@@ -2425,10 +2455,11 @@ api.delete("/settings/google", async (c) => {
   return c.json<GoogleSettings>(await googleSettings(c));
 });
 
-/** Forget the OAuth client too. */
+/** Forget the OAuth client too, and which features were switched off. */
 api.delete("/settings/google/client", async (c) => {
   await deleteGoogleCredential(c.env);
   await deleteGoogleClient(c.env);
+  await deleteGoogleFeatures(c.env);
   await clearContentCacheKind(c.env.DB, "analytics");
   await clearContentCacheKind(c.env.DB, "seo");
   return c.json<GoogleSettings>(await googleSettings(c));
@@ -2472,7 +2503,7 @@ api.get("/sites/:id/search-console", (c) =>
       { maxAge: 3600, staleOnError: false },
     );
     return c.json<SiteSearchConsole>(data);
-  }),
+  }, "search_console"),
 );
 
 /**

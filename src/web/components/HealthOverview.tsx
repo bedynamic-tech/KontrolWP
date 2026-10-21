@@ -434,6 +434,8 @@ function SslCard(props: { site: SiteSummary; onOpen: (tab: string) => void }) {
 export function HealthOverview(props: {
   site: SiteSummary;
   onOpen: (tab: string) => void;
+  /** PageSpeed Insights is set up in Integrations and the site has performance checks on. */
+  performance: boolean;
 }) {
   const { site, onOpen } = props;
   const wordpress = site.kind !== "static";
@@ -443,7 +445,7 @@ export function HealthOverview(props: {
       compareVersions(site.plugin_version, LINK_CHECK_SINCE) >= 0);
   const security = wordpress && !site.security_excluded;
   const accessibility = !site.accessibility_excluded;
-  const performance = !site.performance_excluded;
+  const performance = props.performance;
   const uptime = !site.uptime_excluded;
   return (
     <section className="mt-8">

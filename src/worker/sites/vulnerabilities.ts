@@ -340,7 +340,7 @@ export class FeedHttpError extends Error {
 /** What an HTTP failure from the feed means for the person reading the Security tab. */
 export function feedFailure(status: number): string {
   if (status === 401 || status === 403) {
-    return `Wordfence did not accept the API key (HTTP ${status}). Check it in Settings.`;
+    return `Wordfence did not accept the API key (HTTP ${status}). Check it in Integrations.`;
   }
   if (status === 429) return "Wordfence refused the download because of its rate limit (HTTP 429).";
   return `The vulnerability feed answered HTTP ${status}`;
@@ -364,7 +364,7 @@ export async function refreshFeed(
   key?: string,
 ): Promise<FeedState> {
   const feedKey = key ?? (await loadFeedKey(env));
-  if (!feedKey) throw new FeedKeyError("Add a Wordfence API key in Settings first.");
+  if (!feedKey) throw new FeedKeyError("Add a Wordfence API key in Integrations first.");
   const previous = await feedState(env);
   const notBefore = Math.max(previous ? previous.attempted_at + MIN_GAP : 0, previous?.next_attempt_at ?? 0);
   if (previous && now < notBefore) {

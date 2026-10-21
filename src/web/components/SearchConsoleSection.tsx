@@ -24,6 +24,7 @@ import {
 } from "../api";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import { hostname } from "../format";
+import { useIntegrations } from "../integrations";
 import { count, JumpButton, RangeSelect, Stat, useAnalyticsRange } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { HelpTip } from "./HelpTip";
@@ -57,10 +58,11 @@ export function SearchConsoleSection(props: {
     queryFn: fetchGoogleSettings,
     refetchInterval: false,
   });
+  const searchConsoleOn = useIntegrations().searchConsole;
   const data = useQuery({
     queryKey: ["site", site.id, "search-console", range],
     queryFn: () => fetchSearchConsole(site.id, range),
-    enabled: !!google.data?.configured,
+    enabled: !!searchConsoleOn,
     refetchInterval: false,
     placeholderData: (previous) => previous,
   });
@@ -76,27 +78,8 @@ export function SearchConsoleSection(props: {
   });
   const seoOff = seo.data ? !seo.data.settings.enabled : false;
 
-  if (google.isPending || google.error) return null;
-  if (!google.data.configured) {
-    return (
-      <Section
-        title="Search Console"
-        action={linked || onOpen ? undefined : <RangeSelect range={sharedRange} onChange={chooseRange} />}
-      >
-        <EmptyRow>
-          Connect Google in{" "}
-          <Link
-            to="/integrations#google"
-            className="underline underline-offset-4"
-          >
-            Integrations
-          </Link>{" "}
-          to see this site's clicks, impressions and top queries from Google
-          Search Console.
-        </EmptyRow>
-      </Section>
-    );
-  }
+  // Hidden until Google is connected with its Search Console feature on.
+  if (google.isPending || google.error || !searchConsoleOn) return null;
 
   const select = <RangeSelect range={sharedRange} onChange={chooseRange} />;
   const picker = linked ? null : select;

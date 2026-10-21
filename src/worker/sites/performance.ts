@@ -10,7 +10,7 @@ import {
   type SitePerformance,
   type SiteSummary,
 } from "../../shared/types.ts";
-import { googleAccessToken, loadGoogleClient, loadGoogleCredential } from "../google.ts";
+import { googleAccessToken, loadGoogleClient, loadGoogleCredential, loadGoogleFeatures } from "../google.ts";
 import { decryptSetting, encryptSetting } from "./secrets.ts";
 
 /**
@@ -66,11 +66,13 @@ export type PagespeedAuth = { via: "key"; key: string } | { via: "google"; token
 
 /** Which of the two is set up, without asking Google for a token. */
 export async function pagespeedSource(env: Env): Promise<"key" | "google" | null> {
+  if (!(await loadGoogleFeatures(env)).pagespeed) return null;
   if (await loadPagespeedKey(env).catch(() => null)) return "key";
   return (await loadGoogleCredential(env).catch(() => null)) ? "google" : null;
 }
 
 export async function pagespeedAuth(env: Env): Promise<PagespeedAuth> {
+  if (!(await loadGoogleFeatures(env)).pagespeed) return null;
   const key = await loadPagespeedKey(env).catch(() => null);
   if (key) return { via: "key", key };
   const credential = await loadGoogleCredential(env).catch(() => null);
@@ -80,7 +82,7 @@ export async function pagespeedAuth(env: Env): Promise<PagespeedAuth> {
     // PageSpeed Insights accepts any token with the openid scope, which every Google sign-in already has.
     return { via: "google", token: await googleAccessToken(credential, "openid", Date.now(), client) };
   } catch {
-    // A sign-in Google no longer accepts shows in Settings; the test still tries without it.
+    // A sign-in Google no longer accepts shows in Integrations; the test still tries without it.
     return null;
   }
 }
@@ -203,17 +205,17 @@ export function pagespeedFailure(status: number, response: unknown, via: "key" |
   const message = typeof error.message === "string" ? error.message : "";
   if (status === 429) {
     return via === null
-      ? "Google's PageSpeed Insights refused the test because too many were asked for. Connect Google or save a free API key in Settings, Integrations, or try again later."
+      ? "Google's PageSpeed Insights refused the test because too many were asked for. Connect Google or save a free API key under Google in Integrations, or try again later."
       : "Google's PageSpeed Insights refused the test because too many were asked for. Try again later.";
   }
-  if (/api key not valid/i.test(message)) return "Google did not accept the PageSpeed API key. Check the key in Settings, Integrations.";
+  if (/api key not valid/i.test(message)) return "Google did not accept the PageSpeed API key. Check the key under Google in Integrations.";
   if (via === "google" && (status === 403 || status === 401)) {
     return /has not been used|is disabled|SERVICE_DISABLED|not enabled/i.test(message)
-      ? "Turn on the PageSpeed Insights API in the Google Cloud project that owns your Google client ID (Settings, Integrations), then try again."
+      ? "Turn on the PageSpeed Insights API in the Google Cloud project that owns your Google client ID (Integrations, Google), then try again."
       : `Google refused the test for the connected Google account${message ? `: ${message}` : ""}`;
   }
   if (/api key|API_KEY|has not been used|is disabled|not enabled/i.test(message) || status === 403) {
-    return "Google did not accept the PageSpeed API key. Check the key in Settings, and that the PageSpeed Insights API is turned on for its Google Cloud project.";
+    return "Google did not accept the PageSpeed API key. Check the key under Google in Integrations, and that the PageSpeed Insights API is turned on for its Google Cloud project.";
   }
   const reason = message.replace(/^Lighthouse returned error: ?/i, "").trim();
   return `Google could not test the page${reason ? `: ${reason}` : ` (HTTP ${status})`}`;
