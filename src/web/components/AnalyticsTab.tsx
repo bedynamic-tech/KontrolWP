@@ -8,7 +8,6 @@ import { hostname } from "../format";
 import {
   AnalyticsFooter,
   count,
-  RangeSelect,
   StatsRow,
   TopList,
   TrendChart,
@@ -60,45 +59,43 @@ const CARDS: {
   { key: "events", title: "Events", unit: "Count", empty: "No events in this period." },
 ];
 
-/** The Analytics tab: Search Console and the site's analytics in full, each in its own view with the date range in its heading. */
-export function AnalyticsTab(props: { site: SiteSummary; view: string }) {
-  const { site, view } = props;
+/** The Analytics tab: Search Console above the site's analytics in full, each under a heading naming its service. */
+export function AnalyticsTab(props: { site: SiteSummary }) {
+  const { site } = props;
   const source = useAnalyticsProvider(site);
-  const [range, chooseRange] = useAnalyticsRange();
-  if (view === "search-console") {
-    return (
+  return (
+    <>
+      {/* The date range sits in the Search Console heading and changes the analytics below too. */}
       <div id="site-search-console" className="[&>section:first-child]:mt-6">
         <ErrorBoundary label="Search Console">
           <SearchConsoleSection site={site} />
         </ErrorBoundary>
       </div>
-    );
-  }
-  return (
-    <div id="site-analytics">
-      {source.configured ? (
-        <AnalyticsContent site={site} />
-      ) : (
-        source.loaded && (
-          <Section title="Analytics" action={<RangeSelect range={range} onChange={chooseRange} />}>
-            <EmptyRow>
-              Connect {source.label} in{" "}
-              <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-                Settings
-              </Link>{" "}
-              to show this site's analytics.
-            </EmptyRow>
-          </Section>
-        )
-      )}
-    </div>
+      <div id="site-analytics">
+        {source.configured ? (
+          <AnalyticsContent site={site} />
+        ) : (
+          source.loaded && (
+            <Section title={source.label}>
+              <EmptyRow>
+                Connect {source.label} in{" "}
+                <Link to="/settings?tab=integrations" className="underline underline-offset-4">
+                  Settings
+                </Link>{" "}
+                to show this site's analytics.
+              </EmptyRow>
+            </Section>
+          )
+        )}
+      </div>
+    </>
   );
 }
 
 function AnalyticsContent(props: { site: SiteSummary }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
-  const [range, chooseRange] = useAnalyticsRange();
+  const [range] = useAnalyticsRange();
   const details = useQuery({
     queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
@@ -106,10 +103,11 @@ function AnalyticsContent(props: { site: SiteSummary }) {
     placeholderData: (previous) => previous,
   });
 
+  // The service's name heads the module, with the visitors on the site right now beside it.
   const header = (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="mt-8 mb-3 flex flex-wrap items-center justify-between gap-3">
+      <h2 className="text-sm font-medium">{label}</h2>
       <ActiveNow data={details.data} />
-      <RangeSelect range={range} onChange={chooseRange} />
     </div>
   );
 
@@ -117,7 +115,7 @@ function AnalyticsContent(props: { site: SiteSummary }) {
     return (
       <>
         {header}
-        <div className="mt-3 space-y-3">
+        <div className="space-y-3">
           <Skeleton className="h-20 w-full rounded-xl" />
           <Skeleton className="h-72 w-full rounded-xl" />
           <div className="grid gap-3 md:grid-cols-2">
@@ -132,7 +130,7 @@ function AnalyticsContent(props: { site: SiteSummary }) {
     return (
       <>
         {header}
-        <p className="mt-3 rounded-xl border bg-background px-4 py-6 text-center text-sm text-destructive">
+        <p className="rounded-xl border bg-background px-4 py-6 text-center text-sm text-destructive">
           {details.error.message}
         </p>
       </>
@@ -142,7 +140,7 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   const data = details.data;
   if (!data.website || !data.breakdowns) {
     return (
-      <Section title="Analytics">
+      <Section title={label}>
         <div className="space-y-3 px-4 py-6 text-center">
           <p className="text-sm text-muted-foreground">
             {data.chosen
@@ -160,7 +158,7 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   return (
     <div className={cn(details.isPlaceholderData && "opacity-60 transition-opacity")}>
       {header}
-      <div className="@container mt-3 overflow-hidden rounded-xl border bg-background">
+      <div className="@container overflow-hidden rounded-xl border bg-background">
         <StatsRow data={data} />
         <TrendChart data={data} tall />
         <AnalyticsFooter site={site} data={data} />
