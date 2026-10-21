@@ -137,18 +137,23 @@ test("Google's refusals read as something the owner can act on", () => {
   assert.match(pagespeedFailure(500, { error: { message: "Lighthouse returned error: NO_FCP" } }), /could not test the page: NO_FCP/);
 });
 
-test("a test asks for both devices' categories, the key and a trimmed answer", async () => {
+test("a test asks for both devices' categories and a trimmed answer, with the key in a header", async () => {
   resetFieldsCheck();
   const asked = [];
-  const fetcher = async (url) => {
+  const keys = [];
+  const fetcher = async (url, init) => {
     asked.push(new URL(url));
+    keys.push(new Headers(init?.headers).get("X-Goog-Api-Key"));
     return Response.json(answer());
   };
   await fetchPagespeed("https://a.test/", "mobile", { via: "key", key: "secret-key" }, 1, fetcher);
   const url = asked[0];
   assert.equal(url.searchParams.get("url"), "https://a.test/");
   assert.equal(url.searchParams.get("strategy"), "MOBILE");
-  assert.equal(url.searchParams.get("key"), "secret-key");
+  // The key travels in a header, never in the address.
+  assert.equal(url.searchParams.get("key"), null);
+  assert.ok(!url.href.includes("secret-key"));
+  assert.deepEqual(keys, ["secret-key"]);
   assert.equal(url.searchParams.get("fields"), FIELDS);
   assert.deepEqual(url.searchParams.getAll("category"), ["PERFORMANCE", "ACCESSIBILITY", "BEST_PRACTICES", "SEO"]);
 });
@@ -239,7 +244,7 @@ test("a connected Google account signs the test when no key is saved", async () 
   resetFieldsCheck();
   const headers = [];
   const fetcher = async (url, init) => {
-    headers.push([new URL(url).searchParams.get("key"), new Headers(init?.headers).get("Authorization")]);
+    headers.push([new Headers(init?.headers).get("X-Goog-Api-Key"), new Headers(init?.headers).get("Authorization")]);
     return Response.json(answer());
   };
   await fetchPagespeed("https://a.test/", "mobile", { via: "google", token: "tok" }, 1, fetcher);

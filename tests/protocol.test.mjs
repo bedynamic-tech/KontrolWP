@@ -12,8 +12,8 @@ import {
 
 const hasPhp = spawnSync("php", ["-v"]).status === 0;
 
-function php(input) {
-  const result = spawnSync("php", ["tests/php/verify.php"], { input: JSON.stringify(input), encoding: "utf8" });
+function php(input, env = {}) {
+  const result = spawnSync("php", ["tests/php/verify.php"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, ...env } });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
@@ -88,4 +88,28 @@ test("the plugin refuses everything before it has a key", { skip: !hasPhp && "ph
   const headers = await signedHeaders({ keyId: randomToken(9), secret: randomToken(32), method: "GET", route, body: "" });
   const { results } = php({ credentials: null, requests: [{ method: "GET", route, body: "", headers }] });
   assert.match(results[0], /no Connection Key/);
+});
+
+test("the plugin keeps its secret encrypted and seals one an older version saved in the clear", { skip: !hasPhp && "php is not installed" }, async () => {
+  const keyId = randomToken(9);
+  const secret = randomToken(32);
+  const route = "/kontrolwp/v1/status";
+  const request = async () => ({ method: "GET", route, body: "", headers: await signedHeaders({ keyId, secret, method: "GET", route, body: "" }) });
+
+  const migrated = php({ credentials: { key_id: keyId, secret, created_at: 5 }, requests: [await request()] });
+  assert.equal(migrated.results[0], "ok");
+  assert.equal(migrated.stored.secret, undefined);
+  assert.equal(migrated.stored.key_id, keyId);
+  assert.equal(migrated.stored.created_at, 5);
+  assert.match(migrated.stored.sealed, /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  assert.ok(!JSON.stringify(migrated.stored).includes(secret));
+
+  // The sealed copy opens with the same salts, but not with others or under another key id.
+  assert.equal(php({ stored: migrated.stored, requests: [await request()] }).results[0], "ok");
+  assert.match(php({ stored: migrated.stored, requests: [await request()] }, { KWP_AUTH_KEY: "rotated" }).results[0], /no Connection Key/);
+  assert.match(php({ stored: { ...migrated.stored, key_id: randomToken(9) }, requests: [await request()] }).results[0], /no Connection Key/);
+
+  const created = php({ create_key: true, requests: [] });
+  assert.equal(created.stored.secret, undefined);
+  assert.equal(decodeConnectionKey(created.connection_key).keyId, created.stored.key_id);
 });

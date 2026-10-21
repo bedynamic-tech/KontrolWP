@@ -2004,20 +2004,26 @@ const umamiInput = z.discriminatedUnion("mode", [
       .trim()
       .url()
       .max(500)
-      .regex(/^https?:\/\//),
+      .regex(/^https:\/\//),
     username: z.string().trim().min(1).max(200),
     secret: z.string().max(500).optional(),
   }),
 ]);
 
-/** Save the Umami connection after checking that it works. A blank secret keeps the saved one. */
+/**
+ * Save the Umami connection after checking that it works. A blank secret keeps the saved one, but only for the same
+ * Umami and username, so a saved password is never sent to an address it was not entered for.
+ */
 api.put("/settings/umami", async (c) => {
   const parsed = umamiInput.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "Enter the Umami address, username and password, or an API key" }, 400);
+  if (!parsed.success) return c.json({ error: "Enter the Umami https:// address, username and password, or an API key" }, 400);
   const input = parsed.data;
   try {
     const saved = await loadUmamiConfig(c.env).catch(() => null);
-    const secret = input.secret?.length ? input.secret : saved?.mode === input.mode ? saved.secret : "";
+    const sameUmami =
+      saved?.mode === input.mode &&
+      (input.mode === "cloud" || (saved.url === input.url.replace(/\/+$/, "") && saved.username === input.username));
+    const secret = input.secret?.length ? input.secret : sameUmami ? saved.secret : "";
     if (!secret) return c.json({ error: input.mode === "cloud" ? "Enter an API key" : "Enter the password" }, 400);
     const config: UmamiConfig =
       input.mode === "cloud"
