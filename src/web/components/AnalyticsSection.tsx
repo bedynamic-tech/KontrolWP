@@ -32,7 +32,7 @@ export const PROVIDER_LABELS: Record<AnalyticsProvider, string> = {
   ga4: "Google Analytics",
 };
 
-/** Whether the provider this site reads its analytics from is connected in Settings; `loaded` is false until that is known. */
+/** Whether the provider this site reads its analytics from is connected in Integrations; `loaded` is false until that is known. */
 export function useAnalyticsProvider(site: SiteSummary) {
   const provider = site.analytics_provider ?? "umami";
   const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
@@ -46,6 +46,8 @@ export function useAnalyticsProvider(site: SiteSummary) {
     label: PROVIDER_LABELS[provider],
     configured: !!connected[provider],
     loaded: connected[provider] !== undefined,
+    // The provider's card on the Integrations page.
+    href: `/integrations#${provider === "ga4" ? "google" : "umami"}`,
     connected,
   };
 }
@@ -53,7 +55,7 @@ export function useAnalyticsProvider(site: SiteSummary) {
 export const SELECT_CLASS =
   "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
-/** The site's Umami analytics; shows nothing until Umami is connected in Settings. */
+/** The site's Umami analytics; shows nothing until Umami is connected in Integrations. */
 /** The chosen date range, remembered in this browser and shared by the Overview card and the Analytics tab. */
 const RANGE_KEY = "kontrolwp:analytics-range";
 const rangeListeners = new Set<() => void>();
@@ -142,8 +144,8 @@ export function AnalyticsSection(props: { site: SiteSummary; onOpen?: () => void
     body = (
       <EmptyRow>
         Connect {source.label} in{" "}
-        <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-          Settings
+        <Link to={source.href} className="underline underline-offset-4">
+          Integrations
         </Link>{" "}
         to show this site's analytics.
       </EmptyRow>
@@ -197,17 +199,17 @@ function AnalyticsBody(props: { data: SiteAnalytics }) {
   );
 }
 
-/** Which source is shown, with the pencil to change it and a link to Settings. */
+/** Which source is shown, with the pencil to change it and a link to its integration. */
 export function AnalyticsFooter(props: { site: SiteSummary; data: SiteAnalytics; children?: ReactNode }) {
   const { data } = props;
-  const { label } = useAnalyticsProvider(props.site);
+  const { label, href } = useAnalyticsProvider(props.site);
   return (
     <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2.5 text-xs text-muted-foreground">
       <span>Connected to {data.website!.name || data.website!.domain}</span>
       <WebsitePicker site={props.site} current={data.website!.id} chosen={data.chosen} compact />
       <span className="ml-auto flex items-center gap-3">
         {props.children}
-        <Link to="/settings" className="hover:text-foreground hover:underline">
+        <Link to={href} className="hover:text-foreground hover:underline">
           {label} settings
         </Link>
       </span>

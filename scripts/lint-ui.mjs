@@ -18,7 +18,8 @@ const routes = [
   "/sites",
   "/plugins",
   "/users",
-  ...["general", "updates", "links", "integrations"].map((tab) => `/settings?tab=${tab}`),
+  "/integrations",
+  ...["general", "updates", "links"].map((tab) => `/settings?tab=${tab}`),
   ...[
     "overview", "analytics", "content", "plugins", "users", "tools", "links", "snippets", "database",
     "uptime", "performance", "seo", "branding", "maintenance", "security", "accessibility", "domain",

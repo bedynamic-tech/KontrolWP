@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, GlobeIcon, LayoutDashboardIcon, MenuIcon, PlugIcon, SettingsIcon, UsersIcon, XIcon } from "lucide-react";
+import { BlocksIcon, DownloadIcon, GlobeIcon, LayoutDashboardIcon, MenuIcon, PlugIcon, SettingsIcon, UsersIcon, XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation, useMatch } from "react-router";
@@ -12,6 +12,7 @@ import { FeedbackMenu } from "./components/FeedbackMenu";
 import { PLUGIN_ZIP_URL } from "./components/PluginDownload";
 import { SecretsKeySetup } from "./components/SecretsKeySetup";
 import { SettingsPage, useSaveTimeZoneOnce } from "./components/SettingsPage";
+import { IntegrationsPage } from "./components/IntegrationsPage";
 import { OverviewPage } from "./components/OverviewPage";
 import { PluginsPage } from "./components/PluginsPage";
 import { SitePage } from "./components/SitePage";
@@ -96,6 +97,7 @@ export function App() {
             <Route path="/sites/:siteId" element={<SitePage />} />
             <Route path="/plugins" element={<PluginsPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -147,6 +149,7 @@ function SidebarLinks(props: { folded?: boolean }) {
         <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
         <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
         <NavItem to="/users" icon={<UsersIcon />} label="Users" />
+        <NavItem to="/integrations" icon={<BlocksIcon />} label="Integrations" />
         <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
       </nav>
       <div className="mt-auto">

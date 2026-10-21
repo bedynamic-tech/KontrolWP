@@ -173,8 +173,8 @@ export function PerformanceTab(props: { site: SiteSummary }) {
       {!data.key_configured && !result && !testing && (
         <StatsNote>
           Google allows very few tests without your own Google account or API key.{" "}
-          <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-            Connect Google or add a key in Settings
+          <Link to="/integrations#google" className="underline underline-offset-4">
+            Connect Google or add a key in Integrations
           </Link>{" "}
           to avoid refused tests.
         </StatsNote>

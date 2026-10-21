@@ -38,8 +38,8 @@ export function CloudflareWorkerSelect(props: {
     return (
       <p className="text-xs text-muted-foreground">
         Connect Cloudflare in{" "}
-        <Link to="/settings" className="underline underline-offset-4">
-          Settings
+        <Link to="/integrations#cloudflare" className="underline underline-offset-4">
+          Integrations
         </Link>{" "}
         to show this site's deployments.
       </p>

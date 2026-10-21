@@ -83,8 +83,8 @@ export function AnalyticsTab(props: { site: SiteSummary; view: string }) {
           <Section title="Analytics" action={<RangeSelect range={range} onChange={chooseRange} />}>
             <EmptyRow>
               Connect {source.label} in{" "}
-              <Link to="/settings?tab=integrations" className="underline underline-offset-4">
-                Settings
+              <Link to={source.href} className="underline underline-offset-4">
+                Integrations
               </Link>{" "}
               to show this site's analytics.
             </EmptyRow>

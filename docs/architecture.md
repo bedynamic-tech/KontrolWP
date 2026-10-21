@@ -276,7 +276,7 @@ WordPress auto-updates dialog sets core across chosen sites.
 
 ## Umami analytics
 
-Settings stores one Umami connection in the `settings` table: Umami Cloud
+The Integrations page (`/integrations`, one card per service in alphabetical order; older `/settings?tab=integrations` and `/settings#wordfence` links redirect there) stores one Umami connection in the `settings` table: Umami Cloud
 with an API key (sent as a bearer token to `https://api.umami.is/v1`), or a
 self-hosted Umami with a username and password (KontrolWP logs in at
 `/api/auth/login` for each analytics request and sends the token the same
@@ -354,12 +354,12 @@ Including it again leaves the tab ready to scan.
 The Security tab (WordPress sites) shows known vulnerabilities and insecure settings.
 
 Vulnerabilities come from the free Wordfence Intelligence production feed
-(`https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production`, since the smaller scanner feed left the CVSS scores out). The keyless v2 feed was retired in 2026 (it answers 410); v3 needs a free API key from a Wordfence account, sent as a bearer token and limited to one download every 30 minutes. Settings stores the key encrypted (`settings` row `wordfence`), checks it by downloading the feed, and nothing is downloaded without one. The feed is one
+(`https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production`, since the smaller scanner feed left the CVSS scores out). The keyless v2 feed was retired in 2026 (it answers 410); v3 needs a free API key from a Wordfence account, sent as a bearer token and limited to one download every 30 minutes. Integrations stores the key encrypted (`settings` row `wordfence`), checks it by downloading the feed, and nothing is downloaded without one. The feed is one
 very large JSON object, so `src/worker/sites/vulnerabilities.ts` reads it as a stream, splits
 out one entry at a time and keeps only WordPress core and the plugins some connected site has
 installed (`site_plugins`). The rows go to the `vulnerabilities` table, one per affected
 version range. The cron trigger refreshes them once a day, and an hour after a failed
-attempt, and no download starts within 65 minutes of any earlier attempt (Wordfence documents 30 minutes but refused one at 31). A failure sets a wait that doubles from one hour up to six, or the `Retry-After` Wordfence sends if longer; each attempt is recorded before it starts so two runs never overlap, and rows stored in an older format (`FEED_VERSION`) are downloaded again by the scheduled job. When a download fails but earlier data exists, the tab shows that data with a quiet note. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Settings does the first download. A
+attempt, and no download starts within 65 minutes of any earlier attempt (Wordfence documents 30 minutes but refused one at 31). A failure sets a wait that doubles from one hour up to six, or the `Retry-After` Wordfence sends if longer; each attempt is recorded before it starts so two runs never overlap, and rows stored in an older format (`FEED_VERSION`) are downloaded again by the scheduled job. When a download fails but earlier data exists, the tab shows that data with a quiet note. There is no refresh button, because Wordfence allows one download every 30 minutes; saving the key in Integrations does the first download. A
 feed that fails or comes back empty leaves the stored rows alone, and the error shows on the
 tab. `GET /api/sites/:id/security` matches the site's WordPress version and plugin versions
 from the last sync against those rows when the tab opens, so nothing per site is stored.
@@ -400,7 +400,7 @@ minute, longer than a request may keep working after it answers, so Run test
 claims the site (`running_since`, cleared after five minutes if lost) and sends
 a `performance` message to the queue; the tab polls until it finishes. Tests
 only run when asked; nothing tests sites on a schedule. An API key can be saved
-in Settings, Integrations (stored encrypted like the Wordfence key) or Google
+in Integrations (stored encrypted like the Wordfence key) or Google
 connected there: without either, Google's shared quota refuses most tests. A saved key wins; otherwise the test carries the connected account's
 access token (the `openid` scope every sign-in has), so the quota is the OAuth
 client's Google Cloud project, which needs the PageSpeed Insights API turned on. A failed test keeps the
@@ -530,7 +530,7 @@ down; it also finds the icon) and, in parallel, reads the chosen Worker's
 deployments and builds into `site_deployments`, replaced at every sync. A
 failed Cloudflare read only sets `sites.cf_error`; the last rows stay.
 
-Settings stores one Cloudflare API token in the `settings` table, encrypted
+Integrations stores one Cloudflare API token in the `settings` table, encrypted
 like the Umami secret. src/worker/cloudflare.ts reads, never writes:
 `GET /accounts`, `/accounts/:id/workers/scripts` (names and tags),
 `/workers/scripts/:name/deployments` (the first is live) and the Workers
@@ -616,7 +616,7 @@ Every site's Overview starts with a Health section of up to five cards: Links an
 A site reads its analytics from one provider, `sites.analytics_provider` (`umami` by default, or `ga4`), chosen in the site's settings. `GET /sites/:id/analytics` and `/analytics/details` pick the provider and return the same `SiteAnalytics` shape, so the Overview card, the Analytics tab and the export do not care where the numbers came from; `provider` says which. `analytics_ref` is the owner's chosen source within a non-Umami provider; null matches by domain.
 
 
-Google Analytics 4 (`src/worker/ga4.ts`, `src/worker/google.ts`) is read through "Connect to Google" in Settings. The owner creates an OAuth client (type Web application) in their own Google Cloud project once, because every deployment has its own address, saves its client ID and secret in Settings (the secret is encrypted under the `google_client` setting), and lists `https://<this app>/api/google/callback` as an authorized redirect URI. `POST /api/google/connect` stores a one-time state (`google_oauth_state`, ten minutes) and returns Google's sign-in address; `GET /api/google/callback` checks the state, trades the code for tokens, reads the account's email and saves the encrypted refresh token under the `google` setting, then returns to Settings. The scopes are read-only (`analytics.readonly`, `webmasters.readonly`, plus `openid email` to label the account), asked for with offline access. Access tokens come from the refresh token and are kept for 50 minutes in memory; one covers every scope. The consent screen should be set to In production, or Google expires the refresh token after seven days. Connections saved earlier with a service account's JSON key (the `google` setting without `kind: "oauth"`) still work, signed with Web Crypto (RS256), and show in Settings until disconnected or replaced. A property is matched to a site by the domain of its web data stream; its time zone is read so GA's wall-clock hours and days land in the browser's buckets. Day ranges use GA's own totals for the period and the one before; a 24 hour range is added up from hours, so its visitors figure is a sum of hourly users. The Analytics Data API, Analytics Admin API, Search Console API and (for site setup) Site Verification API must be enabled in the OAuth client's Google Cloud project.
+Google Analytics 4 (`src/worker/ga4.ts`, `src/worker/google.ts`) is read through "Connect to Google" in Integrations. The owner creates an OAuth client (type Web application) in their own Google Cloud project once, because every deployment has its own address, saves its client ID and secret in Integrations (the secret is encrypted under the `google_client` setting), and lists `https://<this app>/api/google/callback` as an authorized redirect URI. `POST /api/google/connect` stores a one-time state (`google_oauth_state`, ten minutes) and returns Google's sign-in address; `GET /api/google/callback` checks the state, trades the code for tokens, reads the account's email and saves the encrypted refresh token under the `google` setting, then returns to Integrations. The scopes are read-only (`analytics.readonly`, `webmasters.readonly`, plus `openid email` to label the account), asked for with offline access. Access tokens come from the refresh token and are kept for 50 minutes in memory; one covers every scope. The consent screen should be set to In production, or Google expires the refresh token after seven days. Connections saved earlier with a service account's JSON key (the `google` setting without `kind: "oauth"`) still work, signed with Web Crypto (RS256), and show in Integrations until disconnected or replaced. A property is matched to a site by the domain of its web data stream; its time zone is read so GA's wall-clock hours and days land in the browser's buckets. Day ranges use GA's own totals for the period and the one before; a 24 hour range is added up from hours, so its visitors figure is a sum of hourly users. The Analytics Data API, Analytics Admin API, Search Console API and (for site setup) Site Verification API must be enabled in the OAuth client's Google Cloud project.
 
 ## Search Console
 
