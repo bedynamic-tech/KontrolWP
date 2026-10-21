@@ -687,6 +687,15 @@ export interface SearchConsoleSetup {
 }
 
 /** The Google connection as Settings shows it; secrets and tokens never leave the Worker. */
+/** Which of Google's services KontrolWP uses; each can be switched off on its own. */
+export interface GoogleFeatures {
+  analytics: boolean;
+  search_console: boolean;
+  pagespeed: boolean;
+}
+
+export const GOOGLE_FEATURES_DEFAULT: GoogleFeatures = { analytics: true, search_console: true, pagespeed: true };
+
 export interface GoogleSettings {
   configured: boolean;
   /** How it signed in: "Connect to Google", or a service account key saved before that. */
@@ -700,6 +709,7 @@ export interface GoogleSettings {
   can_setup: boolean;
   /** The address to list as an authorized redirect URI on the OAuth client. */
   redirect_uri: string;
+  features: GoogleFeatures;
 }
 
 /** A Worker the Cloudflare token can see, for choosing a static site's deployments. */

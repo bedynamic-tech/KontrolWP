@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { fetchOverview } from "../api";
 import { hostname, plural, timeAgo } from "../format";
+import { useIntegrations } from "../integrations";
 import { AddSiteDialog } from "./AddSiteDialog";
 import { PageSkeleton } from "./OverviewPage";
 import { EmptyRow } from "./Section";
@@ -10,6 +11,7 @@ import { ConnectionBanner } from "./ConnectionBanner";
 
 export function SitesPage() {
   const { data, error, isPending } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
+  const { cloudflare } = useIntegrations();
   if (isPending) return <PageSkeleton />;
   // A failed refresh keeps showing the last data; only a first load that failed shows the error.
   if (!data) return <p className="text-sm text-destructive">{error?.message}</p>;
@@ -55,7 +57,7 @@ export function SitesPage() {
                     {site.kind === "static" ? (
                       <>
                         <span>Static site</span>
-                        {site.cf_hosted && (
+                        {site.cf_hosted && cloudflare && (
                           <span>
                             {site.last_deployed_at
                               ? `Deployed ${timeAgo(site.last_deployed_at).toLowerCase()}`

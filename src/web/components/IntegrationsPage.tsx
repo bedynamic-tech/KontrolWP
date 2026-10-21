@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { ChartColumnIcon, CloudIcon, GaugeIcon, SearchIcon, ShieldIcon } from "lucide-react";
+import { ChartColumnIcon, CloudIcon, SearchIcon, ShieldIcon } from "lucide-react";
 import { useLocation, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { GoogleSettings, UmamiMode } from "../../shared/types";
+import type { GoogleFeatures, GoogleSettings, UmamiMode } from "../../shared/types";
 import {
   deleteCloudflareSettings,
   deleteGoogleClient,
@@ -30,6 +30,7 @@ import {
   fetchWordfenceSettings,
   saveCloudflareSettings,
   saveGoogleClient,
+  saveGoogleFeatures,
   savePagespeedKey,
   saveUmamiSettings,
   saveWordfenceKey,
@@ -44,7 +45,6 @@ import { SectionNav } from "./SectionNav";
 const INTEGRATIONS = [
   { value: "cloudflare", label: "Cloudflare", icon: <CloudIcon />, Card: CloudflareCard },
   { value: "google", label: "Google", icon: <SearchIcon />, Card: GoogleCard },
-  { value: "pagespeed", label: "PageSpeed Insights", icon: <GaugeIcon />, Card: PagespeedCard },
   { value: "umami", label: "Umami", icon: <ChartColumnIcon />, Card: UmamiCard },
   { value: "wordfence", label: "Wordfence", icon: <ShieldIcon />, Card: WordfenceCard },
 ];
@@ -54,7 +54,8 @@ export function IntegrationsPage() {
   const { hash } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   // ?tab=wordfence picks one; links such as /integrations#wordfence still land on theirs.
-  const requested = searchParams.get("tab") ?? hash.slice(1);
+  // PageSpeed Insights now lives under Google.
+  const requested = (searchParams.get("tab") ?? hash.slice(1)).replace(/^pagespeed$/, "google");
   const current = INTEGRATIONS.find((item) => item.value === requested) ?? INTEGRATIONS[0];
   const Card = current.Card;
   return (
@@ -137,27 +138,48 @@ function IntegrationSection(props: {
       >
         {on ? props.children : <EmptyRow>Turn {props.title} on to set it up.</EmptyRow>}
       </Section>
-      <Dialog open={confirming} onOpenChange={(open) => !removing && setConfirming(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Turn off {props.title}?</DialogTitle>
-            <DialogDescription>
-              This deletes everything saved for {props.title}, such as API keys, tokens and sign-ins. To use it
-              again, turn it back on and set it up from the start.
-            </DialogDescription>
-          </DialogHeader>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)} disabled={removing}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={remove} loading={removing}>
-              {removing ? "Turning off..." : "Turn off and delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmTurnOff
+        open={confirming}
+        name={props.title}
+        busy={removing}
+        error={error}
+        onCancel={() => setConfirming(false)}
+        onConfirm={remove}
+      />
     </>
+  );
+}
+
+/** Asks before turning something off that has saved keys or sign-ins, since turning it off deletes them. */
+function ConfirmTurnOff(props: {
+  open: boolean;
+  name: string;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={props.open} onOpenChange={(open) => !open && !props.busy && props.onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Turn off {props.name}?</DialogTitle>
+          <DialogDescription>
+            This deletes everything saved for {props.name}, such as API keys, tokens and sign-ins. To use it again,
+            turn it back on and set it up from the start.
+          </DialogDescription>
+        </DialogHeader>
+        {props.error && <p className="text-sm text-destructive">{props.error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={props.onCancel} disabled={props.busy}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={props.onConfirm} loading={props.busy}>
+            {props.busy ? "Turning off..." : "Turn off and delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -398,7 +420,8 @@ function WordfenceCard() {
   );
 }
 
-function PagespeedCard() {
+/** The optional PageSpeed Insights API key, under the PageSpeed feature in the Google card. */
+function PagespeedKeyForm() {
   const queryClient = useQueryClient();
   const settings = useQuery({
     queryKey: ["settings", "pagespeed"],
@@ -406,76 +429,151 @@ function PagespeedCard() {
     refetchInterval: false,
   });
   const [key, setKey] = useState("");
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["site"] });
   const save = useMutation({
     mutationFn: () => savePagespeedKey(key.trim()),
     onSuccess: (result) => {
       setKey("");
       queryClient.setQueryData(["settings", "pagespeed"], { configured: result.configured });
-      refresh();
-    },
-  });
-  const remove = useMutation({
-    mutationFn: deletePagespeedKey,
-    onSuccess: (result) => {
-      save.reset();
-      queryClient.setQueryData(["settings", "pagespeed"], result);
-      refresh();
+      queryClient.invalidateQueries({ queryKey: ["site"] });
     },
   });
 
+  if (settings.isPending) return <Skeleton className="h-8 w-full" />;
+  if (settings.error) return <p className="text-sm text-destructive">{settings.error.message}</p>;
   return (
-    <IntegrationSection
-      configured={settings.data?.configured}
-      onDisable={() => remove.mutateAsync()}
-      title="Google PageSpeed Insights"
-      hint={
-        settings.data?.configured
-          ? "Saved. Each site's Performance tab runs Google's Lighthouse tests with this key when you select Run test."
-          : "Optional. When Google is connected below, PageSpeed Insights tests use that account and no key is needed; turn on the PageSpeed Insights API in the Google Cloud project that owns your client ID. A key here is used instead when saved."
-      }
+    <form
+      onSubmit={(event: FormEvent) => {
+        event.preventDefault();
+        save.mutate();
+      }}
+      className="space-y-3"
     >
-      {settings.isPending ? (
-        <div className="space-y-3 p-4">
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ) : settings.error ? (
-        <p className="px-4 py-6 text-sm text-destructive">{settings.error.message}</p>
-      ) : (
-        <form
-          onSubmit={(event: FormEvent) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-          className="space-y-4 p-4"
-        >
-          <label className="block space-y-1.5">
-            <span className="flex items-center gap-1.5 text-sm font-medium">
-              API key
-              <HelpTip>
-                In the Google Cloud console, turn on the PageSpeed Insights API for a project, then create an API key
-                and copy it here. The key is free to use, stored encrypted and never shown again.
-              </HelpTip>
-            </span>
-            <Input
-              type="password"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder={settings.data.configured ? "Saved; enter a new key to replace it" : "Google API key"}
-              required={!settings.data.configured}
-              autoComplete="off"
-            />
-          </label>
-          {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
-          {save.isSuccess && <p className="text-sm text-muted-foreground">Saved.</p>}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
-              Save key
-            </Button>
+      <label className="block space-y-1.5">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          API key (optional)
+          <HelpTip>
+            Tests use the connected Google account, so no key is needed once you turn on the PageSpeed Insights API in
+            the Google Cloud project that owns your client ID. To use a key instead, turn that API on for a project,
+            create an API key and paste it here. It is free, stored encrypted and never shown again.
+          </HelpTip>
+        </span>
+        <Input
+          type="password"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder={settings.data.configured ? "Saved; enter a new key to replace it" : "Google API key"}
+          required
+          autoComplete="off"
+        />
+      </label>
+      {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
+      {save.isSuccess && <p className="text-sm text-muted-foreground">Saved.</p>}
+      <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
+        Save key
+      </Button>
+    </form>
+  );
+}
+
+const GOOGLE_FEATURES: { key: keyof GoogleFeatures; title: string; hint: string }[] = [
+  {
+    key: "analytics",
+    title: "Google Analytics",
+    hint: "Lets a site read its visitors from Google Analytics 4. Needs Connect to Google.",
+  },
+  {
+    key: "search_console",
+    title: "Search Console",
+    hint: "Shows each site's clicks, impressions and top queries, and sets sites up in Search Console. Needs Connect to Google.",
+  },
+  {
+    key: "pagespeed",
+    title: "PageSpeed Insights",
+    hint: "Runs Google's Lighthouse tests from each site's Performance tab, with the connected Google account or an API key.",
+  },
+];
+
+/** Google's services, each switched on or off on its own, under the sign-in. */
+function GoogleFeatureList(props: { features: GoogleFeatures }) {
+  const queryClient = useQueryClient();
+  const pagespeedKey = useQuery({ queryKey: ["settings", "pagespeed"], queryFn: fetchPagespeedSettings, refetchInterval: false });
+  const [confirmingPagespeed, setConfirmingPagespeed] = useState(false);
+  const change = useMutation({
+    mutationFn: (next: Partial<GoogleFeatures>) => saveGoogleFeatures(next),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["settings", "google"], result);
+      queryClient.invalidateQueries({ queryKey: ["site"] });
+      queryClient.invalidateQueries({ queryKey: ["google"] });
+    },
+  });
+  // Turning PageSpeed off with a key saved deletes the key, so it asks first.
+  const pagespeedOff = useMutation({
+    mutationFn: async () => {
+      await deletePagespeedKey();
+      return saveGoogleFeatures({ pagespeed: false });
+    },
+    onSuccess: (result) => {
+      setConfirmingPagespeed(false);
+      queryClient.setQueryData(["settings", "pagespeed"], { configured: false });
+      queryClient.setQueryData(["settings", "google"], result);
+      queryClient.invalidateQueries({ queryKey: ["site"] });
+    },
+  });
+  const flip = (key: keyof GoogleFeatures, on: boolean) => {
+    if (key === "pagespeed" && !on && pagespeedKey.data?.configured) return setConfirmingPagespeed(true);
+    change.mutate({ [key]: on });
+  };
+  const checked = (key: keyof GoogleFeatures) =>
+    change.isPending && change.variables[key] !== undefined ? !!change.variables[key] : props.features[key];
+
+  return (
+    <div className="border-t">
+      <p className="px-4 pt-4 text-sm font-medium">Features</p>
+      <div className="divide-y px-4">
+        {GOOGLE_FEATURES.map((feature) => (
+          <div key={feature.key} className="py-3">
+            <label className="flex cursor-pointer items-center gap-3">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+                {feature.title}
+                <HelpTip>{feature.hint}</HelpTip>
+              </span>
+              <Switch
+                checked={checked(feature.key)}
+                disabled={change.isPending || pagespeedOff.isPending}
+                onCheckedChange={(on) => flip(feature.key, on)}
+              />
+            </label>
+            {props.features[feature.key] && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Needs in Google Cloud:{" "}
+                {GOOGLE_FEATURE_APIS[feature.key].map((api, index) => (
+                  <span key={api.href}>
+                    {index > 0 && ", "}
+                    <a href={api.href} target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
+                      {api.label}
+                    </a>
+                  </span>
+                ))}
+              </p>
+            )}
+            {feature.key === "pagespeed" && props.features.pagespeed && (
+              <div className="mt-3">
+                <PagespeedKeyForm />
+              </div>
+            )}
           </div>
-        </form>
-      )}
-    </IntegrationSection>
+        ))}
+      </div>
+      {change.error && <p className="px-4 pb-3 text-sm text-destructive">{change.error.message}</p>}
+      <ConfirmTurnOff
+        open={confirmingPagespeed}
+        name="PageSpeed Insights"
+        busy={pagespeedOff.isPending}
+        error={pagespeedOff.error?.message ?? null}
+        onCancel={() => setConfirmingPagespeed(false)}
+        onConfirm={() => pagespeedOff.mutate()}
+      />
+    </div>
   );
 }
 
@@ -561,14 +659,32 @@ function CloudflareCard() {
 }
 
 /** The Google Cloud pages the one-time setup needs, in order. */
-const GOOGLE_CLOUD_LINKS = [
-  { label: "1. Create the OAuth client (Credentials)", href: "https://console.cloud.google.com/apis/credentials" },
-  { label: "2. Enable the Google Analytics Data API", href: "https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" },
-  { label: "3. Enable the Google Analytics Admin API", href: "https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" },
-  { label: "4. Enable the Google Search Console API", href: "https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" },
-  { label: "5. Enable the Google Site Verification API (to set sites up)", href: "https://console.cloud.google.com/apis/library/siteverification.googleapis.com" },
-  { label: "6. Publish the consent screen (In production)", href: "https://console.cloud.google.com/apis/credentials/consent" },
-];
+const API_LIBRARY = "https://console.cloud.google.com/apis/library/";
+
+/** The Google Cloud APIs each Google feature needs turned on in the OAuth client's project. */
+const GOOGLE_FEATURE_APIS: Record<keyof GoogleFeatures, { label: string; href: string }[]> = {
+  analytics: [
+    { label: "Google Analytics Data API", href: `${API_LIBRARY}analyticsdata.googleapis.com` },
+    { label: "Google Analytics Admin API", href: `${API_LIBRARY}analyticsadmin.googleapis.com` },
+  ],
+  search_console: [
+    { label: "Google Search Console API", href: `${API_LIBRARY}searchconsole.googleapis.com` },
+    { label: "Google Site Verification API (to set sites up)", href: `${API_LIBRARY}siteverification.googleapis.com` },
+  ],
+  pagespeed: [{ label: "PageSpeed Insights API", href: `${API_LIBRARY}pagespeedonline.googleapis.com` }],
+};
+
+/** The Google Cloud pages the one-time setup needs, in order, with only the APIs of the features switched on. */
+function googleCloudSteps(features: GoogleFeatures) {
+  const apis = (Object.keys(GOOGLE_FEATURE_APIS) as (keyof GoogleFeatures)[])
+    .filter((feature) => features[feature])
+    .flatMap((feature) => GOOGLE_FEATURE_APIS[feature]);
+  return [
+    { label: "Create the OAuth client (Credentials)", href: "https://console.cloud.google.com/apis/credentials" },
+    ...apis.map((api) => ({ label: `Enable the ${api.label}`, href: api.href })),
+    { label: "Publish the consent screen (In production)", href: "https://console.cloud.google.com/apis/credentials/consent" },
+  ].map((step, index) => ({ ...step, label: `${index + 1}. ${step.label}` }));
+}
 
 /** The Google account KontrolWP reads Google Analytics and Search Console with, signed in through "Connect to Google". */
 function GoogleCard() {
@@ -624,18 +740,21 @@ function GoogleCard() {
       refresh(result);
     },
   });
-  // Turning Google off signs out and forgets the OAuth client too.
+  // Turning Google off signs out, forgets the OAuth client and the PageSpeed key, and switches every feature back on.
   const turnOff = useMutation({
     mutationFn: async () => {
       await deleteGoogleSettings();
+      await deletePagespeedKey();
       return deleteGoogleClient();
     },
     onSuccess: (result) => {
       connect.reset();
       setOutcome(null);
+      queryClient.setQueryData(["settings", "pagespeed"], { configured: false });
       refresh(result);
     },
   });
+  const pagespeedKey = useQuery({ queryKey: ["settings", "pagespeed"], queryFn: fetchPagespeedSettings, refetchInterval: false });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -645,10 +764,14 @@ function GoogleCard() {
 
   return (
     <IntegrationSection
-      configured={settings.data && (settings.data.configured || settings.data.client_configured)}
+      configured={
+        settings.data && pagespeedKey.data
+          ? settings.data.configured || settings.data.client_configured || pagespeedKey.data.configured
+          : undefined
+      }
       onDisable={() => turnOff.mutateAsync()}
       title="Google"
-      hint="Sign in with Google to show Google Analytics 4 and Search Console. KontrolWP only reads, and keeps a revocable sign-in that is stored encrypted."
+      hint="Sign in with Google to show Google Analytics 4, Search Console and PageSpeed Insights. Switch each one on or off below. KontrolWP only reads, and keeps a revocable sign-in that is stored encrypted."
     >
       {settings.isPending ? (
         <div className="space-y-3 p-4">
@@ -677,7 +800,7 @@ function GoogleCard() {
               <div className="space-y-1.5">
                 <span className="text-sm font-medium">Open in Google Cloud</span>
                 <ul className="space-y-1 text-sm">
-                  {GOOGLE_CLOUD_LINKS.map((link) => (
+                  {googleCloudSteps(data!.features).map((link) => (
                     <li key={link.href}>
                       <a
                         href={link.href}
@@ -696,8 +819,8 @@ function GoogleCard() {
                   Authorized redirect URI
                   <HelpTip>
                     In Google Cloud, create an OAuth client ID of type Web application and add this address under
-                    Authorized redirect URIs. Also enable the Google Analytics Data API, Google Analytics Admin API and
-                    Google Search Console API (and the Google Site Verification API to set sites up from KontrolWP), and under OAuth consent screen set the publishing status to In
+                    Authorized redirect URIs. Also enable the APIs listed above for the features switched on below, and
+                    under OAuth consent screen set the publishing status to In
                     production so the sign-in does not expire after seven days. Google warns that the app is
                     unverified; choose Advanced and continue, it is your own app.
                   </HelpTip>
@@ -767,6 +890,7 @@ function GoogleCard() {
           </div>
         </form>
       )}
+      {data && <GoogleFeatureList features={data.features} />}
     </IntegrationSection>
   );
 }

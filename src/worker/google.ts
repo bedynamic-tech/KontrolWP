@@ -1,3 +1,4 @@
+import { GOOGLE_FEATURES_DEFAULT, type GoogleFeatures } from "../shared/types.ts";
 import { decryptSetting, encryptSetting } from "./sites/secrets.ts";
 
 /**
@@ -126,6 +127,25 @@ export async function saveGoogleClient(env: Env, client: GoogleClient): Promise<
 
 export async function deleteGoogleClient(env: Env): Promise<void> {
   await env.DB.prepare("DELETE FROM settings WHERE name = ?").bind(CLIENT_SETTING).run();
+}
+
+const FEATURES_SETTING = "google_features";
+
+/** Which Google services are switched on; all of them until the owner switches one off. */
+export async function loadGoogleFeatures(env: Env): Promise<GoogleFeatures> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?").bind(FEATURES_SETTING).first<{ value: string }>();
+  const stored = row ? (JSON.parse(row.value) as Partial<GoogleFeatures>) : {};
+  return { ...GOOGLE_FEATURES_DEFAULT, ...stored };
+}
+
+export async function saveGoogleFeatures(env: Env, features: GoogleFeatures): Promise<void> {
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)")
+    .bind(FEATURES_SETTING, JSON.stringify(features))
+    .run();
+}
+
+export async function deleteGoogleFeatures(env: Env): Promise<void> {
+  await env.DB.prepare("DELETE FROM settings WHERE name = ?").bind(FEATURES_SETTING).run();
 }
 
 /** Start a sign-in: remember a one-time state for ten minutes and return the Google page to send the owner to. */
@@ -298,7 +318,7 @@ async function oauthAccessToken(account: GoogleOAuthAccount, client: GoogleClien
   const cacheKey = `oauth|${account.refresh_token.slice(-16)}`;
   const cached = tokens.get(cacheKey);
   if (cached && cached.expires > now) return cached.token;
-  if (!client) throw new GoogleError("The Google client ID and secret are missing. Add them in Settings and connect again.", 400);
+  if (!client) throw new GoogleError("The Google client ID and secret are missing. Add them in Integrations and connect again.", 400);
   const body = await tokenRequest({
     grant_type: "refresh_token",
     refresh_token: account.refresh_token,
@@ -307,9 +327,9 @@ async function oauthAccessToken(account: GoogleOAuthAccount, client: GoogleClien
   });
   if (!body.access_token) {
     if (body.error === "invalid_grant") {
-      throw new GoogleError("Google no longer lets KontrolWP read this account. Connect to Google again in Settings.", 400);
+      throw new GoogleError("Google no longer lets KontrolWP read this account. Connect to Google again in Integrations.", 400);
     }
-    throw new GoogleError(`Google did not accept the saved sign-in${body.error_description ? `: ${body.error_description}` : ""}. Connect to Google again in Settings.`, 400);
+    throw new GoogleError(`Google did not accept the saved sign-in${body.error_description ? `: ${body.error_description}` : ""}. Connect to Google again in Integrations.`, 400);
   }
   tokens.set(cacheKey, { token: body.access_token, expires: now + 50 * 60_000 });
   return body.access_token;

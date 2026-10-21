@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -170,15 +169,6 @@ export function PerformanceTab(props: { site: SiteSummary }) {
         })}
       </dl>
       {(run.error?.message ?? state.error) && <StatsNote tone="bad">{run.error?.message ?? state.error}</StatsNote>}
-      {!data.key_configured && !result && !testing && (
-        <StatsNote>
-          Google allows very few tests without your own Google account or API key.{" "}
-          <Link to="/integrations#google" className="underline underline-offset-4">
-            Connect Google or add a key in Integrations
-          </Link>{" "}
-          to avoid refused tests.
-        </StatsNote>
-      )}
       {result ? (
         <p className="mt-3 wrap-break-word text-xs text-muted-foreground">
           Tested {timeAgo(result.scanned_at)}

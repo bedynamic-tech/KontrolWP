@@ -9,14 +9,13 @@ import { cn } from "@/lib/utils";
 import type { AnalyticsProvider, AnalyticsRange, AnalyticsStat, SiteAnalytics, SiteSummary } from "../../shared/types";
 import {
   fetchGa4Properties,
-  fetchGoogleSettings,
   fetchSiteAnalytics,
-  fetchUmamiSettings,
   fetchUmamiWebsites,
   setSiteAnalyticsSource,
   setSiteUmamiWebsite,
 } from "../api";
 import { hostname } from "../format";
+import { useIntegrations } from "../integrations";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { Select } from "@/components/ui/select";
@@ -36,11 +35,11 @@ export const PROVIDER_LABELS: Record<AnalyticsProvider, string> = {
 /** Whether the provider this site reads its analytics from is connected in Integrations; `loaded` is false until that is known. */
 export function useAnalyticsProvider(site: SiteSummary) {
   const provider = site.analytics_provider ?? "umami";
-  const umami = useQuery({ queryKey: ["settings", "umami"], queryFn: fetchUmamiSettings, refetchInterval: false });
-  const google = useQuery({ queryKey: ["settings", "google"], queryFn: fetchGoogleSettings, refetchInterval: false });
+  const integrations = useIntegrations();
+  // Google Analytics counts only while Google is connected and its Analytics feature is on.
   const connected: Record<AnalyticsProvider, boolean | undefined> = {
-    umami: umami.data?.configured,
-    ga4: google.data?.configured,
+    umami: integrations.umami,
+    ga4: integrations.ga4,
   };
   return {
     provider,
@@ -134,21 +133,11 @@ export function AnalyticsSection(props: { site: SiteSummary; onOpen?: () => void
     placeholderData: (previous) => previous,
   });
 
-  // Umami is the default and stays hidden until connected; a site that chose another provider shows how to set it up.
-  if (!source.configured && (source.provider === "umami" || !source.loaded)) return null;
+  // Hidden until the site's provider is set up in Integrations.
+  if (!source.configured) return null;
 
   let body;
-  if (!source.configured) {
-    body = (
-      <EmptyRow>
-        Connect {source.label} in{" "}
-        <Link to={source.href} className="underline underline-offset-4">
-          Integrations
-        </Link>{" "}
-        to show this site's analytics.
-      </EmptyRow>
-    );
-  } else if (analytics.isPending) {
+  if (analytics.isPending) {
     body = (
       <div className="space-y-3 p-4">
         <Skeleton className="h-16 w-full" />

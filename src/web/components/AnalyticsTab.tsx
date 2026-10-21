@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AnalyticsBreakdown, SiteAnalyticsDetails, SiteSummary } from "../../shared/types";
 import { fetchSiteAnalyticsDetails } from "../api";
 import { hostname } from "../format";
+import { useIntegrations } from "../integrations";
 import {
   AnalyticsFooter,
   count,
+  RangeSelect,
   StatsRow,
   TopList,
   TrendChart,
@@ -63,6 +64,7 @@ const CARDS: {
 export function AnalyticsTab(props: { site: SiteSummary }) {
   const { site } = props;
   const source = useAnalyticsProvider(site);
+  const searchConsoleOn = !!useIntegrations().searchConsole;
   return (
     <>
       {/* The date range sits in the Search Console heading and changes the analytics below too. */}
@@ -72,30 +74,17 @@ export function AnalyticsTab(props: { site: SiteSummary }) {
         </ErrorBoundary>
       </div>
       <div id="site-analytics">
-        {source.configured ? (
-          <AnalyticsContent site={site} />
-        ) : (
-          source.loaded && (
-            <Section title={source.label}>
-              <EmptyRow>
-                Connect {source.label} in{" "}
-                <Link to={source.href} className="underline underline-offset-4">
-                  Integrations
-                </Link>{" "}
-                to show this site's analytics.
-              </EmptyRow>
-            </Section>
-          )
-        )}
+        {source.configured && <AnalyticsContent site={site} withRange={!searchConsoleOn} />}
       </div>
     </>
   );
 }
 
-function AnalyticsContent(props: { site: SiteSummary }) {
+/** `withRange` puts the date range in this heading, when there is no Search Console above to carry it. */
+function AnalyticsContent(props: { site: SiteSummary; withRange: boolean }) {
   const { site } = props;
   const { label } = useAnalyticsProvider(site);
-  const [range] = useAnalyticsRange();
+  const [range, chooseRange] = useAnalyticsRange();
   const details = useQuery({
     queryKey: ["site", site.id, "analytics-details", range, site.analytics_provider],
     queryFn: () => fetchSiteAnalyticsDetails(site.id, range),
@@ -107,7 +96,10 @@ function AnalyticsContent(props: { site: SiteSummary }) {
   const header = (
     <div className="mt-8 mb-3 flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-sm font-medium">{label}</h2>
-      <ActiveNow data={details.data} />
+      <span className="flex items-center gap-3">
+        <ActiveNow data={details.data} />
+        {props.withRange && <RangeSelect range={range} onChange={chooseRange} />}
+      </span>
     </div>
   );
 

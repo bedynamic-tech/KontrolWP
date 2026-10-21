@@ -64,6 +64,7 @@ import type {
   SiteAnalytics,
   SiteAnalyticsDetails,
   AnalyticsProvider,
+  GoogleFeatures,
   GoogleSettings,
   SearchConsoleRange,
   SearchConsoleSetup,
@@ -318,6 +319,8 @@ export const fetchGoogleSettings = () => request<GoogleSettings>("/settings/goog
 export const saveGoogleClient = (client_id: string, client_secret: string) =>
   request<GoogleSettings>("/settings/google/client", { method: "PUT", json: { client_id, client_secret } });
 export const deleteGoogleClient = () => request<GoogleSettings>("/settings/google/client", { method: "DELETE" });
+export const saveGoogleFeatures = (features: Partial<GoogleFeatures>) =>
+  request<GoogleSettings>("/settings/google/features", { method: "PUT", json: features });
 /** The address of Google's sign-in page, which the browser then opens. */
 export const startGoogleConnect = (options: { setup?: boolean; return_to?: string } = {}) =>
   request<{ url: string }>("/google/connect", { method: "POST", json: options });

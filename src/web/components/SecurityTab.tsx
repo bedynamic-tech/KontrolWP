@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router";
 import { CheckIcon, ExternalLinkIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,62 +150,61 @@ export function SecurityTab(props: { site: SiteSummary }) {
     (item) => item.severity === "critical" || item.severity === "high",
   ).length;
   const feedReady = data.feed.updated_at !== null;
-  const needsKey = !data.feed.configured && !feedReady;
+  // Vulnerabilities come from Wordfence, so without it only the settings checks show.
+  const wordfence = data.feed.configured;
 
   return (
     <div className="mt-8">
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="Known vulnerabilities"
-          value={data.vulnerabilities.length.toLocaleString()}
-          tone={data.vulnerabilities.length ? "bad" : undefined}
-        />
-        <StatCard label="Critical or high" value={critical.toLocaleString()} tone={critical ? "bad" : undefined} />
+        {wordfence && (
+          <>
+            <StatCard
+              label="Known vulnerabilities"
+              value={data.vulnerabilities.length.toLocaleString()}
+              tone={data.vulnerabilities.length ? "bad" : undefined}
+            />
+            <StatCard label="Critical or high" value={critical.toLocaleString()} tone={critical ? "bad" : undefined} />
+          </>
+        )}
         <StatCard label="Settings to fix" value={warnings.toLocaleString()} tone={warnings ? "warn" : undefined} />
-        <StatCard label="Vulnerability data" value={feedReady ? timeAgo(data.feed.updated_at) : "Not loaded yet"} />
+        {wordfence && (
+          <StatCard label="Vulnerability data" value={feedReady ? timeAgo(data.feed.updated_at) : "Not loaded yet"} />
+        )}
       </dl>
 
-      <Section title={`Vulnerabilities (${data.vulnerabilities.length})`}>
-        {data.feed.error && !feedReady && (
-          <p className="border-b px-4 py-3 text-sm text-destructive">
-            The vulnerability data could not be downloaded: {data.feed.error}
-          </p>
-        )}
-        {data.feed.error && feedReady && (
-          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
-            Showing data from {timeAgo(data.feed.updated_at)}. The latest download failed: {data.feed.error}
-            {data.feed.next_attempt_at
-              ? ` It will be tried again after ${new Date(data.feed.next_attempt_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
-              : " It will be tried again."}
-          </p>
-        )}
-        {!data.feed.error && data.feed.note && (
-          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">{data.feed.note}</p>
-        )}
-        {data.vulnerabilities.length ? (
-          <ul className="divide-y">
-            {data.vulnerabilities.map((item) => (
-              <VulnerabilityRow key={`${item.id}:${item.slug}`} item={item} />
-            ))}
-          </ul>
-        ) : feedReady ? (
-          <EmptyRow>No known vulnerabilities affect this site's WordPress or plugins.</EmptyRow>
-        ) : (
-          <EmptyRow>
-            {needsKey ? (
-              <>
-                Add a free Wordfence Intelligence API key in{" "}
-                <Link to="/integrations#wordfence" className="underline underline-offset-4">
-                  Integrations
-                </Link>{" "}
-                to check this site's WordPress and plugins for known vulnerabilities.
-              </>
-            ) : (
-              "The vulnerability data is downloaded once a day. The first download is due within the next 15 minutes."
-            )}
-          </EmptyRow>
-        )}
-      </Section>
+      {wordfence && (
+        <Section title={`Vulnerabilities (${data.vulnerabilities.length})`}>
+          {data.feed.error && !feedReady && (
+            <p className="border-b px-4 py-3 text-sm text-destructive">
+              The vulnerability data could not be downloaded: {data.feed.error}
+            </p>
+          )}
+          {data.feed.error && feedReady && (
+            <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
+              Showing data from {timeAgo(data.feed.updated_at)}. The latest download failed: {data.feed.error}
+              {data.feed.next_attempt_at
+                ? ` It will be tried again after ${new Date(data.feed.next_attempt_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+                : " It will be tried again."}
+            </p>
+          )}
+          {!data.feed.error && data.feed.note && (
+            <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">{data.feed.note}</p>
+          )}
+          {data.vulnerabilities.length ? (
+            <ul className="divide-y">
+              {data.vulnerabilities.map((item) => (
+                <VulnerabilityRow key={`${item.id}:${item.slug}`} item={item} />
+              ))}
+            </ul>
+          ) : feedReady ? (
+            <EmptyRow>No known vulnerabilities affect this site's WordPress or plugins.</EmptyRow>
+          ) : (
+            <EmptyRow>
+              The vulnerability data is downloaded once a day. The first download is due within the next 15 minutes.
+            </EmptyRow>
+          )}
+        </Section>
+      )}
 
       <Section
         title={`Settings (${warnings ? `${warnings} to fix` : "all good"})`}

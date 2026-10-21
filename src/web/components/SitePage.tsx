@@ -50,6 +50,7 @@ import {
   syncSite,
 } from "../api";
 import { timeAgo } from "../format";
+import { useIntegrations } from "../integrations";
 import { CommentsList } from "./CommentsList";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { PageSkeleton } from "./OverviewPage";
@@ -248,16 +249,17 @@ export function SitePage() {
   const analyticsSource = useAnalyticsProvider(
     data?.site ?? ({ analytics_provider: "umami" } as SiteSummary),
   );
+  // Tabs, sections and settings that need an integration stay hidden until it is set up in Integrations.
+  const integrations = useIntegrations();
   const analyticsOn =
     analyticsSource.configured && !data?.site.analytics_excluded;
-  // Search Console sits beside the analytics, and has its own prompt while Google is not connected.
-  const searchConsoleOn = !data?.site.analytics_excluded;
-  const twoColumns = analyticsOn || (searchConsoleOn && !!analyticsSource.connected.ga4);
-  // The Analytics tab also carries Search Console, so a connected Google account is enough to show it.
-  const analyticsTabOn =
-    (analyticsSource.configured || !!analyticsSource.connected.ga4) &&
-    !data?.site.analytics_excluded;
-  // The Analytics tab needs Umami connected in Integrations.
+  // Search Console sits beside the analytics, once Google is connected with Search Console on.
+  const searchConsoleOn = !!integrations.searchConsole && !data?.site.analytics_excluded;
+  const twoColumns = analyticsOn || searchConsoleOn;
+  // The Analytics tab also carries Search Console, so either one is enough to show it.
+  const analyticsTabOn = (analyticsSource.configured || !!integrations.searchConsole) && !data?.site.analytics_excluded;
+  const performanceOn = !!integrations.pagespeed && !data?.site.performance_excluded;
+  const deploymentsOn = !!integrations.cloudflare && !!data?.site.cf_hosted;
   const kind = data?.site.kind;
   const tabs =
     kind === "static"
@@ -270,7 +272,8 @@ export function SitePage() {
     (requestedTab === "links" && data?.site.links_excluded) ||
     (requestedTab === "security" && data?.site.security_excluded) ||
     (requestedTab === "accessibility" && data?.site.accessibility_excluded) ||
-    (requestedTab === "performance" && data?.site.performance_excluded) ||
+    (requestedTab === "performance" && integrations.pagespeed !== undefined && !performanceOn) ||
+    (requestedTab === "deployments" && integrations.cloudflare !== undefined && !deploymentsOn) ||
     (requestedTab === "uptime" && data?.site.uptime_excluded);
   const chosenTab =
     switchedOff || (kind && !tabs.includes(requestedTab))
@@ -286,13 +289,13 @@ export function SitePage() {
     return <p className="text-sm text-destructive">{error?.message}</p>;
   const { site, updates, rollbacks, comments } = data;
   const isStatic = site.kind === "static";
-  const onCloudflare = isStatic && site.cf_hosted;
+  const onCloudflare = isStatic && deploymentsOn;
   const toolItems: NavItem[] = [
     ...(!site.links_excluded ? [{ value: "links", label: "Links", icon: <Link2Icon /> }] : []),
     ...(isStatic ? [] : [{ value: "snippets", label: "Code snippets", icon: <CodeIcon /> }]),
     ...(isStatic ? [] : [{ value: "database", label: "Database", icon: <DatabaseIcon /> }]),
     ...(site.uptime_excluded ? [] : [{ value: "uptime", label: "Uptime", icon: <ActivityIcon /> }]),
-    ...(site.performance_excluded ? [] : [{ value: "performance", label: "Performance", icon: <GaugeIcon /> }]),
+    ...(performanceOn ? [{ value: "performance", label: "Performance", icon: <GaugeIcon /> }] : []),
     { value: "seo", label: "SEO", icon: <SearchIcon />, ...(isStatic ? {} : { children: seoViews }) },
     ...(isStatic ? [] : [{ value: "branding", label: "Branding", icon: <PaletteIcon /> }]),
     ...(isStatic ? [] : [{ value: "maintenance", label: "Maintenance", icon: <WrenchIcon /> }]),
@@ -447,7 +450,7 @@ export function SitePage() {
                 )}
               </dl>
                 );
-                const health = <HealthOverview site={site} onOpen={setTab} />;
+                const health = <HealthOverview site={site} onOpen={setTab} performance={performanceOn} />;
                 const main = isStatic ? (
                   <>
                     {health}
@@ -672,7 +675,7 @@ export function SitePage() {
                 onCheckedChange={(value) => excludeLinks.mutate(!value)}
               />
             </label>
-            {analyticsSource.configured ? (
+            {!(integrations.umami || integrations.ga4 || integrations.searchConsole) ? null : analyticsSource.configured ? (
               <div>
                 <FeatureSwitchRow
                   site={site}
@@ -714,13 +717,15 @@ export function SitePage() {
               on="KontrolWP checks that this site answers every hour on the hour and reads its SSL certificate once a day."
               off="KontrolWP does not check whether this site is up, and its Uptime tab is off."
             />
-            <FeatureSwitchRow
-              site={site}
-              feature="performance"
-              title="Enable performance checks"
-              on="KontrolWP tests this site with Google PageSpeed Insights when you select Run test."
-              off="KontrolWP does not test this site's speed, and its Performance tab is off."
-            />
+            {integrations.pagespeed && (
+              <FeatureSwitchRow
+                site={site}
+                feature="performance"
+                title="Enable performance checks"
+                on="KontrolWP tests this site with Google PageSpeed Insights when you select Run test."
+                off="KontrolWP does not test this site's speed, and its Performance tab is off."
+              />
+            )}
             {!isStatic && (
               <SettingRow
                 title="Magic Login administrator"
@@ -730,7 +735,7 @@ export function SitePage() {
                 <MagicLoginUserSelect site={site} />
               </SettingRow>
             )}
-            {isStatic && <CloudflareRow site={site} />}
+            {isStatic && integrations.cloudflare && <CloudflareRow site={site} />}
             {!isStatic && (
               <SettingRow
                 title="Connection key"
