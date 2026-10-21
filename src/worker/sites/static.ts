@@ -116,7 +116,8 @@ async function syncDeployments(env: Env, site: StaticRow): Promise<void> {
     env.DB.prepare("UPDATE sites SET cf_error = ? WHERE id = ?").bind(message, site.id).run();
   try {
     const token = await loadCloudflareToken(env);
-    if (!token) return void (await setError("Cloudflare is not connected. Add an API token in Integrations."));
+    // Without Cloudflare in Integrations, the scheduled sync leaves deployments alone.
+    if (!token) return void (await setError(null));
 
     const deployments = await fetchDeployments(token, site.cf_account_id, site.cf_worker);
     // Builds are optional: a Worker deployed with wrangler has none, and the

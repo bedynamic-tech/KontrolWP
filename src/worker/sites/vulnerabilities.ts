@@ -625,11 +625,13 @@ export function securityItems(checks: SecurityCheck[], fixes: SecurityFix[] | nu
 
 /** Vulnerabilities and configuration findings for one WordPress site. */
 export async function siteSecurity(env: Env, site: SiteSummary, credentials: SiteCredentials): Promise<SiteSecurity> {
-  const [vulnerabilities, derived, state] = await Promise.all([
-    siteVulnerabilities(env, site),
+  const [feedKey, derived, state] = await Promise.all([
+    loadFeedKey(env).catch(() => null),
     derivedChecks(env, site),
     feedState(env),
   ]);
+  // Without Wordfence, a feed downloaded earlier is not matched against the site.
+  const vulnerabilities = feedKey ? await siteVulnerabilities(env, site) : [];
   let checks = derived;
   let note: string | null = null;
   let fixes: SecurityFix[] | null = null;
@@ -653,7 +655,7 @@ export async function siteSecurity(env: Env, site: SiteSummary, credentials: Sit
     items: securityItems(checks, fixes),
     checks_note: note,
     feed: {
-      configured: Boolean(await loadFeedKey(env).catch(() => null)),
+      configured: Boolean(feedKey),
       updated_at: state?.updated_at ?? null,
       error: state?.error ?? null,
       note: state?.note ?? null,
