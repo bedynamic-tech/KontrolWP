@@ -69,7 +69,6 @@ import { FeatureSwitchRow } from "./FeatureSwitchRow";
 import {
   AnalyticsSection,
   PROVIDER_LABELS,
-  SELECT_CLASS,
   useAnalyticsRange,
   useAnalyticsProvider,
   WebsitePicker,
@@ -105,6 +104,7 @@ import { SecurityTab } from "./SecurityTab";
 import { SitemapTab } from "./SitemapTab";
 import { Spinner } from "./Spinner";
 import { updatesRefetchInterval } from "./UpdatesList";
+import { Select } from "@/components/ui/select";
 
 /** The first section in a tab sits closer to the tabs than sections sit to each other. */
 const TAB_CLASS = "[&>section:first-child]:mt-6";
@@ -958,19 +958,19 @@ function AnalyticsSourceRows(props: {
           detail="Where this site's analytics come from. Connect more providers in Integrations."
           error={choose.error?.message}
         >
-          <select
+          <Select
             aria-label="Analytics provider"
             value={choose.isPending ? choose.variables : source.provider}
             disabled={choose.isPending}
-            onChange={(event) => choose.mutate(event.target.value as AnalyticsProvider)}
-            className={`${SELECT_CLASS} max-w-52`}
+            onValueChange={(next) => choose.mutate(next as AnalyticsProvider)}
+            className="max-w-52"
           >
             {providers.map((provider) => (
               <option key={provider} value={provider}>
                 {PROVIDER_LABELS[provider]}
               </option>
             ))}
-          </select>
+          </Select>
         </SettingRow>
       )}
       {source.configured && (

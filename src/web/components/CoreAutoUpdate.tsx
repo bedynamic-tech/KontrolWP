@@ -4,6 +4,7 @@ import { AUTO_UPDATES_SINCE, compareVersions } from "../../shared/plugin-version
 import type { CoreAutoUpdate, SiteSummary } from "../../shared/types";
 import { setCoreAutoUpdate } from "../api";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 export const CORE_AUTO_UPDATE_LABELS: Record<CoreAutoUpdate, string> = {
   all: "All new versions",
@@ -16,17 +17,13 @@ export function autoUpdatesSupported(pluginVersion: string | null): boolean {
   return !!pluginVersion && compareVersions(pluginVersion, AUTO_UPDATES_SINCE) >= 0;
 }
 
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
-
 function ModeSelect(props: { id?: string; value: CoreAutoUpdate | ""; onChange: (mode: CoreAutoUpdate) => void; disabled?: boolean }) {
   return (
-    <select
+    <Select
       id={props.id}
       value={props.value}
       disabled={props.disabled}
-      onChange={(event) => props.onChange(event.target.value as CoreAutoUpdate)}
-      className={SELECT_CLASS}
+      onValueChange={(next) => props.onChange(next as CoreAutoUpdate)}
     >
       {props.value === "" && (
         <option value="" disabled>
@@ -38,7 +35,7 @@ function ModeSelect(props: { id?: string; value: CoreAutoUpdate | ""; onChange: 
           {CORE_AUTO_UPDATE_LABELS[mode]}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 

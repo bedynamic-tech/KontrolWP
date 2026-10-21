@@ -28,12 +28,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { CreatedPost, NewPost, PostForm, SiteSummary, UploadedImage } from "../../shared/types";
 import { createPost, fetchPostForm, uploadImage } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { readBase64 } from "./BrandingTab";
 import { EditButton } from "./LinksTab";
 import { EmptyRow, Section } from "./Section";
 import { HelpTip } from "./HelpTip";
 import { IconButton } from "./IconButton";
+import { Select } from "@/components/ui/select";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"];
 
@@ -251,18 +251,18 @@ function BodyEditor(props: {
         </div>
         {visual && (
           <>
-            <select
+            <Select
               aria-label="Block format"
-              className={cn(SELECT_CLASS, "w-auto")}
+              className="w-auto"
               value={block}
-              onChange={(event) => command("formatBlock", event.target.value)}
+              onValueChange={(next) => command("formatBlock", next)}
             >
               {BLOCKS.map((item) => (
                 <option key={item.tag} value={item.tag}>
                   {item.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <IconButton label="Bold" variant="ghost" onClick={() => command("bold")}>
               <BoldIcon />
             </IconButton>
@@ -313,6 +313,7 @@ function BodyEditor(props: {
           value={html}
           onChange={(event) => onChange(event.target.value)}
           spellCheck={false}
+          autoResize={false}
           className="block h-96 resize-y rounded-none border-0 font-mono text-xs focus-visible:ring-0"
         />
       )}
@@ -734,32 +735,32 @@ export function PostEditor(props: { site: SiteSummary; onClose: () => void }) {
         <div className="min-w-0 space-y-4 self-start rounded-xl border bg-background p-4">
           {options.types.length > 1 && (
             <Field label="Type">
-              <select
-                className={cn(SELECT_CLASS, "sm:w-full")}
+              <Select
+                className="sm:w-full"
                 value={type}
-                onChange={(event) => setType(event.target.value)}
+                onValueChange={(next) => setType(next)}
               >
                 {options.types.map((item) => (
                   <option key={item.slug} value={item.slug}>
                     {item.singular}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           )}
           {options.authors.length > 0 && (
             <Field label="Author">
-              <select
-                className={cn(SELECT_CLASS, "sm:w-full")}
+              <Select
+                className="sm:w-full"
                 value={author}
-                onChange={(event) => setAuthor(Number(event.target.value))}
+                onValueChange={(next) => setAuthor(Number(next))}
               >
                 {options.authors.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           )}
           {kind?.categories && tree.length > 0 && (

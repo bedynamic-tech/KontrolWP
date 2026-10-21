@@ -1,5 +1,5 @@
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SELECT_CLASS } from "./AnalyticsSection";
+import { Select } from "@/components/ui/select";
 
 export interface TabItem {
   value: string;
@@ -9,7 +9,8 @@ export interface TabItem {
 /**
  * The tab bar for a page's sections: tabs from the sm breakpoint up, and one
  * dropdown below it, where a row of tabs would scroll sideways. Both control
- * the same value, so it sits inside the page's `Tabs`.
+ * the same value, so it sits inside the page's `Tabs`, which takes
+ * `variant="underline"`.
  */
 export function ResponsiveTabsList(props: {
   tabs: TabItem[];
@@ -19,24 +20,21 @@ export function ResponsiveTabsList(props: {
 }) {
   return (
     <>
-      <select
+      <Select
         aria-label={props.label}
-        className={`${SELECT_CLASS} h-10 w-full sm:hidden`}
+        className="h-10 w-full sm:hidden"
         value={props.value}
-        onChange={(event) => props.onChange(event.target.value)}
+        onValueChange={(next) => props.onChange(next)}
       >
         {props.tabs.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
           </option>
         ))}
-      </select>
-      <TabsList
-        variant="line"
-        className="hidden w-full justify-start overflow-x-auto overflow-y-hidden border-b pb-1.5 [scrollbar-width:none] sm:inline-flex"
-      >
+      </Select>
+      <TabsList className="hidden sm:flex">
         {props.tabs.map((item) => (
-          <TabsTrigger key={item.value} value={item.value} className="flex-none px-3">
+          <TabsTrigger key={item.value} value={item.value}>
             {item.label}
           </TabsTrigger>
         ))}

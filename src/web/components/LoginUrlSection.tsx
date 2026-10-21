@@ -7,11 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { compareVersions, LOGIN_URL_SINCE } from "../../shared/plugin-version";
 import type { LoginUrlRedirect, LoginUrlSettings, SiteSummary } from "../../shared/types";
 import { fetchLoginUrl, saveLoginUrl } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { Row, Warning } from "./ToolsTab";
+import { Select } from "@/components/ui/select";
 
 const REDIRECT_LABELS: Record<LoginUrlRedirect, string> = {
   "404": "A page not found error",
@@ -153,19 +153,18 @@ export function LoginUrlSection({ site }: { site: SiteSummary }) {
           />
         </Row>
         <Row title="wp-login.php and wp-admin lead to" hint="What a visitor who is not signed in sees at the old login address.">
-          <select
+          <Select
             aria-label="Old login address leads to"
-            className={SELECT_CLASS}
             value={draft.redirect}
             disabled={off || blocked || save.isPending}
-            onChange={(event) => setDraft({ ...draft, redirect: event.target.value as LoginUrlRedirect })}
+            onValueChange={(next) => setDraft({ ...draft, redirect: next as LoginUrlRedirect })}
           >
             {(Object.keys(REDIRECT_LABELS) as LoginUrlRedirect[]).map((value) => (
               <option key={value} value={value}>
                 {REDIRECT_LABELS[value]}
               </option>
             ))}
-          </select>
+          </Select>
         </Row>
       </div>
       {saved.active && !dirty && saved.login_url && (

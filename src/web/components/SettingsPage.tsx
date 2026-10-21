@@ -9,6 +9,7 @@ import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Section } from "./Section";
 import { UpdatePolicySettingsSection } from "./UpdatePolicy";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 const SETTINGS_TABS = [
   { value: "general", label: "General" },
@@ -34,6 +35,7 @@ export function SettingsPage() {
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       <Tabs
+        variant="underline"
         value={tab}
         onValueChange={(next) => setSearchParams(next === "general" ? {} : { tab: next }, { replace: true })}
         className="mt-6 gap-0"
@@ -92,19 +94,18 @@ function SyncSettingsSection() {
             Time zone
             <HelpTip>Where midnight is, for background sync and link checks. Set from this browser at first.</HelpTip>
           </span>
-          <select
+          <Select
             aria-label="Time zone"
-            className={SELECT_CLASS}
             value={zone}
             disabled={settings.isPending || save.isPending}
-            onChange={(e) => save.mutate({ time_zone: e.target.value })}
+            onValueChange={(next) => save.mutate({ time_zone: next })}
           >
             {timeZones(zone).map((name) => (
               <option key={name} value={name}>
                 {name.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       {(settings.error || save.error) && (
@@ -121,9 +122,6 @@ const LINK_SCAN_LABELS: Record<LinkScanInterval, string> = {
   5: "Every 5 days",
   7: "Every 7 days",
 };
-
-const SELECT_CLASS =
-  "h-8 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 /** This browser's time zone, such as America/Chicago. */
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -198,19 +196,18 @@ function LinkScanSettingsSection() {
               </span>
             ) : null}
           </span>
-          <select
+          <Select
             aria-label="Link check interval"
-            className={SELECT_CLASS}
             value={data?.interval_days ?? 7}
             disabled={settings.isPending || save.isPending}
-            onChange={(e) => save.mutate({ interval_days: Number(e.target.value) as LinkScanInterval })}
+            onValueChange={(next) => save.mutate({ interval_days: Number(next) as LinkScanInterval })}
           >
             {LINK_SCAN_INTERVALS.map((days) => (
               <option key={days} value={days}>
                 {LINK_SCAN_LABELS[days]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       {(settings.error || save.error) && (

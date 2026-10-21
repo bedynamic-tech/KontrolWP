@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { fetchCloudflareSettings, fetchCloudflareWorkers } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 export interface WorkerChoice {
   account_id: string;
@@ -54,13 +54,13 @@ export function CloudflareWorkerSelect(props: {
       : null;
   const multipleAccounts = new Set(list.map((w) => w.account_id)).size > 1;
   return (
-    <select
+    <Select
       aria-label="Cloudflare Worker"
-      className={props.className ?? SELECT_CLASS}
+      className={props.className}
       value={props.value ? key(props.value) : ""}
       disabled={props.disabled || workers.isPending}
-      onChange={(event) => {
-        const picked = list.find((w) => `${w.account_id}/${w.name}` === event.target.value);
+      onValueChange={(next) => {
+        const picked = list.find((w) => `${w.account_id}/${w.name}` === next);
         props.onChange(picked ? { account_id: picked.account_id, worker: picked.name } : null);
       }}
     >
@@ -72,6 +72,6 @@ export function CloudflareWorkerSelect(props: {
           {multipleAccounts ? ` (${w.account_name})` : ""}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
