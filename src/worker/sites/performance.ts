@@ -250,12 +250,13 @@ export async function fetchPagespeed(
   const ask = async (trim: boolean) => {
     const query = new URLSearchParams({ url, strategy: strategy.toUpperCase() });
     for (const category of ["PERFORMANCE", "ACCESSIBILITY", "BEST_PRACTICES", "SEO"]) query.append("category", category);
-    if (auth?.via === "key") query.set("key", auth.key);
     if (trim) query.set("fields", FIELDS);
     let response: Response;
     try {
       response = await fetcher(`${ENDPOINT}?${query}`, {
-        headers: auth?.via === "google" ? { Authorization: `Bearer ${auth.token}` } : {},
+        // The key goes in a header, not the address, so it never shows up in logs or traces of the request.
+        headers:
+          auth?.via === "google" ? { Authorization: `Bearer ${auth.token}` } : auth?.via === "key" ? { "X-Goog-Api-Key": auth.key } : {},
         signal: AbortSignal.timeout(120_000),
       });
     } catch (error) {

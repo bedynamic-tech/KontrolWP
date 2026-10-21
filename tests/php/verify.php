@@ -3,12 +3,17 @@
 // Input (JSON on stdin), one of:
 //   { "create_key": true, "requests": [...] }  the plugin makes a key, then
 //                                              verifies requests signed with it
-//   { "credentials": {...}, "requests": [...] }
+//   { "credentials": {...}, "requests": [...] }  credentials as an older
+//                                              version saved them, in the clear
+//   { "stored": {...}, "requests": [...] }       the option exactly as saved
+// The output's "stored" is the option afterwards.
 // Each request is { method, route, body, headers } and gets back "ok" or the
 // error message. Requests may use "$KEY_ID" to mean the created key's id.
 
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'HOUR_IN_SECONDS', 3600 );
+define( 'AUTH_KEY', getenv( 'KWP_AUTH_KEY' ) ?: 'test auth key' );
+define( 'AUTH_SALT', 'test auth salt' );
 
 class WP_Error {
 	public $code;
@@ -52,11 +57,12 @@ $output = array();
 if ( ! empty( $input['create_key'] ) ) {
 	$output['connection_key'] = KontrolWP_Connect_Auth::connection_key();
 } else {
-	$GLOBALS['options']['kontrolwp_connect'] = $input['credentials'];
+	$GLOBALS['options']['kontrolwp_connect'] = $input['stored'] ?? $input['credentials'];
 }
 $output['results'] = array();
 foreach ( $input['requests'] ?? array() as $request ) {
 	$result                = KontrolWP_Connect_Auth::verify( new Request( $request ) );
 	$output['results'][] = true === $result ? 'ok' : $result->message;
 }
+$output['stored'] = $GLOBALS['options']['kontrolwp_connect'] ?? null;
 echo json_encode( $output );
