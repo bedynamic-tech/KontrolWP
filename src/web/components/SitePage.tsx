@@ -23,7 +23,7 @@ import {
   UsersIcon,
   WrenchIcon,
 } from "lucide-react";
-import { Children, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -595,174 +595,196 @@ export function SitePage() {
       </div>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-xl lg:max-w-4xl [&>*]:min-w-0">
+        <DialogContent
+          className="sm:max-w-xl lg:max-w-4xl [&>*]:min-w-0"
+          // Focus the dialog itself, so the first info icon's tooltip does not open over the title.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement).focus({ preventScroll: true });
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Site settings</DialogTitle>
             <DialogDescription>{site.name}</DialogDescription>
           </DialogHeader>
-          <SettingsColumns>
-            {!isStatic && (
-              <div>
+          <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+            <div className="space-y-5">
+              <SettingsGroup title="Updates">
+                {!isStatic && (
+                  <div>
+                    <label className="flex cursor-pointer items-center gap-3 py-3">
+                      <div
+                        className={`min-w-0 flex-1 ${site.updates_excluded ? "opacity-60" : ""}`}
+                      >
+                        <p className="flex items-center gap-1.5 text-sm font-medium">
+                          Enable update checks
+                          <HelpTip>
+                            {site.updates_excluded
+                              ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
+                              : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                          </HelpTip>
+                        </p>
+                        {excludeUpdates.error && (
+                          <p className="mt-1 text-xs text-destructive">
+                            {excludeUpdates.error.message}
+                          </p>
+                        )}
+                      </div>
+                      {excludeUpdates.isPending && (
+                        <Spinner className="size-4 text-muted-foreground" />
+                      )}
+                      <Switch
+                        checked={
+                          excludeUpdates.isPending
+                            ? excludeUpdates.variables === false
+                            : !site.updates_excluded
+                        }
+                        disabled={excludeUpdates.isPending}
+                        onCheckedChange={(value) => excludeUpdates.mutate(!value)}
+                      />
+                    </label>
+                    <SubSettings>
+                      {!site.updates_excluded && (
+                        <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />
+                      )}
+                    </SubSettings>
+                  </div>
+                )}
+                {!isStatic && <UpdateEmailsRow site={site} />}
+              </SettingsGroup>
+              <SettingsGroup title="Checks">
                 <label className="flex cursor-pointer items-center gap-3 py-3">
                   <div
-                    className={`min-w-0 flex-1 ${site.updates_excluded ? "opacity-60" : ""}`}
+                    className={`min-w-0 flex-1 ${site.links_excluded ? "opacity-60" : ""}`}
                   >
                     <p className="flex items-center gap-1.5 text-sm font-medium">
-                      Enable update checks
+                      Enable broken link checks
                       <HelpTip>
-                        {site.updates_excluded
-                          ? "KontrolWP does not check for or apply WordPress, plugin or theme updates on this site."
-                          : "KontrolWP lists this site's WordPress, plugin and theme updates."}
+                        {site.links_excluded
+                          ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
+                          : isStatic
+                            ? "KontrolWP reads this site's pages and checks their links and images."
+                            : "KontrolWP scans this site's posts and pages for broken links."}
                       </HelpTip>
                     </p>
-                    {excludeUpdates.error && (
+                    {excludeLinks.error && (
                       <p className="mt-1 text-xs text-destructive">
-                        {excludeUpdates.error.message}
+                        {excludeLinks.error.message}
                       </p>
                     )}
                   </div>
-                  {excludeUpdates.isPending && (
+                  {excludeLinks.isPending && (
                     <Spinner className="size-4 text-muted-foreground" />
                   )}
                   <Switch
                     checked={
-                      excludeUpdates.isPending
-                        ? excludeUpdates.variables === false
-                        : !site.updates_excluded
+                      excludeLinks.isPending
+                        ? excludeLinks.variables === false
+                        : !site.links_excluded
                     }
-                    disabled={excludeUpdates.isPending}
-                    onCheckedChange={(value) => excludeUpdates.mutate(!value)}
+                    disabled={excludeLinks.isPending}
+                    onCheckedChange={(value) => excludeLinks.mutate(!value)}
                   />
                 </label>
-                <SubSettings>
-                  {!site.updates_excluded && (
-                    <CoreAutoUpdateRow site={site} className="py-3 lg:flex-col lg:items-stretch" />
-                  )}
-                </SubSettings>
-              </div>
-            )}
-            {!isStatic && <UpdateEmailsRow site={site} />}
-            <label className="flex cursor-pointer items-center gap-3 py-3">
-              <div
-                className={`min-w-0 flex-1 ${site.links_excluded ? "opacity-60" : ""}`}
-              >
-                <p className="flex items-center gap-1.5 text-sm font-medium">
-                  Enable broken link checks
-                  <HelpTip>
-                    {site.links_excluded
-                      ? "KontrolWP does not scan this site for broken links, and its Links tab is off."
-                      : isStatic
-                        ? "KontrolWP reads this site's pages and checks their links and images."
-                        : "KontrolWP scans this site's posts and pages for broken links."}
-                  </HelpTip>
-                </p>
-                {excludeLinks.error && (
-                  <p className="mt-1 text-xs text-destructive">
-                    {excludeLinks.error.message}
-                  </p>
+                {!isStatic && (
+                  <FeatureSwitchRow
+                    site={site}
+                    feature="security"
+                    title="Enable security checks"
+                    on="KontrolWP checks this site for known vulnerabilities and insecure settings."
+                    off="KontrolWP does not run security checks on this site, and its Security tab is off."
+                  />
                 )}
-              </div>
-              {excludeLinks.isPending && (
-                <Spinner className="size-4 text-muted-foreground" />
-              )}
-              <Switch
-                checked={
-                  excludeLinks.isPending
-                    ? excludeLinks.variables === false
-                    : !site.links_excluded
-                }
-                disabled={excludeLinks.isPending}
-                onCheckedChange={(value) => excludeLinks.mutate(!value)}
-              />
-            </label>
-            {!(integrations.umami || integrations.ga4 || integrations.searchConsole) ? null : analyticsSource.configured ? (
-              <div>
                 <FeatureSwitchRow
                   site={site}
-                  feature="analytics"
-                  title="Enable analytics"
-                  on="This site's visitor numbers appear on its Overview and Analytics tab."
-                  off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
+                  feature="accessibility"
+                  title="Enable accessibility checks"
+                  on="KontrolWP scans this site for accessibility problems on a schedule."
+                  off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
                 />
-                {/* Where the analytics come from, only while they are on. */}
-                {!site.analytics_excluded && (
-                  <SubSettings>
-                    <AnalyticsSourceRows site={site} source={analyticsSource} />
-                  </SubSettings>
+                <FeatureSwitchRow
+                  site={site}
+                  feature="uptime"
+                  title="Enable uptime checks"
+                  on="KontrolWP checks that this site answers every hour on the hour and reads its SSL certificate once a day."
+                  off="KontrolWP does not check whether this site is up, and its Uptime tab is off."
+                />
+                {integrations.pagespeed && (
+                  <FeatureSwitchRow
+                    site={site}
+                    feature="performance"
+                    title="Enable performance checks"
+                    on="KontrolWP tests this site with Google PageSpeed Insights when you select Run test."
+                    off="KontrolWP does not test this site's speed, and its Performance tab is off."
+                  />
                 )}
-              </div>
-            ) : (
-              <AnalyticsSourceRows site={site} source={analyticsSource} />
-            )}
-            {!isStatic && (
-              <FeatureSwitchRow
-                site={site}
-                feature="security"
-                title="Enable security checks"
-                on="KontrolWP checks this site for known vulnerabilities and insecure settings."
-                off="KontrolWP does not run security checks on this site, and its Security tab is off."
-              />
-            )}
-            <FeatureSwitchRow
-              site={site}
-              feature="accessibility"
-              title="Enable accessibility checks"
-              on="KontrolWP scans this site for accessibility problems on a schedule."
-              off="KontrolWP does not scan this site for accessibility, and its Accessibility tab is off."
-            />
-            <FeatureSwitchRow
-              site={site}
-              feature="uptime"
-              title="Enable uptime checks"
-              on="KontrolWP checks that this site answers every hour on the hour and reads its SSL certificate once a day."
-              off="KontrolWP does not check whether this site is up, and its Uptime tab is off."
-            />
-            {integrations.pagespeed && (
-              <FeatureSwitchRow
-                site={site}
-                feature="performance"
-                title="Enable performance checks"
-                on="KontrolWP tests this site with Google PageSpeed Insights when you select Run test."
-                off="KontrolWP does not test this site's speed, and its Performance tab is off."
-              />
-            )}
-            {!isStatic && (
-              <SettingRow
-                title="Magic Login administrator"
-                detail="Magic Login opens wp-admin signed in as this user."
-                stacked
-              >
-                <MagicLoginUserSelect site={site} />
-              </SettingRow>
-            )}
-            {isStatic && integrations.cloudflare && <CloudflareRow site={site} />}
-            {!isStatic && (
-              <SettingRow
-                title="Connection key"
-                detail="Paste a new key after creating one in KontrolWP Connect."
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={fromSettings(setReplacingKey)}
+              </SettingsGroup>
+            </div>
+            <div className="space-y-5">
+              <SettingsGroup title="Analytics">
+                {!(integrations.umami || integrations.ga4 || integrations.searchConsole) ? null : analyticsSource.configured ? (
+                  <div>
+                    <FeatureSwitchRow
+                      site={site}
+                      feature="analytics"
+                      title="Enable analytics"
+                      on="This site's visitor numbers appear on its Overview and Analytics tab."
+                      off="KontrolWP does not read analytics for this site, and its Analytics tab is off."
+                    />
+                    {/* Where the analytics come from, only while they are on. */}
+                    {!site.analytics_excluded && (
+                      <SubSettings>
+                        <AnalyticsSourceRows site={site} source={analyticsSource} />
+                      </SubSettings>
+                    )}
+                  </div>
+                ) : (
+                  <AnalyticsSourceRows site={site} source={analyticsSource} />
+                )}
+              </SettingsGroup>
+              <SettingsGroup title="Hosting">
+                {isStatic && integrations.cloudflare && <CloudflareRow site={site} />}
+              </SettingsGroup>
+              <SettingsGroup title="Site">
+                {!isStatic && (
+                  <SettingRow
+                    title="Magic Login administrator"
+                    detail="Magic Login opens wp-admin signed in as this user."
+                    stacked
+                  >
+                    <MagicLoginUserSelect site={site} />
+                  </SettingRow>
+                )}
+                {!isStatic && (
+                  <SettingRow
+                    title="Connection key"
+                    detail="Paste a new key after creating one in KontrolWP Connect."
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={fromSettings(setReplacingKey)}
+                    >
+                      Change
+                    </Button>
+                  </SettingRow>
+                )}
+                <SettingRow
+                  title="Remove site"
+                  detail="KontrolWP forgets this site. Nothing changes on the site itself."
                 >
-                  Change
-                </Button>
-              </SettingRow>
-            )}
-            <SettingRow
-              title="Remove site"
-              detail="KontrolWP forgets this site. Nothing changes on the site itself."
-            >
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={fromSettings(setConfirmRemove)}
-              >
-                Remove
-              </Button>
-            </SettingRow>
-          </SettingsColumns>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={fromSettings(setConfirmRemove)}
+                  >
+                    Remove
+                  </Button>
+                </SettingRow>
+
+              </SettingsGroup>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -962,13 +984,13 @@ function AnalyticsSourceRows(props: {
           title="Analytics provider"
           detail="Where this site's analytics come from. Connect more providers in Integrations."
           error={choose.error?.message}
+          stacked
         >
           <Select
             aria-label="Analytics provider"
             value={choose.isPending ? choose.variables : source.provider}
             disabled={choose.isPending}
             onValueChange={(next) => choose.mutate(next as AnalyticsProvider)}
-            className="max-w-52"
           >
             {providers.map((provider) => (
               <option key={provider} value={provider}>
@@ -982,33 +1004,26 @@ function AnalyticsSourceRows(props: {
         <SettingRow
           title={`${source.label} ${source.provider === "umami" ? "website" : "property"}`}
           detail="Where this site's analytics come from."
+          stacked
         >
-          <div className="[&_select]:max-w-52">
-            <WebsitePicker
-              site={site}
-              current={source.provider === "umami" ? site.umami_website_id : site.analytics_ref}
-              chosen={!!(source.provider === "umami" ? site.umami_website_id : site.analytics_ref)}
-            />
-          </div>
+          <WebsitePicker
+            site={site}
+            current={source.provider === "umami" ? site.umami_website_id : site.analytics_ref}
+            chosen={!!(source.provider === "umami" ? site.umami_website_id : site.analytics_ref)}
+          />
         </SettingRow>
       )}
     </>
   );
 }
 
-/**
- * Settings rows in two balanced columns on wide screens, one column on
- * phones. Each row keeps its own divider so both columns read as lists.
- */
-function SettingsColumns(props: { children: ReactNode }) {
+/** A titled list of Site settings rows. Hidden when none of its rows show. */
+function SettingsGroup(props: { title: string; children: ReactNode }) {
   return (
-    <div className="gap-x-8 border-b lg:columns-2 lg:border-b-0">
-      {Children.toArray(props.children).map((row, i) => (
-        <div key={i} className="break-inside-avoid divide-y border-t empty:hidden">
-          {row}
-        </div>
-      ))}
-    </div>
+    <section className="[&:not(:has(>div>*))]:hidden">
+      <h3 className="mb-1 text-xs font-medium text-muted-foreground">{props.title}</h3>
+      <div className="divide-y border-y">{props.children}</div>
+    </section>
   );
 }
 
@@ -1045,7 +1060,7 @@ function SettingRow(props: {
           <p className="mt-1 text-xs text-destructive">{props.error}</p>
         )}
       </div>
-      <div className={props.stacked ? "flex justify-end" : "shrink-0"}>
+      <div className={props.stacked ? "min-w-0" : "shrink-0"}>
         {props.children}
       </div>
     </div>

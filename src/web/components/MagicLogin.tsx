@@ -191,7 +191,7 @@ export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) 
   }
   const value = save.isPending ? String(save.variables) : site.login_user_id ? String(site.login_user_id) : "";
   return (
-    <div className="flex flex-col items-start gap-1 sm:items-end">
+    <div className="flex flex-col items-start gap-1">
       <div className="flex items-center gap-2">
         {(save.isPending || admins.isPending) && <Spinner className="size-4 text-muted-foreground" />}
         <Select

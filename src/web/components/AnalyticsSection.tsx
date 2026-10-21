@@ -395,7 +395,7 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
     );
   }
   return (
-    <span className="inline-flex flex-wrap items-center gap-2">
+    <span className="flex flex-wrap items-center gap-2 sm:inline-flex">
       {(save.isPending || (websites.isPending && open)) && <Spinner className="size-3.5" label="Loading" />}
       <Select
         aria-label={`${label} ${noun}`}
