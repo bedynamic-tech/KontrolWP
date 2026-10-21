@@ -759,34 +759,21 @@ export function SitePage() {
             </div>
           </div>
           {/* Changes that cut KontrolWP off from the site, kept apart below everything else. */}
-          <SettingsGroup title="Danger zone">
+          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
             {!isStatic && (
-              <SettingRow
-                title="Connection key"
-                detail="Paste a new key after creating one in KontrolWP Connect."
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={fromSettings(setReplacingKey)}
-                >
-                  Change
-                </Button>
-              </SettingRow>
-            )}
-            <SettingRow
-              title="Remove site"
-              detail="KontrolWP forgets this site. Nothing changes on the site itself."
-            >
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={fromSettings(setConfirmRemove)}
-              >
-                Remove
+              <Button size="sm" variant="outline" onClick={fromSettings(setReplacingKey)}>
+                Change Connection Key
               </Button>
-            </SettingRow>
-          </SettingsGroup>
+            )}
+            <Button
+              size="sm"
+              variant="destructive"
+              className="ml-auto"
+              onClick={fromSettings(setConfirmRemove)}
+            >
+              Delete Site
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
