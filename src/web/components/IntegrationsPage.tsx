@@ -178,6 +178,9 @@ function UmamiCard() {
   }, [settings.data]);
 
   const saved = settings.data?.configured && settings.data.mode === mode;
+  // A saved password is only reused for the Umami and user it was entered for.
+  const passwordSaved =
+    saved && settings.data?.url === url.trim().replace(/\/+$/, "") && settings.data?.username === username.trim();
   const save = useMutation({
     mutationFn: () =>
       saveUmamiSettings(
@@ -258,6 +261,8 @@ function UmamiCard() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://analytics.example.com"
+                  pattern="https://.*"
+                  title="An https:// address"
                   required={mode === "self-hosted"}
                 />
               </label>
@@ -283,8 +288,8 @@ function UmamiCard() {
                     type="password"
                     value={secret}
                     onChange={(e) => setSecret(e.target.value)}
-                    placeholder={saved ? "Saved" : undefined}
-                    required={mode === "self-hosted" && !saved}
+                    placeholder={passwordSaved ? "Saved" : undefined}
+                    required={mode === "self-hosted" && !passwordSaved}
                     autoComplete="new-password"
                   />
                 </label>

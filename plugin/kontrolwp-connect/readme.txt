@@ -2,7 +2,7 @@
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.43.0
+Stable tag: 0.44.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,11 @@ kept until the dashboard sees the site working after the update, and for 30
 days at most.
 
 The plugin creates this site's Connection Key. KontrolWP signs every request
-with the secret in that key, which only this site and your dashboard know. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back; when you switch on SEO in KontrolWP, it adds title, description, social and robots tags to your pages' head, and switching it off removes them; when you switch on maintenance mode in KontrolWP, visitors who are not signed in see a "back soon" page until you switch it off);
+with the secret in that key, which only this site and your dashboard know. The
+secret is saved in this site's database encrypted with a key derived from the
+salts in wp-config.php, so a copy of the database alone cannot be used to sign
+requests. Changing those salts makes the saved key unreadable: open Settings,
+KontrolWP Connect for a new one and paste it into KontrolWP. The plugin adds no public pages and sends nothing on its own (when you switch on an accessibility fix in KontrolWP, it adjusts the HTML of your pages as they are sent, and switching it off puts them back; when you switch on SEO in KontrolWP, it adds title, description, social and robots tags to your pages' head, and switching it off removes them; when you switch on maintenance mode in KontrolWP, visitors who are not signed in see a "back soon" page until you switch it off);
 it only answers signed requests, and Magic Login links the dashboard asked for.
 
 == Installation ==

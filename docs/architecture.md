@@ -15,7 +15,7 @@
 | Worker + static assets | | Serves the React dashboard and the `/api/*` routes, one Worker like Mailroom. |
 | Cloudflare Access | | Protects the whole Worker. `requireWebAccess` also verifies the `Cf-Access-Jwt-Assertion` JWT on every API call, so a misconfigured route still fails closed. |
 | D1 | `DB` | Sites with their encrypted secrets, plus the latest snapshot of updates and pending comments per site. The Worker applies any migration the database is missing on its first request, recording it in Wrangler's `d1_migrations` table, so a deploy that skipped `wrangler d1 migrations apply` still works. |
-| Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
+| Worker secret | `SITE_SECRETS_KEY` | AES-256 key that encrypts each site's secret and every integration credential in D1. Created by `scripts/deploy.mjs` on the first deploy and never replaced. |
 | Queue | `SYNC_QUEUE` | One message per site, so a slow or broken site never delays the others and unexpected failures retry. Also runs queued updates (below) and the link checker. The consumer takes one message per run: a Worker run opens at most six connections at once and queues the rest with their timeouts already running, so syncing several sites in one run made healthy sites time out. A sync that can't reach a site, or gets a 5xx, tries once more three seconds later before the site shows as unreachable. |
 | Browser Rendering | `BROWSER` | Loads a site's home page before and after its scheduled updates, for the regression check (below). Two short browser sessions per scheduled run that queued updates; nothing else uses it. |
 | Cron Trigger | | `*/15 * * * *` enqueues every site for a sync on the first tick after midnight in the saved time zone (Settings, General; UTC until the dashboard saves one), and queues uptime checks on the tick at the top of each hour. Opening the dashboard in a new tab also syncs every site (`POST /api/sync`), skipped when a full sync started in the last ten minutes. |
@@ -63,6 +63,29 @@ database alone cannot sign requests to any site. The deploy script creates
 the key the first time and never replaces it, because a new key would make
 every stored secret unreadable; if that ever happens, each site shows a clear
 error and needs a new Connection Key.
+
+KontrolWP Connect keeps its copy of the secret encrypted too (0.44.0 and
+later): the `kontrolwp_connect` option holds the key id and a
+`sealed` value, XSalsa20-Poly1305 (sodium, or the copy WordPress bundles)
+under HMAC-SHA256 of a fixed label keyed with `wp_salt( 'auth' )`, with the
+key id inside the sealed text. A secret an older version saved in the clear is
+sealed the first time it is read. Changing the site's salts in wp-config.php
+makes the saved key unreadable; the plugin then makes a new one, which has to
+be pasted into KontrolWP.
+
+**Every other credential follows the same rules.** Integration secrets (the
+Cloudflare API token, Google's OAuth client secret and refresh token, or an
+older service account key, the PageSpeed Insights API key, the Umami API key
+or password, the Wordfence key) are encrypted with `encryptSetting` under
+`SITE_SECRETS_KEY`, bound to their `settings` row's name. They are write-only
+from the browser: the API answers with `configured` and labels such as the
+Google account's email, never the secret. Each is sent only to its own
+service, over HTTPS, in a header or a POST body and never in an address, so it
+stays out of logs and traces: PageSpeed's key goes in `X-Goog-Api-Key`, Umami's
+in `Authorization`, and a self-hosted Umami must use `https://`. Keeping a
+saved Umami password (by leaving the field blank) only works for the same
+address and username it was entered for, so changing the address cannot send
+it somewhere new.
 
 **Why a per-site shared secret.** A leaked key only exposes the one site that
 held it. **Create a new key** in KontrolWP Connect invalidates the old one
@@ -278,11 +301,12 @@ WordPress auto-updates dialog sets core across chosen sites.
 
 The Integrations page (`/integrations`, a menu of the services in alphabetical order like a site's sections, one open at a time as `?tab=`; older `/settings?tab=integrations` and `/settings#wordfence` links redirect there; each has an on/off switch, on while anything is saved for it, and turning one off asks, then deletes everything saved for it, Google's OAuth client included) stores one Umami connection in the `settings` table: Umami Cloud
 with an API key (sent as a bearer token to `https://api.umami.is/v1`), or a
-self-hosted Umami with a username and password (KontrolWP logs in at
+self-hosted Umami at an `https://` address with a username and password (KontrolWP logs in at
 `/api/auth/login` for each analytics request and sends the token the same
 way). The key or password is encrypted under SITE_SECRETS_KEY, bound to the
 setting's name, and never returned to the browser. Saving tests the
-connection by listing websites.
+connection by listing websites. A blank password keeps the saved one only for
+the same address and username.
 
 A site's analytics come from the Umami website whose domain matches the
 site's (ignoring `www.`), or the one the owner chose
@@ -400,7 +424,8 @@ minute, longer than a request may keep working after it answers, so Run test
 claims the site (`running_since`, cleared after five minutes if lost) and sends
 a `performance` message to the queue; the tab polls until it finishes. Tests
 only run when asked; nothing tests sites on a schedule. An API key can be saved
-in Integrations (stored encrypted like the Wordfence key) or Google
+in Integrations (stored encrypted like the Wordfence key, and sent in the
+`X-Goog-Api-Key` header rather than the address) or Google
 connected there: without either, Google's shared quota refuses most tests. A saved key wins; otherwise the test carries the connected account's
 access token (the `openid` scope every sign-in has), so the quota is the OAuth
 client's Google Cloud project, which needs the PageSpeed Insights API turned on. A failed test keeps the

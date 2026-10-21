@@ -45,9 +45,10 @@ subject to Cloudflare's quotas and billing.
 5. Deploy and wait for Workers Builds to finish. The script builds the
    dashboard and the KontrolWP Connect zip, applies pending D1 migrations, then
    deploys the Worker and its assets. On the first deploy it also creates the
-   `SITE_SECRETS_KEY` Worker secret that encrypts site secrets; later deploys
-   keep it. Never delete or change it, or every site will need a new
-   Connection Key.
+   `SITE_SECRETS_KEY` Worker secret that encrypts site secrets and
+   integration credentials; later deploys keep it. Never delete or change it,
+   or every site will need a new Connection Key and every integration its
+   credentials entered again.
 
 Cloudflare's [Deploy to Cloudflare documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 describes resource provisioning and repository creation.

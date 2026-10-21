@@ -24,16 +24,36 @@ class KontrolWP_Connect_Auth {
 	const MAX_SKEW         = 300;
 
 	/**
-	 * The stored key, or null before one exists.
+	 * The stored key, or null before one exists. The secret is kept in the
+	 * database encrypted under a key derived from this site's wp-config.php
+	 * salts, so a copy of the database alone cannot sign requests. A secret
+	 * saved in the clear by an older version is encrypted on first read. If
+	 * the salts change the secret cannot be opened, and the site needs a new
+	 * Connection Key.
 	 *
 	 * @return array{key_id:string,secret:string,created_at:int}|null
 	 */
 	public static function credentials() {
 		$stored = get_option( self::OPTION );
-		if ( ! is_array( $stored ) || empty( $stored['key_id'] ) || empty( $stored['secret'] ) ) {
+		if ( ! is_array( $stored ) || empty( $stored['key_id'] ) ) {
 			return null;
 		}
-		return $stored;
+		if ( ! empty( $stored['sealed'] ) ) {
+			$secret = self::open( (string) $stored['sealed'], (string) $stored['key_id'] );
+			if ( null === $secret ) {
+				return null;
+			}
+		} elseif ( ! empty( $stored['secret'] ) ) {
+			$secret = (string) $stored['secret'];
+			self::store( (string) $stored['key_id'], $secret, (int) ( $stored['created_at'] ?? time() ) );
+		} else {
+			return null;
+		}
+		return array(
+			'key_id'     => (string) $stored['key_id'],
+			'secret'     => $secret,
+			'created_at' => (int) ( $stored['created_at'] ?? 0 ),
+		);
 	}
 
 	/**
@@ -55,7 +75,7 @@ class KontrolWP_Connect_Auth {
 			'secret'     => self::base64url_encode( random_bytes( 32 ) ),
 			'created_at' => time(),
 		);
-		update_option( self::OPTION, $credentials, false );
+		self::store( $credentials['key_id'], $credentials['secret'], $credentials['created_at'] );
 		delete_option( self::LAST_SEEN_OPTION );
 		return $credentials;
 	}
@@ -150,6 +170,58 @@ class KontrolWP_Connect_Auth {
 			$value .= str_repeat( '=', 4 - $pad );
 		}
 		return base64_decode( $value, true );
+	}
+
+	/** Save the key with its secret encrypted. */
+	private static function store( $key_id, $secret, $created_at ) {
+		update_option(
+			self::OPTION,
+			array(
+				'key_id'     => $key_id,
+				'sealed'     => self::seal( $secret, $key_id ),
+				'created_at' => $created_at,
+			),
+			false
+		);
+	}
+
+	/**
+	 * The encryption key: HMAC-SHA256 of a fixed label under the site's auth
+	 * salt (AUTH_KEY and AUTH_SALT in wp-config.php).
+	 */
+	private static function storage_key() {
+		$salt = function_exists( 'wp_salt' ) ? wp_salt( 'auth' ) : ( defined( 'AUTH_KEY' ) ? AUTH_KEY . ( defined( 'AUTH_SALT' ) ? AUTH_SALT : '' ) : '' );
+		return hash_hmac( 'sha256', 'kontrolwp-connect-secret-v1', (string) $salt, true );
+	}
+
+	/** XSalsa20-Poly1305 (sodium, or the copy WordPress bundles), bound to the key id. */
+	private static function seal( $secret, $key_id ) {
+		$nonce = random_bytes( SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
+		$box   = sodium_crypto_secretbox( $key_id . "\n" . $secret, $nonce, self::storage_key() );
+		return 'v1.' . self::base64url_encode( $nonce ) . '.' . self::base64url_encode( $box );
+	}
+
+	/** The secret, or null when it was sealed under other salts or for another key id. */
+	private static function open( $sealed, $key_id ) {
+		$parts = explode( '.', $sealed );
+		if ( 3 !== count( $parts ) || 'v1' !== $parts[0] ) {
+			return null;
+		}
+		$nonce = self::base64url_decode( $parts[1] );
+		$box   = self::base64url_decode( $parts[2] );
+		if ( false === $nonce || false === $box || SODIUM_CRYPTO_SECRETBOX_NONCEBYTES !== strlen( $nonce ) ) {
+			return null;
+		}
+		try {
+			$plain = sodium_crypto_secretbox_open( $box, $nonce, self::storage_key() );
+		} catch ( Exception $e ) {
+			return null;
+		}
+		$prefix = $key_id . "\n";
+		if ( false === $plain || 0 !== strpos( $plain, $prefix ) ) {
+			return null;
+		}
+		return substr( $plain, strlen( $prefix ) );
 	}
 
 	private static function deny( $message ) {

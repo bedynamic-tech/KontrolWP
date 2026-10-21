@@ -65,6 +65,8 @@ export type UmamiClient = <T>(path: string, params?: Record<string, string | num
 export async function umamiClient(config: UmamiConfig): Promise<UmamiClient> {
   const base = umamiApiBase(config);
   let token = config.secret;
+  // The password would cross the internet unencrypted.
+  if (!base.startsWith("https://")) throw new UmamiError("Use an https:// address for Umami, so the login is sent encrypted.", 400);
   if (config.mode === "self-hosted") {
     const login = await call<{ token?: string }>(`${base}/auth/login`, {
       method: "POST",
