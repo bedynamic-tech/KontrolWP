@@ -85,10 +85,10 @@ export function SearchConsoleSection(props: {
         <EmptyRow>
           Connect Google in{" "}
           <Link
-            to="/settings?tab=integrations"
+            to="/integrations#google"
             className="underline underline-offset-4"
           >
-            Settings
+            Integrations
           </Link>{" "}
           to see this site's clicks, impressions and top queries from Google
           Search Console.

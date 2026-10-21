@@ -257,7 +257,7 @@ export function SitePage() {
   const analyticsTabOn =
     (analyticsSource.configured || !!analyticsSource.connected.ga4) &&
     !data?.site.analytics_excluded;
-  // The Analytics tab needs Umami connected in Settings.
+  // The Analytics tab needs Umami connected in Integrations.
   const kind = data?.site.kind;
   const tabs =
     kind === "static"
@@ -955,7 +955,7 @@ function AnalyticsSourceRows(props: {
       {providers.length > 1 && (
         <SettingRow
           title="Analytics provider"
-          detail="Where this site's analytics come from. Connect more providers in Settings."
+          detail="Where this site's analytics come from. Connect more providers in Integrations."
           error={choose.error?.message}
         >
           <select

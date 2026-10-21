@@ -2386,7 +2386,7 @@ api.post("/google/connect", async (c) => {
   return c.json({ url });
 });
 
-/** Google sends the owner back here; the Worker finishes the sign-in and returns them to Settings. */
+/** Google sends the owner back here; the Worker finishes the sign-in and returns them to Integrations. */
 api.get("/google/callback", async (c) => {
   const back = (result: Record<string, string>, returnTo = "") => {
     if (returnTo) {
@@ -2394,7 +2394,7 @@ api.get("/google/callback", async (c) => {
       for (const [key, value] of Object.entries(result)) target.searchParams.set(key, value);
       return c.redirect(`${target.pathname}${target.search}${target.hash}`, 302);
     }
-    return c.redirect(`/settings?${new URLSearchParams({ tab: "integrations", ...result })}`, 302);
+    return c.redirect(`/integrations?${new URLSearchParams(result)}#google`, 302);
   };
   const code = c.req.query("code");
   const state = c.req.query("state") ?? "";

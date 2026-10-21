@@ -64,8 +64,8 @@ export function DeploymentsSection(props: { site: SiteSummary; compact?: boolean
         {!query.data.configured ? (
           <>
             Connect Cloudflare in{" "}
-            <Link to="/settings" className="underline underline-offset-4">
-              Settings
+            <Link to="/integrations#cloudflare" className="underline underline-offset-4">
+              Integrations
             </Link>{" "}
             to see this site's deployments and build logs.
           </>

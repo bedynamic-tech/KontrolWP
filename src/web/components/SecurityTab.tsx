@@ -196,8 +196,8 @@ export function SecurityTab(props: { site: SiteSummary }) {
             {needsKey ? (
               <>
                 Add a free Wordfence Intelligence API key in{" "}
-                <Link to="/settings#wordfence" className="underline underline-offset-4">
-                  Settings
+                <Link to="/integrations#wordfence" className="underline underline-offset-4">
+                  Integrations
                 </Link>{" "}
                 to check this site's WordPress and plugins for known vulnerabilities.
               </>
