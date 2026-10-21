@@ -276,7 +276,7 @@ WordPress auto-updates dialog sets core across chosen sites.
 
 ## Umami analytics
 
-The Integrations page (`/integrations`, one card per service in alphabetical order; older `/settings?tab=integrations` and `/settings#wordfence` links redirect there) stores one Umami connection in the `settings` table: Umami Cloud
+The Integrations page (`/integrations`, a menu of the services in alphabetical order like a site's sections, one open at a time as `?tab=`; older `/settings?tab=integrations` and `/settings#wordfence` links redirect there; each has an on/off switch, on while anything is saved for it, and turning one off asks, then deletes everything saved for it, Google's OAuth client included) stores one Umami connection in the `settings` table: Umami Cloud
 with an API key (sent as a bearer token to `https://api.umami.is/v1`), or a
 self-hosted Umami with a username and password (KontrolWP logs in at
 `/api/auth/login` for each analytics request and sends the token the same

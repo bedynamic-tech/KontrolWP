@@ -1,9 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ChartColumnIcon, CloudIcon, GaugeIcon, SearchIcon, ShieldIcon } from "lucide-react";
 import { useLocation, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { GoogleSettings, UmamiMode } from "../../shared/types";
 import {
@@ -27,36 +37,127 @@ import {
 } from "../api";
 import { CopyField } from "./CopyField";
 import { HelpTip } from "./HelpTip";
-import { Section } from "./Section";
-import { TwoColumns } from "./TwoColumns";
+import { EmptyRow, Section } from "./Section";
+import { SectionNav } from "./SectionNav";
 
-/** The services KontrolWP connects to for every site, one card each, in alphabetical order. */
+/** The services KontrolWP connects to for every site, in alphabetical order. */
 const INTEGRATIONS = [
-  { id: "cloudflare", Card: CloudflareCard },
-  { id: "google", Card: GoogleCard },
-  { id: "pagespeed", Card: PagespeedCard },
-  { id: "umami", Card: UmamiCard },
-  { id: "wordfence", Card: WordfenceCard },
+  { value: "cloudflare", label: "Cloudflare", icon: <CloudIcon />, Card: CloudflareCard },
+  { value: "google", label: "Google", icon: <SearchIcon />, Card: GoogleCard },
+  { value: "pagespeed", label: "PageSpeed Insights", icon: <GaugeIcon />, Card: PagespeedCard },
+  { value: "umami", label: "Umami", icon: <ChartColumnIcon />, Card: UmamiCard },
+  { value: "wordfence", label: "Wordfence", icon: <ShieldIcon />, Card: WordfenceCard },
 ];
 
+/** One integration at a time, picked from a menu on the left like a site's sections. */
 export function IntegrationsPage() {
   const { hash } = useLocation();
-  // A link such as /integrations#wordfence scrolls to that card.
-  useEffect(() => {
-    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
-  }, [hash]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?tab=wordfence picks one; links such as /integrations#wordfence still land on theirs.
+  const requested = searchParams.get("tab") ?? hash.slice(1);
+  const current = INTEGRATIONS.find((item) => item.value === requested) ?? INTEGRATIONS[0];
+  const Card = current.Card;
   return (
     <div>
       <h1 className="text-xl font-semibold tracking-tight">Integrations</h1>
-      {/* Alphabetical down the first column, then the second. */}
-      <TwoColumns>
-        {INTEGRATIONS.map(({ id, Card }) => (
-          <div key={id} id={id} className="min-w-0 scroll-mt-4">
-            <Card />
-          </div>
-        ))}
-      </TwoColumns>
+      <div className="mt-8 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
+        <SectionNav
+          groups={[{ items: INTEGRATIONS }]}
+          value={current.value}
+          onChange={(next) => setSearchParams({ tab: next }, { replace: true })}
+          hrefFor={(next) => `?tab=${next}`}
+          label="Integrations"
+        />
+        <div className="max-w-2xl min-w-0 [&>section:first-child]:mt-6">
+          <Card key={current.value} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+/**
+ * An integration's card with the switch that gates it. Its settings show only while it is
+ * on. It is on while anything is saved for it; turning it off asks first, then deletes
+ * everything saved for it (keys, tokens, sign-ins).
+ */
+function IntegrationSection(props: {
+  title: string;
+  hint: ReactNode;
+  /** Whether anything is saved; undefined while loading. */
+  configured: boolean | undefined;
+  onDisable: () => Promise<unknown>;
+  children: ReactNode;
+}) {
+  const [turnedOn, setTurnedOn] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = !!props.configured || turnedOn;
+
+  const change = (next: boolean) => {
+    if (next) return setTurnedOn(true);
+    if (props.configured) {
+      setError(null);
+      setConfirming(true);
+    } else {
+      setTurnedOn(false);
+    }
+  };
+  const remove = async () => {
+    setRemoving(true);
+    setError(null);
+    try {
+      await props.onDisable();
+      setTurnedOn(false);
+      setConfirming(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <>
+      <Section
+        title={props.title}
+        hint={props.hint}
+        action={
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            {on ? "On" : "Off"}
+            <Switch
+              checked={on}
+              disabled={props.configured === undefined || removing}
+              onCheckedChange={change}
+              aria-label={`${props.title} integration`}
+            />
+          </label>
+        }
+      >
+        {on ? props.children : <EmptyRow>Turn {props.title} on to set it up.</EmptyRow>}
+      </Section>
+      <Dialog open={confirming} onOpenChange={(open) => !removing && setConfirming(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn off {props.title}?</DialogTitle>
+            <DialogDescription>
+              This deletes everything saved for {props.title}, such as API keys, tokens and sign-ins. To use it
+              again, turn it back on and set it up from the start.
+            </DialogDescription>
+          </DialogHeader>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(false)} disabled={removing}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={remove} loading={removing}>
+              {removing ? "Turning off..." : "Turn off and delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -105,7 +206,9 @@ function UmamiCard() {
   };
 
   return (
-    <Section
+    <IntegrationSection
+      configured={settings.data?.configured}
+      onDisable={() => disconnect.mutateAsync()}
       title="Umami analytics"
       hint={
         settings.data?.configured
@@ -194,27 +297,14 @@ function UmamiCard() {
               Connected. Umami lists {save.data.websites} {save.data.websites === 1 ? "website" : "websites"}.
             </p>
           )}
-          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending}>
               {save.isPending ? "Checking..." : "Save and test"}
             </Button>
-            {settings.data.configured && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={disconnect.isPending}
-                onClick={() => disconnect.mutate()}
-              >
-                Disconnect
-              </Button>
-            )}
           </div>
         </form>
       )}
-    </Section>
+    </IntegrationSection>
   );
 }
 
@@ -245,7 +335,9 @@ function WordfenceCard() {
   });
 
   return (
-    <Section
+    <IntegrationSection
+      configured={settings.data?.configured}
+      onDisable={() => remove.mutateAsync()}
       title="Wordfence vulnerability data"
       hint={
         settings.data?.configured
@@ -290,27 +382,14 @@ function WordfenceCard() {
           {save.isSuccess && (
             <p className="text-sm text-muted-foreground">Saved. The vulnerability data is downloaded.</p>
           )}
-          {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
               {save.isPending ? "Downloading..." : "Save and download"}
             </Button>
-            {settings.data.configured && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                Remove key
-              </Button>
-            )}
           </div>
         </form>
       )}
-    </Section>
+    </IntegrationSection>
   );
 }
 
@@ -341,7 +420,9 @@ function PagespeedCard() {
   });
 
   return (
-    <Section
+    <IntegrationSection
+      configured={settings.data?.configured}
+      onDisable={() => remove.mutateAsync()}
       title="Google PageSpeed Insights"
       hint={
         settings.data?.configured
@@ -382,27 +463,14 @@ function PagespeedCard() {
           </label>
           {save.error && <p className="text-sm text-destructive">{save.error.message}</p>}
           {save.isSuccess && <p className="text-sm text-muted-foreground">Saved.</p>}
-          {remove.error && <p className="text-sm text-destructive">{remove.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending} disabled={!key.trim()}>
               Save key
             </Button>
-            {settings.data.configured && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                Remove key
-              </Button>
-            )}
           </div>
         </form>
       )}
-    </Section>
+    </IntegrationSection>
   );
 }
 
@@ -435,7 +503,9 @@ function CloudflareCard() {
   };
 
   return (
-    <Section
+    <IntegrationSection
+      configured={settings.data?.configured}
+      onDisable={() => disconnect.mutateAsync()}
       title="Cloudflare"
       hint={
         settings.data?.configured
@@ -474,27 +544,14 @@ function CloudflareCard() {
               Connected. Cloudflare lists {save.data.workers} {save.data.workers === 1 ? "Worker" : "Workers"}.
             </p>
           )}
-          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" loading={save.isPending} disabled={!token.trim()}>
               {save.isPending ? "Checking..." : "Save and test"}
             </Button>
-            {settings.data.configured && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={disconnect.isPending}
-                onClick={() => disconnect.mutate()}
-              >
-                Disconnect
-              </Button>
-            )}
           </div>
         </form>
       )}
-    </Section>
+    </IntegrationSection>
   );
 }
 
@@ -562,8 +619,12 @@ function GoogleCard() {
       refresh(result);
     },
   });
-  const forgetClient = useMutation({
-    mutationFn: deleteGoogleClient,
+  // Turning Google off signs out and forgets the OAuth client too.
+  const turnOff = useMutation({
+    mutationFn: async () => {
+      await deleteGoogleSettings();
+      return deleteGoogleClient();
+    },
     onSuccess: (result) => {
       connect.reset();
       setOutcome(null);
@@ -578,7 +639,9 @@ function GoogleCard() {
   const data = settings.data;
 
   return (
-    <Section
+    <IntegrationSection
+      configured={settings.data && (settings.data.configured || settings.data.client_configured)}
+      onDisable={() => turnOff.mutateAsync()}
       title="Google"
       hint="Sign in with Google to show Google Analytics 4 and Search Console. KontrolWP only reads, and keeps a revocable sign-in that is stored encrypted."
     >
@@ -664,9 +727,7 @@ function GoogleCard() {
             <p className={outcome.ok ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>{outcome.message}</p>
           )}
           {connect.error && <p className="text-sm text-destructive">{connect.error.message}</p>}
-          {(disconnect.error || forgetClient.error) && (
-            <p className="text-sm text-destructive">{(disconnect.error ?? forgetClient.error)!.message}</p>
-          )}
+          {disconnect.error && <p className="text-sm text-destructive">{disconnect.error.message}</p>}
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
@@ -698,21 +759,9 @@ function GoogleCard() {
                 Disconnect
               </Button>
             )}
-            {data!.client_configured && !data!.configured && !changingClient && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                loading={forgetClient.isPending}
-                onClick={() => forgetClient.mutate()}
-              >
-                Remove OAuth client
-              </Button>
-            )}
           </div>
         </form>
       )}
-    </Section>
+    </IntegrationSection>
   );
 }
