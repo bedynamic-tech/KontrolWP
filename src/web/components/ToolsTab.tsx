@@ -23,11 +23,11 @@ import {
   type SiteSummary,
 } from "../../shared/types";
 import { fetchSeoTools, removeRobotsFile, saveSeoTools } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 import { TwoColumns } from "./TwoColumns";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 const VERIFY_LABELS: Record<SeoVerifyService, string> = {
   google: "Google Search Console",
@@ -264,15 +264,15 @@ export function ToolsTab(props: { site: SiteSummary }) {
         hint="Tells crawlers what they may visit. The default is WordPress's own, which keeps the admin out and lists the sitemap. A custom file replaces it; a rule that would block the whole site is refused."
       >
         <Row title="Rules">
-          <select
+          <Select
             aria-label="robots.txt rules"
-            className={`${SELECT_CLASS} w-full`}
+            className="w-full"
             value={draft.robots_mode}
-            onChange={(event) => set("robots_mode", event.target.value as SeoToolsSettings["robots_mode"])}
+            onValueChange={(next) => set("robots_mode", next as SeoToolsSettings["robots_mode"])}
           >
             <option value="default">WordPress default</option>
             <option value="custom">Custom</option>
-          </select>
+          </Select>
         </Row>
         {draft.robots_mode === "custom" && (
           <div className="border-t px-4 py-3">
@@ -322,16 +322,16 @@ export function ToolsTab(props: { site: SiteSummary }) {
         hint="A plain summary of the site for AI tools, at /llms.txt. Automatic lists your site name, tagline, pages and latest posts, leaving out anything hidden from search. Custom lets you write it yourself."
       >
         <Row title="Content">
-          <select
+          <Select
             aria-label="llms.txt content"
-            className={`${SELECT_CLASS} w-full`}
+            className="w-full"
             value={draft.llms_mode}
-            onChange={(event) => set("llms_mode", event.target.value as SeoToolsSettings["llms_mode"])}
+            onValueChange={(next) => set("llms_mode", next as SeoToolsSettings["llms_mode"])}
           >
             <option value="off">Off</option>
             <option value="auto">Automatic</option>
             <option value="custom">Custom</option>
-          </select>
+          </Select>
         </Row>
         {draft.llms_mode === "custom" && (
           <div className="border-t px-4 py-3">

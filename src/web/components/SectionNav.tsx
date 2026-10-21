@@ -65,7 +65,7 @@ export function SectionNav(props: {
             <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground group-data-[state=open]:rotate-180" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+        <DropdownMenuContent align="start" className="w-(--anchor-width)">
           {groups.map((group, index) => (
             <Fragment key={group.label ?? index}>
               {index > 0 && <DropdownMenuSeparator />}

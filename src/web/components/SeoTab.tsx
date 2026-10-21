@@ -36,9 +36,7 @@ import { ToolsTab } from "./ToolsTab";
 import { Spinner } from "./Spinner";
 import { EmptyRow, Section } from "./Section";
 import { TwoColumns } from "./TwoColumns";
-
-const SELECT_CLASS =
-  "h-8 w-full max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+import { Select } from "@/components/ui/select";
 
 const TITLE_LENGTH = 60;
 const DESCRIPTION_LENGTH = 160;
@@ -578,18 +576,17 @@ function LocationCard(props: {
           />
         </Row>
         <Row title="Business type">
-          <select
+          <Select
             aria-label={`Business type for ${location.name || "this location"}`}
-            className={SELECT_CLASS}
             value={location.type}
-            onChange={(event) => set("type", event.target.value)}
+            onValueChange={(next) => set("type", next)}
           >
             {SEO_BUSINESS_TYPES.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </Row>
         {text("name", "Business name", props.siteName)}
         {text("phone", "Phone", "+1 555 0100")}
@@ -1032,12 +1029,11 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
       <Section title="Titles and descriptions">
         <div className="divide-y">
           <Row title="Separator" detail="Goes between the parts of a title.">
-            <select
+            <Select
               aria-label="Title separator"
-              className={SELECT_CLASS}
               value={draft.separator}
-              onChange={(event) =>
-                set("separator", event.target.value as SeoSettings["separator"])
+              onValueChange={(next) =>
+                set("separator", next as SeoSettings["separator"])
               }
             >
               {SEO_SEPARATORS.map((separator) => (
@@ -1045,7 +1041,7 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
                   {separator}
                 </option>
               ))}
-            </select>
+            </Select>
           </Row>
           <Row
             title="Page title template"
@@ -1153,20 +1149,19 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
                 />
               </Row>
               <Row title="Card style">
-                <select
+                <Select
                   aria-label="Twitter card style"
-                  className={SELECT_CLASS}
                   value={draft.twitter_card}
-                  onChange={(event) =>
+                  onValueChange={(next) =>
                     set(
                       "twitter_card",
-                      event.target.value as SeoSettings["twitter_card"],
+                      next as SeoSettings["twitter_card"],
                     )
                   }
                 >
                   <option value="summary_large_image">Large image</option>
                   <option value="summary">Small image</option>
-                </select>
+                </Select>
               </Row>
               <Row
                 title="Twitter or X handle"
@@ -1197,16 +1192,15 @@ function SeoSettingsPanel(props: { site: SiteSummary; onMigrate: () => void }) {
               title="Author archives"
               detail="Switch author pages off completely. They are also left out of the XML sitemap. Redirecting sends visitors and search engines to the home page with a permanent redirect; not found shows the site's 404 page. Pick this on a one-author site, where the author page repeats the blog."
             >
-              <select
+              <Select
                 aria-label="Author archives"
-                className={SELECT_CLASS}
                 value={draft.author_archives}
-                onChange={(event) => set("author_archives", event.target.value as SeoSettings["author_archives"])}
+                onValueChange={(next) => set("author_archives", next as SeoSettings["author_archives"])}
               >
                 <option value="keep">Keep them</option>
                 <option value="redirect">Redirect to the home page</option>
                 <option value="404">Show not found</option>
-              </select>
+              </Select>
             </Row>
           )}
           <CheckRow

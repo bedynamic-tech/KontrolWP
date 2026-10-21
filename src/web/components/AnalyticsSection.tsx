@@ -19,6 +19,7 @@ import {
 import { hostname } from "../format";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 export const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "24h": "Last 24 hours",
@@ -51,9 +52,6 @@ export function useAnalyticsProvider(site: SiteSummary) {
     connected,
   };
 }
-
-export const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm sm:w-auto outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 /** The site's Umami analytics; shows nothing until Umami is connected in Integrations. */
 /** The chosen date range, remembered in this browser and shared by the Overview card and the Analytics tab. */
@@ -95,18 +93,18 @@ export function useAnalyticsRange(): [AnalyticsRange, (next: AnalyticsRange) => 
 
 export function RangeSelect(props: { range: AnalyticsRange; onChange: (next: AnalyticsRange) => void }) {
   return (
-    <select
+    <Select
       aria-label="Date range"
       value={props.range}
-      onChange={(event) => props.onChange(event.target.value as AnalyticsRange)}
-      className={`${SELECT_CLASS} w-auto!`}
+      onValueChange={(next) => props.onChange(next as AnalyticsRange)}
+      className="w-auto!"
     >
       {(Object.keys(RANGE_LABELS) as AnalyticsRange[]).map((value) => (
         <option key={value} value={value}>
           {RANGE_LABELS[value]}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -410,12 +408,11 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {(save.isPending || (websites.isPending && open)) && <Spinner className="size-3.5" label="Loading" />}
-      <select
+      <Select
         aria-label={`${label} ${noun}`}
         value={props.chosen ? (props.current ?? "") : ""}
         disabled={websites.isPending || save.isPending}
-        onChange={(event) => save.mutate(event.target.value || null)}
-        className={SELECT_CLASS}
+        onValueChange={(next) => save.mutate(next || null)}
       >
         <option value="">{websites.isPending ? `Loading ${noun}s...` : "Match by domain"}</option>
         {websites.data?.websites.map((website) => (
@@ -424,7 +421,7 @@ export function WebsitePicker(props: { site: SiteSummary; current: string | null
             {website.domain && website.domain !== website.name ? ` (${website.domain})` : ""}
           </option>
         ))}
-      </select>
+      </Select>
       {(websites.error || save.error) && (
         <span className="text-xs text-destructive">{(websites.error ?? save.error)!.message}</span>
       )}

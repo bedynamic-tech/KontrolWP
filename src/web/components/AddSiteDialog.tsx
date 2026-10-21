@@ -18,7 +18,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { SiteKind, SiteSummary } from "../../shared/types";
 import { ApiError, createSite, fetchStaticSiteName } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { CloudflareWorkerSelect, type WorkerChoice } from "./CloudflareWorkerSelect";
 import { ConnectionSteps } from "./ConnectionSteps";
 import { MagicLoginUserForm } from "./MagicLogin";
@@ -187,7 +186,7 @@ export function AddSiteDialog() {
                 {onCloudflare && (
                   <div className="space-y-1.5">
                     <span className="block text-sm font-medium">Cloudflare Worker</span>
-                    <CloudflareWorkerSelect value={worker} onChange={setWorker} className={`${SELECT_CLASS} w-full`} />
+                    <CloudflareWorkerSelect value={worker} onChange={setWorker} className="w-full" />
                   </div>
                 )}
               </>

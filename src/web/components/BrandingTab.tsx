@@ -6,11 +6,11 @@ import { Switch } from "@/components/ui/switch";
 import { compareVersions, LOGIN_LOGO_SINCE, LOGIN_LOGO_SITE_SINCE } from "../../shared/plugin-version";
 import type { LoginLogo, LoginLogoSave, LoginLogoSize, LoginLogoSource, SiteSummary } from "../../shared/types";
 import { fetchLoginLogo, saveLoginLogo } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { Row } from "./ToolsTab";
+import { Select } from "@/components/ui/select";
 
 const SIZE_LABELS: Record<LoginLogoSize, string> = {
   small: "Small",
@@ -122,13 +122,12 @@ export function BrandingTab({ site }: { site: SiteSummary }) {
             title="Logo source"
             hint="The site's logo is the one set in WordPress under Appearance, in the Customizer or the Site Editor. When the site has no logo, its site icon is used. It follows any change made there."
           >
-            <select
+            <Select
               aria-label="Logo source"
-              className={SELECT_CLASS}
               value={source}
               disabled={busy}
-              onChange={(event) => {
-                const next = event.target.value as LoginLogoSource;
+              onValueChange={(value) => {
+                const next = value as LoginLogoSource;
                 save.mutate({ size: saved.size, source: next, enabled: saved.enabled && !!urlFor(next) });
               }}
             >
@@ -137,7 +136,7 @@ export function BrandingTab({ site }: { site: SiteSummary }) {
                   {SOURCE_LABELS[value]}
                 </option>
               ))}
-            </select>
+            </Select>
           </Row>
         )}
         <Row
@@ -200,13 +199,12 @@ export function BrandingTab({ site }: { site: SiteSummary }) {
           title="Logo size"
           hint="The largest the logo is drawn, keeping its shape: small fits 84 by 84 pixels like the WordPress logo, medium 200 by 100 and large the full 320 pixel width of the form. It is never drawn larger than the image."
         >
-          <select
+          <Select
             aria-label="Logo size"
-            className={SELECT_CLASS}
             value={busy ? save.variables.size : saved.size}
             disabled={!hasLogo || busy}
-            onChange={(event) =>
-              save.mutate({ ...base, enabled: saved.enabled, size: event.target.value as LoginLogoSize })
+            onValueChange={(next) =>
+              save.mutate({ ...base, enabled: saved.enabled, size: next as LoginLogoSize })
             }
           >
             {(Object.keys(SIZE_LABELS) as LoginLogoSize[]).map((value) => (
@@ -214,7 +212,7 @@ export function BrandingTab({ site }: { site: SiteSummary }) {
                 {SIZE_LABELS[value]}
               </option>
             ))}
-          </select>
+          </Select>
         </Row>
       </div>
     </Section>

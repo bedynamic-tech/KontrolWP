@@ -6,6 +6,7 @@ import { compareVersions, MAGIC_LOGIN_SINCE } from "../../shared/plugin-version"
 import type { SiteSummary } from "../../shared/types";
 import { createMagicLogin, fetchAdmins, setMagicLoginUser } from "../api";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 export function magicLoginSupported(site: SiteSummary): boolean {
   return !site.plugin_version || compareVersions(site.plugin_version, MAGIC_LOGIN_SINCE) >= 0;
@@ -133,12 +134,11 @@ export function MagicLoginUserForm(props: {
       ) : admins.error ? (
         <p className="text-sm text-destructive">{admins.error.message}</p>
       ) : (
-        <select
+        <Select
           id="magic-login-user"
           value={selected}
-          onChange={(event) => setChoice(event.target.value)}
+          onValueChange={(next) => setChoice(next)}
           required
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         >
           <option value="" disabled>
             Choose an administrator
@@ -150,7 +150,7 @@ export function MagicLoginUserForm(props: {
                 : admin.login}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       <p className="text-xs text-muted-foreground">
         Magic Login opens wp-admin signed in as this user. Each link works once, for one minute.
@@ -165,9 +165,6 @@ export function MagicLoginUserForm(props: {
     </form>
   );
 }
-
-const ADMIN_SELECT_CLASS =
-  "h-8 w-full rounded-lg sm:max-w-56 border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
 
 /** The Magic Login administrator as a dropdown that saves when changed. */
 export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) {
@@ -197,13 +194,13 @@ export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) 
     <div className="flex flex-col items-start gap-1 sm:items-end">
       <div className="flex items-center gap-2">
         {(save.isPending || admins.isPending) && <Spinner className="size-4 text-muted-foreground" />}
-        <select
+        <Select
           id={props.id}
           aria-label="Magic Login administrator"
           value={value}
           disabled={admins.isPending || !!admins.error || save.isPending}
-          onChange={(event) => save.mutate(Number(event.target.value))}
-          className={ADMIN_SELECT_CLASS}
+          onValueChange={(next) => save.mutate(Number(next))}
+          className="sm:max-w-56"
         >
           <option value="" disabled>
             {admins.isPending ? "Loading..." : "Choose an administrator"}
@@ -219,7 +216,7 @@ export function MagicLoginUserSelect(props: { site: SiteSummary; id?: string }) 
                 : admin.login}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {(admins.error || save.error) && (
         <p className="text-xs text-destructive">{(admins.error ?? save.error)!.message}</p>

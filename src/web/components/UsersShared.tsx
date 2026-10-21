@@ -20,6 +20,7 @@ import type { NewUser, UserAction, UserRole } from "../../shared/types";
 import { type BulkProgress } from "./PluginBulkBar";
 import { SelectionBar } from "./SelectionBar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select } from "@/components/ui/select";
 
 /** Role slugs as their names, such as "Administrator, Editor", or "No role". */
 export function roleLabel(slugs: string[], roles: UserRole[]): string {
@@ -168,9 +169,6 @@ export function UserBulkBar(props: {
   );
 }
 
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
-
 /**
  * Add a user: username, email, name, role and an optional password. The
  * fleet page adds a site picker as children; create throws to keep the
@@ -251,13 +249,13 @@ export function AddUserDialog(props: {
             {field("last_name", "Last name", { autoComplete: "off" })}
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">Role</span>
-              <select value={role} onChange={(e) => setRole(e.target.value)} className={SELECT_CLASS}>
+              <Select value={role} onValueChange={(next) => setRole(next)}>
                 {roles.map((option) => (
                   <option key={option.slug} value={option.slug}>
                     {option.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             {field("password", "Password", {
               type: "password",

@@ -10,11 +10,11 @@ import { compareVersions, MAINTENANCE_SINCE } from "../../shared/plugin-version"
 import type { Maintenance, MaintenanceLogo, MaintenanceSave, SiteSummary } from "../../shared/types";
 import { fetchMaintenance, saveMaintenance } from "../api";
 import { timeAgo } from "../format";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { Row } from "./ToolsTab";
+import { Select } from "@/components/ui/select";
 
 const LOGO_LABELS: Record<MaintenanceLogo, string> = {
   site: "The site's logo",
@@ -246,12 +246,11 @@ export function MaintenanceTab({ site }: { site: SiteSummary }) {
             title="Logo"
             hint="The site's logo is the one set in WordPress, or its site icon when there is no logo. The login page logo is the image uploaded under Branding. With no logo, or none set, the site's name is shown instead."
           >
-            <select
+            <Select
               aria-label="Logo"
-              className={SELECT_CLASS}
               value={draft.logo}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, logo: event.target.value as MaintenanceLogo })}
+              onValueChange={(next) => setDraft({ ...draft, logo: next as MaintenanceLogo })}
             >
               {(Object.keys(LOGO_LABELS) as MaintenanceLogo[]).map((value) => (
                 <option key={value} value={value} disabled={value === "login" && !saved.login_logo_url}>
@@ -259,7 +258,7 @@ export function MaintenanceTab({ site }: { site: SiteSummary }) {
                   {value === "login" && !saved.login_logo_url ? " (none uploaded)" : ""}
                 </option>
               ))}
-            </select>
+            </Select>
           </Row>
           <Row title="Background color" hint="The page behind the card. Default follows the visitor's light or dark setting.">
             <ColorField

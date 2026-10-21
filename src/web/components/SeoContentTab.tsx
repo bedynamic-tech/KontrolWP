@@ -11,11 +11,11 @@ import {
   type SiteSummary,
 } from "../../shared/types";
 import { fetchSeoContent, saveSeoContent } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { TwoColumns } from "./TwoColumns";
 import { Spinner } from "./Spinner";
 import { CheckRow, Row, Warning } from "./ToolsTab";
+import { Select } from "@/components/ui/select";
 
 /** Site-wide schema, breadcrumbs, link rules, image alt text and the feed footer. */
 export function SeoContentTab(props: { site: SiteSummary }) {
@@ -119,15 +119,15 @@ export function SeoContentTab(props: { site: SiteSummary }) {
           {draft.schema && (
             <>
               <Row title="The site belongs to">
-                <select
+                <Select
                   aria-label="The site belongs to"
-                  className={`${SELECT_CLASS} w-full`}
+                  className="w-full"
                   value={draft.schema_type}
-                  onChange={(event) => set("schema_type", event.target.value as SeoContentSettings["schema_type"])}
+                  onValueChange={(next) => set("schema_type", next as SeoContentSettings["schema_type"])}
                 >
                   <option value="organization">An organization or business</option>
                   <option value="person">A person</option>
-                </select>
+                </Select>
               </Row>
               <Row title="Name" hint="Empty uses the site name.">
                 <Input
@@ -192,12 +192,12 @@ export function SeoContentTab(props: { site: SiteSummary }) {
                 />
               </Row>
               <Row title="Separator">
-                <select
+                <Select
                   aria-label="Breadcrumb separator"
-                  className={`${SELECT_CLASS} w-full`}
+                  className="w-full"
                   value={draft.breadcrumb_sep}
-                  onChange={(event) =>
-                    set("breadcrumb_sep", event.target.value as SeoContentSettings["breadcrumb_sep"])
+                  onValueChange={(next) =>
+                    set("breadcrumb_sep", next as SeoContentSettings["breadcrumb_sep"])
                   }
                 >
                   {SEO_BREADCRUMB_SEPARATORS.map((separator) => (
@@ -205,7 +205,7 @@ export function SeoContentTab(props: { site: SiteSummary }) {
                       {separator}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Row>
             </>
           )}

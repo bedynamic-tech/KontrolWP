@@ -11,9 +11,9 @@ import type { ContentStatus, ContentTypeInfo, SiteContentItem, SiteSummary } fro
 import { fetchContent, type ContentFilter } from "../api";
 import { plural } from "../format";
 import { EditButton } from "./LinksTab";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { PostEditor } from "./PostEditor";
+import { Select } from "@/components/ui/select";
 
 const PAGE_SIZE = 25;
 
@@ -153,18 +153,17 @@ export function ContentTab(props: { site: SiteSummary }) {
             ))}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <select
+          <Select
             aria-label="Content type"
-            className={SELECT_CLASS}
             value={type}
-            onChange={(event) => choose(setType, event.target.value)}
+            onValueChange={(next) => choose(setType, next)}
           >
             {typeOptions.map((option) => (
               <option key={option.slug} value={option.slug}>
                 {option.name}
               </option>
             ))}
-          </select>
+          </Select>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

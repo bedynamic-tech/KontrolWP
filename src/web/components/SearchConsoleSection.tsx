@@ -24,10 +24,11 @@ import {
 } from "../api";
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import { hostname } from "../format";
-import { count, JumpButton, RangeSelect, SELECT_CLASS, Stat, useAnalyticsRange } from "./AnalyticsSection";
+import { count, JumpButton, RangeSelect, Stat, useAnalyticsRange } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 /** Search Console only offers 7, 28 and 90 days, so the shared range maps to the nearest of those. */
 const SEARCH_CONSOLE_RANGE: Record<AnalyticsRange, SearchConsoleRange> = {
@@ -415,12 +416,11 @@ function PropertyPicker(props: {
       {(save.isPending || properties.isPending) && (
         <Spinner className="size-3.5" label="Loading" />
       )}
-      <select
+      <Select
         aria-label="Search Console property"
         value={props.chosen ? (props.current ?? "") : ""}
         disabled={properties.isPending || save.isPending}
-        onChange={(event) => save.mutate(event.target.value || null)}
-        className={SELECT_CLASS}
+        onValueChange={(next) => save.mutate(next || null)}
       >
         <option value="">
           {properties.isPending ? "Loading properties..." : "Match by domain"}
@@ -430,7 +430,7 @@ function PropertyPicker(props: {
             {property.name}
           </option>
         ))}
-      </select>
+      </Select>
       {(properties.error || save.error) && (
         <span className="text-xs text-destructive">
           {(properties.error ?? save.error)!.message}

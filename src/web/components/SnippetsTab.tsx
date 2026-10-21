@@ -9,11 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { compareVersions, SNIPPETS_SINCE } from "../../shared/plugin-version";
 import type { CodeSnippet, SnippetLocation, SnippetScope, SnippetsSettings, SiteSummary } from "../../shared/types";
 import { fetchSnippets, saveSnippets } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { EmptyRow, Section } from "./Section";
 import { Spinner } from "./Spinner";
 import { CheckRow, Row } from "./ToolsTab";
+import { Select } from "@/components/ui/select";
 
 const LOCATION_LABELS: Record<SnippetLocation, string> = {
   head: "Head",
@@ -199,32 +199,30 @@ function Snippets(props: { site: SiteSummary }) {
                         title="Location"
                         hint="Head suits most analytics codes. Start of body needs a theme that supports it (most current themes do). Footer loads after the page content."
                       >
-                        <select
+                        <Select
                           aria-label="Snippet location"
-                          className={SELECT_CLASS}
                           value={snippet.location}
-                          onChange={(event) => update(index, { location: event.target.value as SnippetLocation })}
+                          onValueChange={(next) => update(index, { location: next as SnippetLocation })}
                         >
                           {(Object.keys(LOCATION_LABELS) as SnippetLocation[]).map((value) => (
                             <option key={value} value={value}>
                               {LOCATION_LABELS[value]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </Row>
                       <Row title="Pages" hint="Print on every page, or choose pages by their address. Use /pricing for one page, or /blog/* for everything under /blog/.">
-                        <select
+                        <Select
                           aria-label="Snippet pages"
-                          className={SELECT_CLASS}
                           value={snippet.scope}
-                          onChange={(event) => update(index, { scope: event.target.value as SnippetScope })}
+                          onValueChange={(next) => update(index, { scope: next as SnippetScope })}
                         >
                           {(Object.keys(SCOPE_LABELS) as SnippetScope[]).map((value) => (
                             <option key={value} value={value}>
                               {SCOPE_LABELS[value]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </Row>
                       {snippet.scope !== "all" && (
                         <Row title="Page addresses" hint={`One per line, starting with a slash. Up to ${limits.paths}.`}>

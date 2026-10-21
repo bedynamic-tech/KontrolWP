@@ -3,6 +3,10 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* PanelUI (panelui-web) ships its components with Tailwind classes; let
+   Tailwind see them. */
+@source "../../node_modules/panelui-web/dist";
+
 @custom-variant dark (&:is(.dark *));
 
 /* Phones and touch screens: the same breakpoint the field-size rule below
@@ -132,6 +136,9 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -173,6 +180,10 @@
   --accent: oklch(0.948 0.006 265);
   --accent-foreground: oklch(0.2 0.012 265);
   --destructive: oklch(0.52 0.2 27);
+  /* Status colours PanelUI components read (switch colours, stats). */
+  --success: oklch(0.55 0.15 150);
+  --info: oklch(0.55 0.17 255);
+  --warning: oklch(0.7 0.16 70);
   --border: oklch(0.918 0.005 265);
   --input: oklch(0.89 0.007 265);
   --ring: oklch(0.68 0.015 265);
@@ -211,6 +222,9 @@
   --accent: oklch(0.27 0.008 265);
   --accent-foreground: oklch(0.95 0.004 265);
   --destructive: oklch(0.68 0.19 25);
+  --success: oklch(0.7 0.15 150);
+  --info: oklch(0.68 0.15 255);
+  --warning: oklch(0.78 0.15 75);
   --border: oklch(0.28 0.007 265);
   --input: oklch(0.33 0.008 265);
   --ring: oklch(0.55 0.015 265);

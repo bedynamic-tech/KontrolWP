@@ -19,11 +19,11 @@ import {
   saveGlobalUpdatePolicy,
   saveSiteUpdatePolicy,
 } from "../api";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { RemoteIcon, pluginIconSources } from "./RemoteIcon";
 import { Section } from "./Section";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -82,61 +82,57 @@ function ScheduleFields(props: {
           ))}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select
+        <Select
           aria-label="How often"
-          className={SELECT_CLASS}
           value={value.frequency}
           disabled={disabled}
-          onChange={(event) => set({ frequency: event.target.value as UpdateFrequency })}
+          onValueChange={(next) => set({ frequency: next as UpdateFrequency })}
         >
           <option value="daily">Every day</option>
           <option value="weekly">Every week</option>
           <option value="monthly">Every month</option>
-        </select>
+        </Select>
         {value.frequency === "weekly" && (
-          <select
+          <Select
             aria-label="Day of the week"
-            className={SELECT_CLASS}
             value={value.weekday}
             disabled={disabled}
-            onChange={(event) => set({ weekday: Number(event.target.value) })}
+            onValueChange={(next) => set({ weekday: Number(next) })}
           >
             {WEEKDAYS.map((name, index) => (
               <option key={name} value={index}>
                 {name}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {value.frequency === "monthly" && (
-          <select
+          <Select
             aria-label="Day of the month"
-            className={SELECT_CLASS}
             value={value.day}
             disabled={disabled}
-            onChange={(event) => set({ day: Number(event.target.value) })}
+            onValueChange={(next) => set({ day: Number(next) })}
           >
             {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
               <option key={day} value={day}>
                 Day {day}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <span className="text-muted-foreground">at</span>
-        <select
+        <Select
           aria-label="Time of day"
-          className={SELECT_CLASS}
           value={value.hour}
           disabled={disabled}
-          onChange={(event) => set({ hour: Number(event.target.value) })}
+          onValueChange={(next) => set({ hour: Number(next) })}
         >
           {Array.from({ length: 24 }, (_, hour) => (
             <option key={hour} value={hour}>
               {hourLabel(hour)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     </div>
   );
@@ -366,17 +362,17 @@ export function SiteScheduleSelect(props: { siteId: number }) {
   const next = data && data.effective !== "off" ? nextRun(data.next_run_at, data.time_zone) : null;
   return (
     <div className="flex items-center gap-1.5">
-      <select
+      <Select
         aria-label="Scheduled updates for this site"
-        className={`${SELECT_CLASS} bg-background`}
+        className="bg-background"
         value={current.mode}
         disabled={busy}
-        onChange={(event) => save.mutate({ ...current, mode: event.target.value as SiteUpdatePolicy["mode"] })}
+        onValueChange={(next) => save.mutate({ ...current, mode: next as SiteUpdatePolicy["mode"] })}
       >
         <option value="inherit">Scheduled updates: global</option>
         <option value="custom">Scheduled updates: custom</option>
         <option value="off">Scheduled updates: off</option>
-      </select>
+      </Select>
       <HelpTip>
         The global setting: {globalSummary}.{next && ` ${next}`} Use the switch on each plugin to include it.
       </HelpTip>

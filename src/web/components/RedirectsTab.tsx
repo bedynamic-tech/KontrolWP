@@ -54,11 +54,11 @@ import {
   updateRedirect,
 } from "../api";
 import { timeAgo } from "../format";
-import { SELECT_CLASS } from "./AnalyticsSection";
 import { HelpTip } from "./HelpTip";
 import { EmptyRow, Section } from "./Section";
 import { SelectBox, SelectionBar } from "./SelectionBar";
 import { Spinner } from "./Spinner";
+import { Select } from "@/components/ui/select";
 
 const CODE_LABELS: Record<number, string> = {
   301: "301 Moved permanently",
@@ -193,14 +193,13 @@ export function RuleDialog(props: {
             htmlFor="redirect-match"
             hint="Exact matches one address, ignoring capital letters and a trailing slash. Starts with matches an address and everything below it, and $1 in the target is the rest. A regular expression can use groups such as $1 and $2 in the target."
           >
-            <select
+            <Select
               id="redirect-match"
-              className={SELECT_CLASS}
               value={draft.match_type}
-              onChange={(event) =>
+              onValueChange={(next) =>
                 set(
                   "match_type",
-                  event.target.value as RedirectInput["match_type"],
+                  next as RedirectInput["match_type"],
                 )
               }
             >
@@ -209,7 +208,7 @@ export function RuleDialog(props: {
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field
             label={draft.match_type === "regex" ? "Pattern" : "From address"}
@@ -230,14 +229,13 @@ export function RuleDialog(props: {
             />
           </Field>
           <Field label="Type" htmlFor="redirect-code">
-            <select
+            <Select
               id="redirect-code"
-              className={SELECT_CLASS}
               value={draft.status_code}
-              onChange={(event) =>
+              onValueChange={(next) =>
                 set(
                   "status_code",
-                  Number(event.target.value) as RedirectInput["status_code"],
+                  Number(next) as RedirectInput["status_code"],
                 )
               }
             >
@@ -246,7 +244,7 @@ export function RuleDialog(props: {
                   {CODE_LABELS[code]}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           {!noTarget && (
             <Field
@@ -778,18 +776,18 @@ function AutoSection(props: {
                 automatic rule from that address.
               </HelpTip>
             </p>
-            <select
+            <Select
               aria-label="When content is deleted or trashed"
-              className={`${SELECT_CLASS} sm:w-80!`}
+              className="sm:w-80!"
               value={choice}
-              onChange={(event) => choose(event.target.value as DeleteChoice)}
+              onValueChange={(next) => choose(next as DeleteChoice)}
             >
               {DELETE_CHOICES.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           {action === "301" && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
