@@ -745,7 +745,7 @@ export function SitePage() {
               <SettingsGroup title="Hosting">
                 {isStatic && integrations.cloudflare && <CloudflareRow site={site} />}
               </SettingsGroup>
-              <SettingsGroup title="Site">
+              <SettingsGroup title="Access">
                 {!isStatic && (
                   <SettingRow
                     title="Magic Login administrator"
@@ -755,36 +755,38 @@ export function SitePage() {
                     <MagicLoginUserSelect site={site} />
                   </SettingRow>
                 )}
-                {!isStatic && (
-                  <SettingRow
-                    title="Connection key"
-                    detail="Paste a new key after creating one in KontrolWP Connect."
-                  >
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={fromSettings(setReplacingKey)}
-                    >
-                      Change
-                    </Button>
-                  </SettingRow>
-                )}
-                <SettingRow
-                  title="Remove site"
-                  detail="KontrolWP forgets this site. Nothing changes on the site itself."
-                >
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={fromSettings(setConfirmRemove)}
-                  >
-                    Remove
-                  </Button>
-                </SettingRow>
-
               </SettingsGroup>
             </div>
           </div>
+          {/* Changes that cut KontrolWP off from the site, kept apart below everything else. */}
+          <SettingsGroup title="Danger zone">
+            {!isStatic && (
+              <SettingRow
+                title="Connection key"
+                detail="Paste a new key after creating one in KontrolWP Connect."
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={fromSettings(setReplacingKey)}
+                >
+                  Change
+                </Button>
+              </SettingRow>
+            )}
+            <SettingRow
+              title="Remove site"
+              detail="KontrolWP forgets this site. Nothing changes on the site itself."
+            >
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={fromSettings(setConfirmRemove)}
+              >
+                Remove
+              </Button>
+            </SettingRow>
+          </SettingsGroup>
         </DialogContent>
       </Dialog>
 
