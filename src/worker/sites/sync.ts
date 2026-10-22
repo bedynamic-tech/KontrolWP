@@ -141,6 +141,9 @@ async function runSync(
   for (const [kind, items] of [["plugin", updates.plugins], ["theme", updates.themes]] as const) {
     for (const item of (items ?? []).slice(0, 500)) {
       if (text(item.new_version) === text(item.current_version)) continue;
+      // Only the dashboard's own package may replace KontrolWP Connect, never
+      // an offer from WordPress.org for its folder name (sites before 0.45.0 list one).
+      if (kind === "plugin" && text(item.slug) === SELF_UPDATE.file) continue;
       offered.push([
         kind, text(item.slug), text(item.name), text(item.current_version), text(item.new_version),
         iconUrl(item.icon_url),

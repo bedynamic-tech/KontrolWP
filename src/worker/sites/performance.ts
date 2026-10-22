@@ -338,6 +338,12 @@ export async function testSite(
   now = Math.floor(Date.now() / 1000),
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
+  // Switched off, or its key and Google sign-in removed, after the test was
+  // queued: skip quietly instead of testing anonymously and storing an error.
+  if (!(await pagespeedSource(env))) {
+    await env.DB.prepare("UPDATE performance_scans SET running_since = NULL WHERE site_id = ?").bind(site.id).run();
+    return;
+  }
   const auth = await pagespeedAuth(env);
   await Promise.all(
     PERFORMANCE_STRATEGIES.map(async (strategy) => {

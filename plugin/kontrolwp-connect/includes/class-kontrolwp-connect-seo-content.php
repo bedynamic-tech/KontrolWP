@@ -406,7 +406,7 @@ class KontrolWP_Connect_SEO_Content {
 			if ( $post ) {
 				$description = (string) get_post_meta( $post->ID, KontrolWP_Connect_SEO::META_DESCRIPTION, true );
 				if ( '' === $description ) {
-					$description = KontrolWP_Connect_SEO::trim_description( '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content );
+					$description = KontrolWP_Connect_SEO::post_excerpt( $post );
 				}
 				$image = (string) get_post_meta( $post->ID, KontrolWP_Connect_SEO::META_IMAGE, true );
 				if ( '' === $image ) {

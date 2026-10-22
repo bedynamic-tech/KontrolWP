@@ -232,3 +232,10 @@ test("the sitemap rule counts only when WordPress would match it first", { skip 
     false,
   );
 });
+
+test("a password-protected post's text never becomes its description", { skip }, () => {
+  const post = { post_excerpt: "", post_content: "<p>The board approved the merger.</p>", post_password: "" };
+  assert.equal(call("post_excerpt", post), "The board approved the merger.");
+  assert.equal(call("post_excerpt", { ...post, post_password: "hunter2" }), "");
+  assert.equal(call("post_excerpt", { ...post, post_excerpt: "Secret summary", post_password: "hunter2" }), "");
+});

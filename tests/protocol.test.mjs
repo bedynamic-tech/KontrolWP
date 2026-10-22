@@ -83,6 +83,29 @@ test("the plugin accepts dashboard signatures and rejects tampering", { skip: !h
   assert.match(results[8], /not signed/);
 });
 
+test("the plugin only takes parameters the signature covers", { skip: !hasPhp && "php is not installed" }, async () => {
+  const keyId = randomToken(9);
+  const secret = randomToken(32);
+  const credentials = { key_id: keyId, secret, created_at: 0 };
+  const route = "/kontrolwp/v1/comments/moderate";
+  const body = JSON.stringify({ id: 12, action: "approve" });
+  const sign = () => signedHeaders({ keyId, secret, method: "POST", route, body });
+  const { results } = php({
+    credentials,
+    requests: [
+      // What the dashboard sends: the route and a cache-busting nonce in the query.
+      { method: "POST", route, body, headers: await sign(), query: { rest_route: route, kontrolwp_nonce: "x" } },
+      // A resent request with its own parameters in the query...
+      { method: "POST", route, body, headers: await sign(), query: { rest_route: route, id: "2", action: "trash" } },
+      // ...or a body that would no longer be read as the signed JSON.
+      { method: "POST", route, body, headers: { ...(await sign()), "Content-Type": "text/plain" } },
+    ],
+  });
+  assert.equal(results[0], "ok");
+  assert.match(results[1], /changed after KontrolWP signed it/);
+  assert.match(results[2], /changed after KontrolWP signed it/);
+});
+
 test("the plugin refuses everything before it has a key", { skip: !hasPhp && "php is not installed" }, async () => {
   const route = "/kontrolwp/v1/status";
   const headers = await signedHeaders({ keyId: randomToken(9), secret: randomToken(32), method: "GET", route, body: "" });

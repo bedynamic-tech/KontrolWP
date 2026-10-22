@@ -54,7 +54,10 @@ Requests carry the key id in `X-KontrolWP-Key-Id`. The plugin rejects a
 request unless the key id matches, the timestamp is
 within five minutes, the signature matches (constant-time compare) and the
 nonce has not been used before. Only after the signature checks out is the
-nonce stored, so unsigned traffic cannot fill the store.
+nonce stored, so unsigned traffic cannot fill the store. Since 0.45.0 it also
+refuses a signed request that carries any query parameter besides `rest_route`
+and the cache-busting `kontrolwp_nonce`, or a body that is not sent as JSON, so
+every parameter a route reads comes from the signed route or body.
 
 **Secrets at rest.** The dashboard stores each site's secret in D1
 encrypted with AES-256-GCM under `SITE_SECRETS_KEY`, with the site id as
@@ -178,6 +181,10 @@ a new version, and every 15-minute cron tick, queue it on each site whose last
 sync reported an older version. The
 dashboard is behind Access, so WordPress cannot download from it; the job
 reads the zip from the Worker's static assets and sends it to `/self-update`.
+Only this signed push can replace it: the plugin header sets an `Update URI`,
+so WordPress never asks WordPress.org about the `kontrolwp-connect` slug, and
+since 0.45.0 the plugin leaves itself out of `/updates` and refuses
+`/updates/apply` for itself; sync drops any offer for it from older versions.
 A finished or failed self-update is not queued again for 6 hours, so a site
 that keeps reporting the old version never loops. Sites on a version before
 0.4.0 need the new zip installed by hand once; their page says so.

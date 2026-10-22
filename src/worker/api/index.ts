@@ -304,12 +304,20 @@ async function seoResponse(c: Context, run: () => Promise<Response>): Promise<Re
   }
 }
 
+// The gates below match the path the router matched (decoded, so /%61nalytics
+// is /analytics) and only a plain decimal id, the one every handler reads.
+api.use("/sites/:id/*", async (c, next) => {
+  if (!siteId(c)) return c.json({ error: "Site not found" }, 404);
+  await next();
+});
+const routedPath = (c: AppContext) => c.req.path.replace(/^\/api/, "");
+
 const WORDPRESS_ONLY =
   /^\/sites\/\d+\/(plugins|users|links\/unlink|content|posts|media|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
-  if (WORDPRESS_ONLY.test(new URL(c.req.url).pathname.replace(/^\/api/, ""))) {
+  if (WORDPRESS_ONLY.test(routedPath(c))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
-      .bind(Number(c.req.param("id")))
+      .bind(siteId(c))
       .first<{ kind: string }>();
     if (row?.kind === "static") return c.json({ error: "This is a static site. It has no WordPress to manage." }, 400);
   }
@@ -325,11 +333,11 @@ const FEATURE_ROUTES: [RegExp, "analytics" | "security" | "accessibility" | "per
   [/^\/sites\/\d+\/uptime(\/|$)/, "uptime", "Uptime checks"],
 ];
 api.use("/sites/:id/*", async (c, next) => {
-  const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
+  const path = routedPath(c);
   const match = FEATURE_ROUTES.find(([pattern]) => pattern.test(path));
   if (match) {
     const row = await c.env.DB.prepare(`SELECT ${match[1]}_excluded AS off FROM sites WHERE id = ?`)
-      .bind(Number(c.req.param("id")))
+      .bind(siteId(c))
       .first<{ off: number }>();
     if (row?.off) return c.json({ error: `${match[2]} are turned off for this site` }, 409);
   }
@@ -1962,9 +1970,11 @@ api.onError((error, c) => {
   return c.json({ error: `Something went wrong: ${reason}` }, 500);
 });
 
+/** A site id exactly as the gate middleware reads it: digits only, so 0x1 or 1e0 never name site 1. */
 function siteId(c: AppContext): number | null {
-  const id = Number(c.req.param("id"));
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
+  const raw = c.req.param("id") ?? "";
+  const id = Number(raw);
+  return /^[1-9]\d*$/.test(raw) && Number.isSafeInteger(id) ? id : null;
 }
 
 function umamiSettings(config: UmamiConfig | null): UmamiSettings {
@@ -2406,6 +2416,13 @@ api.put("/settings/google/client", async (c) => {
   return c.json<GoogleSettings>(await googleSettings(c));
 });
 
+/** A path on this app, also after URL normalising it ("/.//evil.example" becomes "//evil.example", another host). */
+function appPath(value: string): URL | null {
+  if (!/^\/(?!\/)/.test(value)) return null;
+  const target = new URL(value, "https://app.invalid");
+  return target.origin === "https://app.invalid" && !target.pathname.startsWith("//") ? target : null;
+}
+
 /** Start "Connect to Google": the address of Google's sign-in page, which the browser then opens. */
 api.post("/google/connect", async (c) => {
   const client = await loadGoogleClient(c.env);
@@ -2414,7 +2431,7 @@ api.post("/google/connect", async (c) => {
     .object({ setup: z.boolean().catch(false), return_to: z.string().max(300).catch("") })
     .parse((await c.req.json().catch(() => null)) ?? {});
   // Only a path on this app, so the callback cannot be used to send the owner elsewhere.
-  const returnTo = /^\/(?!\/)/.test(parsed.return_to) ? parsed.return_to : "";
+  const returnTo = appPath(parsed.return_to) ? parsed.return_to : "";
   const url = await startGoogleSignIn(c.env, client, googleRedirectUri(new URL(c.req.url).origin), {
     setup: parsed.setup,
     returnTo,
@@ -2425,8 +2442,8 @@ api.post("/google/connect", async (c) => {
 /** Google sends the owner back here; the Worker finishes the sign-in and returns them to Integrations. */
 api.get("/google/callback", async (c) => {
   const back = (result: Record<string, string>, returnTo = "") => {
-    if (returnTo) {
-      const target = new URL(returnTo, "https://app.invalid");
+    const target = appPath(returnTo);
+    if (target) {
       for (const [key, value] of Object.entries(result)) target.searchParams.set(key, value);
       return c.redirect(`${target.pathname}${target.search}${target.hash}`, 302);
     }
@@ -2557,6 +2574,7 @@ api.post("/sites/:id/search-console/setup", async (c) => {
       await clearContentCache(c.env.DB, site.id);
       return c.json<SearchConsoleSetup>({ property, already: !!existing, sitemap: sitemapError ? null : sitemap, sitemap_error: sitemapError });
     }),
+    "search_console",
   );
 });
 
@@ -2564,6 +2582,7 @@ api.post("/sites/:id/search-console/setup", async (c) => {
 api.get("/google/search-console/properties", (c) =>
   googleRequest(c, async (access) =>
     c.json({ websites: await listSearchConsoleProperties(await access(GOOGLE_SCOPES.searchConsole)) }),
+    "search_console",
   ),
 );
 
@@ -2582,6 +2601,7 @@ api.put("/sites/:id/search-console", async (c) => {
 api.get("/google/analytics/properties", (c) =>
   googleRequest(c, async (access) =>
     c.json({ websites: await listGa4Properties(await access(GOOGLE_SCOPES.analytics)) }),
+    "analytics",
   ),
 );
 

@@ -22,6 +22,13 @@ const CHECK_CONCURRENCY = 5;
 const CHECK_TIMEOUT_MS = 10_000;
 /** Addresses kept per site, so one huge site can't run an endless scan. */
 const MAX_URLS = 10_000;
+/**
+ * Pages of posts and links per post read per scan of a WordPress site. The
+ * site reports how many pages there are, so a broken or hostile one could
+ * otherwise keep a scan queuing pages, and writing link rows, without end.
+ */
+const MAX_POST_PAGES = 1000;
+const MAX_LINKS_PER_POST = 1000;
 /** A running scan with no progress for this long has stopped (its queue messages ran out of retries). */
 const STALE_AFTER = 15 * 60;
 /** Links listed in the tab: problems first, then ignored ones. */
@@ -148,9 +155,9 @@ export async function collectLinks(
     return;
   }
 
-  const items = Array.isArray(listing.items) ? listing.items : [];
+  const items = Array.isArray(listing.items) ? listing.items.slice(0, POSTS_PER_PAGE) : [];
   const read = await storeLinks(env.DB, siteId, scanId, items);
-  const lastPage = page >= (Number(listing.total_pages) || 0);
+  const lastPage = page >= Math.min(Number(listing.total_pages) || 0, MAX_POST_PAGES);
   const seen = new Set([...parseIds(scan.posts_seen), ...read]);
   await env.DB.prepare(
     "UPDATE link_scans SET posts_scanned = MIN(posts_scanned + ?, ?), posts_seen = ?, updated_at = ? WHERE site_id = ? AND scan_id = ?",
@@ -280,7 +287,9 @@ async function storeLinks(
   for (const post of items) {
     const postId = Number(post.post_id) || 0;
     if (!refs.has(postId)) refs.set(postId, []);
-    for (const link of Array.isArray(post.links) ? post.links : []) {
+    const links = Array.isArray(post.links) ? post.links : [];
+    if (links.length > MAX_LINKS_PER_POST) dropped = true;
+    for (const link of links.slice(0, MAX_LINKS_PER_POST)) {
       const url = cleanUrl(link.url);
       if (!url) continue;
       if (!added.has(url)) {
@@ -601,7 +610,7 @@ async function replaceRefs(env: Env, siteId: number, postIds: number[], items: L
   for (const post of items) {
     // Only the posts asked about; anything else is not ours to replace.
     if (!postIds.includes(Number(post.post_id))) continue;
-    for (const link of Array.isArray(post.links) ? post.links : []) {
+    for (const link of Array.isArray(post.links) ? post.links.slice(0, MAX_LINKS_PER_POST) : []) {
       const linkUrl = cleanUrl(link.url);
       if (linkUrl) statements.push(refStatement(env.DB, siteId, linkUrl, post, link));
     }
