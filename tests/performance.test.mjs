@@ -211,6 +211,7 @@ function setup() {
 test("a test stores both devices, keeps a history and blocks a second test while it runs", async () => {
   resetFieldsCheck();
   const env = setup();
+  await savePagespeedKey(env, "test-key-1234567890");
   const site = { id: 1, url: "https://a.test/" };
   assert.equal(await claimTest(env, 1, 1000), true);
   assert.equal(await claimTest(env, 1, 1001), false);
@@ -229,7 +230,7 @@ test("a test stores both devices, keeps a history and blocks a second test while
   assert.equal(state.desktop.result, null);
   assert.match(state.desktop.error, /NO_FCP/);
   assert.equal(state.mobile.history.length, 1);
-  assert.equal(state.key_configured, false);
+  assert.equal(state.key_configured, true);
 
   // A later failure keeps the last good result.
   assert.equal(await claimTest(env, 1, 2000), true);
@@ -237,7 +238,29 @@ test("a test stores both devices, keeps a history and blocks a second test while
   const after = await sitePerformance(env, site, 2001);
   assert.equal(after.mobile.result.scanned_at, 1000);
   assert.match(after.mobile.error, /too many/);
-  assert.match(after.mobile.error, /Connect Google/);
+});
+
+test("a queued test is skipped quietly once PageSpeed is switched off", async () => {
+  resetFieldsCheck();
+  const env = setup();
+  await savePagespeedKey(env, "test-key-1234567890");
+  const site = { id: 1, url: "https://a.test/" };
+  assert.equal(await claimTest(env, 1, 1000), true);
+  // The owner switches PageSpeed off (which deletes its key) before the queue runs the test.
+  await env.DB.prepare("DELETE FROM settings WHERE name = 'pagespeed'").run();
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('google_features', ?)")
+    .bind(JSON.stringify({ analytics: true, search_console: true, pagespeed: false }))
+    .run();
+  const calls = [];
+  await testSite(env, site, 1000, async (url) => {
+    calls.push(String(url));
+    return Response.json(answer());
+  });
+  assert.deepEqual(calls, []);
+  const state = await sitePerformance(env, site, 1001);
+  assert.equal(state.running, false);
+  assert.equal(state.mobile.error, null);
+  assert.equal(state.desktop.error, null);
 });
 
 test("a connected Google account signs the test when no key is saved", async () => {

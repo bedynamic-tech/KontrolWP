@@ -48,6 +48,11 @@ class Request {
 	public function get_method() { return $this->input['method']; }
 	public function get_route() { return $this->input['route']; }
 	public function get_body() { return $this->input['body']; }
+	public function get_query_params() { return $this->input['query'] ?? array( 'rest_route' => $this->input['route'] ); }
+	public function is_json_content_type() {
+		$type = $this->input['headers']['Content-Type'] ?? 'application/json';
+		return false !== strpos( strtolower( (string) $type ), 'json' );
+	}
 }
 
 require dirname( __DIR__, 2 ) . '/plugin/kontrolwp-connect/includes/class-kontrolwp-connect-auth.php';

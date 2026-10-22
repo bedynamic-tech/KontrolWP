@@ -1,6 +1,6 @@
 <?php
 // Runs the pure parts of KontrolWP_Connect_SEO outside WordPress.
-// Input (JSON on stdin): { "fn": "clean|fill_template|trim_description|head_html", "args": [...] }; prints JSON.
+// Input (JSON on stdin): { "fn": "clean|fill_template|trim_description|head_html|post_excerpt", "args": [...] }; prints JSON.
 
 define( 'ABSPATH', __DIR__ . '/' );
 function wp_strip_all_tags( $text ) { return trim( strip_tags( $text ) ); }
@@ -10,4 +10,7 @@ class KontrolWP_Connect_Rest { const NAMESPACE_V1 = 'kontrolwp/v1'; }
 require __DIR__ . '/../../plugin/kontrolwp-connect/includes/class-kontrolwp-connect-seo.php';
 
 $input = json_decode( stream_get_contents( STDIN ), true );
+if ( 'post_excerpt' === $input['fn'] ) {
+	$input['args'][0] = (object) $input['args'][0]; // A WP_Post.
+}
 echo json_encode( call_user_func_array( array( 'KontrolWP_Connect_SEO', $input['fn'] ), $input['args'] ) );

@@ -8,6 +8,8 @@ import { SiteRequestError } from "./client.ts";
 export const SELF_UPDATE = {
   slug: "kontrolwp-connect",
   version: KONTROLWP_CONNECT_VERSION,
+  /** Its plugin file, the slug a site lists it under. */
+  file: "kontrolwp-connect/kontrolwp-connect.php",
 } as const;
 
 /**

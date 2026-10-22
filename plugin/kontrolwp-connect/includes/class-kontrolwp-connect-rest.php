@@ -204,6 +204,10 @@ class KontrolWP_Connect_Rest {
 
 		$plugins = array();
 		foreach ( get_plugin_updates() as $file => $data ) {
+			// Only the dashboard's signed self-update replaces KontrolWP Connect.
+			if ( plugin_basename( KONTROLWP_CONNECT_FILE ) === $file ) {
+				continue;
+			}
 			$plugins[] = array(
 				'slug'            => $file,
 				'name'            => $data->Name,
@@ -289,6 +293,9 @@ class KontrolWP_Connect_Rest {
 		}
 
 		if ( 'plugin' === $kind ) {
+			if ( plugin_basename( KONTROLWP_CONNECT_FILE ) === $slug ) {
+				return new WP_Error( 'kontrolwp_self_update_only', __( 'KontrolWP Connect is only updated by KontrolWP itself.', 'kontrolwp-connect' ), array( 'status' => 409 ) );
+			}
 			if ( ! array_key_exists( $slug, get_plugins() ) ) {
 				return new WP_Error( 'kontrolwp_not_found', __( 'That plugin is not installed.', 'kontrolwp-connect' ), array( 'status' => 404 ) );
 			}

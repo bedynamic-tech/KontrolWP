@@ -154,23 +154,43 @@ class KontrolWP_Connect_Login {
 
 	/** Remove every login link, for uninstall. */
 	public static function delete_all() {
-		global $wpdb;
-		$names = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( self::OPTION_PREFIX ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		foreach ( $names as $name ) {
+		foreach ( self::grant_names( 0 ) as $name ) {
 			delete_option( $name );
 		}
 	}
 
 	/** Unused links would otherwise stay in the options table. */
 	private static function delete_expired() {
-		global $wpdb;
-		$names = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 50", $wpdb->esc_like( self::OPTION_PREFIX ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		foreach ( $names as $name ) {
+		foreach ( self::grant_names( 50 ) as $name ) {
 			$grant = get_option( $name );
-			if ( ! is_array( $grant ) || (int) $grant['expires'] < time() ) {
+			if ( ! is_array( $grant ) || ! isset( $grant['expires'] ) || (int) $grant['expires'] < time() ) {
 				delete_option( $name );
 			}
 		}
+	}
+
+	/**
+	 * Option names of login links only: the prefix and a 64-character hash.
+	 * Other settings share the prefix (kontrolwp_connect_login_url and
+	 * kontrolwp_connect_login_logo) and must never be taken for a link.
+	 *
+	 * @param int $limit Most names to return, 0 for all.
+	 */
+	private static function grant_names( $limit ) {
+		global $wpdb;
+		// Each _ matches exactly one character, so only names of the hash's length match.
+		$pattern = $wpdb->esc_like( self::OPTION_PREFIX ) . str_repeat( '_', 64 );
+		$sql     = "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s" . ( $limit > 0 ? ' LIMIT ' . (int) $limit : '' );
+		$names   = $wpdb->get_col( $wpdb->prepare( $sql, $pattern ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$prefix  = preg_quote( self::OPTION_PREFIX, '/' );
+		return array_values(
+			array_filter(
+				(array) $names,
+				static function ( $name ) use ( $prefix ) {
+					return 1 === preg_match( '/^' . $prefix . '[0-9a-f]{64}$/', (string) $name );
+				}
+			)
+		);
 	}
 
 	private static function option_name( $token ) {

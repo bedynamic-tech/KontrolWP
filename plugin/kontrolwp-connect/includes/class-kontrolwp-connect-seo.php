@@ -845,6 +845,17 @@ class KontrolWP_Connect_SEO {
 		return $page;
 	}
 
+	/**
+	 * A post's excerpt (or the start of its body) for descriptions. Empty for a
+	 * password-protected post, whose text WordPress hides until the password is entered.
+	 */
+	public static function post_excerpt( $post ) {
+		if ( ! empty( $post->post_password ) ) {
+			return '';
+		}
+		return self::trim_description( '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content );
+	}
+
 	/** Fill a page's fields from a post: overrides first, then the template and an excerpt. */
 	private static function apply_post( &$page, $settings, $vars, $post_id ) {
 		$post = $post_id ? get_post( $post_id ) : null;
@@ -853,8 +864,7 @@ class KontrolWP_Connect_SEO {
 		}
 		$custom_title = (string) get_post_meta( $post_id, self::META_TITLE, true );
 		$custom_desc  = (string) get_post_meta( $post_id, self::META_DESCRIPTION, true );
-		$source        = '' !== trim( (string) $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
-		$excerpt       = self::trim_description( $source );
+		$excerpt       = self::post_excerpt( $post );
 		$vars['title']   = html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' );
 		$vars['excerpt'] = $excerpt;
 		$page['title'] = self::fill_template( '' !== $custom_title ? $custom_title : self::title_template_for( $settings, $post->post_type ), $vars );

@@ -138,6 +138,14 @@ class KontrolWP_Connect_Auth {
 			return self::deny( __( 'The signature did not match. Copy the Connection Key from Settings, KontrolWP Connect and paste it into KontrolWP again.', 'kontrolwp-connect' ) );
 		}
 
+		// The signature covers the route and the body, so every parameter must
+		// come from them: a resent request cannot add query parameters, or have
+		// its body read as anything but the JSON that was signed.
+		$query = array_diff( array_keys( (array) $request->get_query_params() ), array( 'rest_route', 'kontrolwp_nonce' ) );
+		if ( $query || ( '' !== (string) $request->get_body() && ! $request->is_json_content_type() ) ) {
+			return self::deny( __( 'This request was changed after KontrolWP signed it.', 'kontrolwp-connect' ) );
+		}
+
 		// Checked after the signature so unsigned requests cannot fill the store.
 		$nonce_key = 'kontrolwp_nonce_' . md5( $nonce );
 		if ( false !== get_transient( $nonce_key ) ) {

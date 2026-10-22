@@ -143,7 +143,8 @@ test("a scan reads every page of links, checks them, and lists the problems", as
 
 test("a scan that reaches the address cap says so, and a smaller one does not", async () => {
   const many = Array.from({ length: 10_050 }, (_, i) => ({ url: `https://l${i}.test/`, text: "", kind: "link" }));
-  const { env } = await setup([{ items: [post(1, "Big", many)], page: 1, total_pages: 1, total_posts: 1 }]);
+  const posts = Array.from({ length: 11 }, (_, i) => post(i + 1, `Big ${i}`, many.slice(i * 914, (i + 1) * 914)));
+  const { env } = await setup([{ items: posts, page: 1, total_pages: 1, total_posts: 11 }]);
   const scanId = await startLinkScan(env, 1);
   await collectLinks(env, 1, scanId, 1);
   const big = await listLinks(env.DB, 1);
@@ -154,6 +155,21 @@ test("a scan that reaches the address cap says so, and a smaller one does not", 
   const smallId = await startLinkScan(small.env, 1);
   await collectLinks(small.env, 1, smallId, 1);
   assert.equal((await listLinks(small.env.DB, 1)).scan.truncated, false);
+});
+
+test("a site cannot keep a scan going with endless pages or links", async () => {
+  const links = Array.from({ length: 1_500 }, () => ({ url: "https://a.test/", text: "", kind: "link" }));
+  const { env, db, sent } = await setup(
+    Array.from({ length: 1001 }, (_, i) => ({ items: [post(i + 1, "P", links)], page: i + 1, total_pages: 1e12, total_posts: 1e12 })),
+  );
+  const scanId = await startLinkScan(env, 1);
+  sent.length = 0;
+  await collectLinks(env, 1, scanId, 1);
+  assert.deepEqual(sent.shift(), { type: "links-collect", siteId: 1, scanId, page: 2 });
+  assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM site_link_refs").get().n, 1000);
+  assert.equal((await listLinks(env.DB, 1)).scan.truncated, true);
+  await collectLinks(env, 1, scanId, 1000);
+  assert.deepEqual(sent.shift(), { type: "links-check", siteId: 1, scanId });
 });
 
 test("a rescan keeps old results until rechecked, drops removed links, and outdated messages do nothing", async () => {
