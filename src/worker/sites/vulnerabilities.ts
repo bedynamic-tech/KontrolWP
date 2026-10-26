@@ -31,7 +31,7 @@ const SETTING = "wordfence";
 const DAY = 86400;
 /** After a failed refresh, wait this long before trying again, doubling with each failure in a row, up to the cap. */
 const RETRY_AFTER = 3600;
-const MAX_RETRY_AFTER = 6 * 3600;
+const MAX_RETRY_AFTER = DAY;
 /**
  * Wordfence documents one download every 30 minutes, but a download 31 minutes after the last one was refused,
  * so never come back sooner than this after any attempt.
@@ -374,14 +374,22 @@ export async function refreshFeed(
       error: `Wordfence limits how often the data can be downloaded. Try again in ${minutes} minutes.`,
     };
   }
-  // Claim the attempt first, so a second run starting now does not download too.
-  await saveFeedState(env, { ...(previous ?? { updated_at: null, error: null }), attempted_at: now });
+  // Claim the attempt first, so a second run starting now does not download too. It is recorded as a failure
+  // until it finishes: a run Cloudflare stops partway (the feed is large) catches nothing, and without this the
+  // next tick would download the whole feed again 65 minutes later, all day.
+  const failures = (previous?.failures ?? 0) + 1;
+  await saveFeedState(env, {
+    ...(previous ?? { updated_at: null }),
+    attempted_at: now,
+    error: "The last download of the vulnerability data did not finish.",
+    failures,
+    next_attempt_at: now + retryDelay(failures, null),
+  });
   let state: FeedState;
   try {
     const note = await loadFeed(env, now, fetcher, feedKey);
     state = { updated_at: now, attempted_at: now, error: null, version: FEED_VERSION, note, failures: 0 };
   } catch (error) {
-    const failures = (previous?.failures ?? 0) + 1;
     state = {
       ...(previous ?? { updated_at: null }),
       attempted_at: now,
