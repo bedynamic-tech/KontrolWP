@@ -258,7 +258,7 @@ test("a 429 backs off, doubling, and for as long as Wordfence asks; nothing down
   const thirdAt = second.next_attempt_at;
   const third = await refreshFeed(env, thirdAt, answer("", 429, { "Retry-After": "40000" }));
   assert.equal(third.next_attempt_at, thirdAt + 40_000, "Wordfence's own wait wins when longer");
-  assert.equal(retryDelay(9, null), 6 * 3600, "capped");
+  assert.equal(retryDelay(9, null), 86400, "capped");
   assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS n FROM vulnerabilities").get().n, 2);
 
   const good = await refreshFeed(env, third.next_attempt_at, answer(JSON.stringify(FEED), 200));
@@ -281,6 +281,31 @@ test("a second run starting during a download does not download again", async ()
   release();
   await first;
   assert.equal(calls, 1);
+});
+
+test("a download Cloudflare stops partway waits like a failure instead of trying again every 65 minutes", async () => {
+  const { db, env } = await setup();
+  db.sqlite
+    .prepare("INSERT INTO settings (name, value) VALUES ('vuln_feed', ?)")
+    .run(JSON.stringify({ updated_at: 1000, attempted_at: 1000, error: null, version: 3, failures: 0 }));
+  let calls = 0;
+  // A run that never returns stands in for one Cloudflare ends: nothing after the claim gets to run.
+  const stopped = () => {
+    calls++;
+    return new Promise(() => {});
+  };
+  const day = 1000 + 86400;
+  void runScheduledFeedRefresh(env, day, stopped);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const state = JSON.parse(db.sqlite.prepare("SELECT value FROM settings WHERE name = 'vuln_feed'").get().value);
+  assert.match(state.error, /did not finish/);
+  assert.equal(state.updated_at, 1000, "the earlier data is kept");
+  assert.equal(state.next_attempt_at, day + 3600);
+  assert.ok(!(await runScheduledFeedRefresh(env, day + 3600 - 60, stopped)));
+  void runScheduledFeedRefresh(env, day + 3600 + 300, stopped);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.ok(!(await runScheduledFeedRefresh(env, day + 3600 + 300 + 3900, stopped)), "the wait doubles");
+  assert.equal(calls, 2);
 });
 
 test("rows stored in an older format are downloaded again by the scheduled job without a button", async () => {
