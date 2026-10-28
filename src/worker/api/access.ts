@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { createRemoteJWKSet, decodeJwt, errors, jwtVerify } from "jose";
+import { createLocalJWKSet, decodeJwt, errors, jwtVerify, type JSONWebKeySet } from "jose";
 
 export interface WebAccessEnv {
   WEB_ACCESS_TEAM_DOMAIN?: string;
@@ -34,7 +34,33 @@ export type AccessResult =
   | { ok: true; identity: AccessIdentity }
   | { ok: false; status: 401 | 403 | 503; code: AccessFailureCode; error: string; hint?: AccessHint };
 
-const keySets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+/** How long fetched Access signing keys are reused before fetching them again. */
+const KEYS_TTL_MS = 10 * 60_000;
+
+const keySets = new Map<string, { keys: ReturnType<typeof createLocalJWKSet>; fetchedAt: number }>();
+
+/**
+ * The team's Access signing keys. Each request that needs them fetches them
+ * itself and only the finished result is shared: a Worker cannot settle a
+ * promise begun by a request that has since ended, so sharing an in-flight
+ * fetch (as jose's remote key set does) can leave every later request in the
+ * instance waiting forever.
+ */
+async function accessKeys(issuer: string, refresh = false): Promise<ReturnType<typeof createLocalJWKSet>> {
+  const cached = keySets.get(issuer);
+  if (cached && !refresh && Date.now() - cached.fetchedAt < KEYS_TTL_MS) return cached.keys;
+  try {
+    const response = await fetch(`${issuer}/cdn-cgi/access/certs`, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const keys = createLocalJWKSet((await response.json()) as JSONWebKeySet);
+    keySets.set(issuer, { keys, fetchedAt: Date.now() });
+    return keys;
+  } catch (error) {
+    // Keys that are only stale still verify; a missing set means Access is unreachable.
+    if (cached) return cached.keys;
+    throw new TypeError(`Access signing keys unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 /** Verify Access's signed assertion, even if a public route misses edge protection. */
 export async function verifyWebAccess(
@@ -48,17 +74,18 @@ export async function verifyWebAccess(
   }
   if (!token) return failure(401, "access_missing", "Authentication required");
 
-  let jwks = keySets.get(issuer);
-  if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
-    keySets.set(issuer, jwks);
-  }
-  try {
-    const { payload } = await jwtVerify(token, jwks, {
+  const verify = async (refresh: boolean) =>
+    jwtVerify(token, await accessKeys(issuer, refresh), {
       issuer,
       audience,
       algorithms: ["RS256"],
       requiredClaims: ["exp", "sub", "email", "type"],
+    });
+  try {
+    // Access rotates its keys, so a token signed with an unknown key refetches them once.
+    const { payload } = await verify(false).catch((error) => {
+      if (error instanceof errors.JWKSNoMatchingKey) return verify(true);
+      throw error;
     });
     if (
       payload.type !== "app" ||

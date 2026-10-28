@@ -144,3 +144,28 @@ test("a valid login does not bypass CSRF checks on writes", async (t) => {
   assert.equal((await request("/api/threads/1/reply", { ...headers, Origin: origin }, { method: "POST", body: new FormData() })).status, 200);
   assert.equal(calls(), 1);
 });
+
+test("fetches the signing keys again when Access has rotated them", async (t) => {
+  const rotatedIssuer = "https://rotated.cloudflareaccess.com";
+  const rotated = await generateKeyPair("RS256");
+  const rotatedJwk = { ...await exportJWK(rotated.publicKey), kid: "rotated-key", alg: "RS256", use: "sig" };
+  let keys = [publicJwk];
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => { fetches++; return Response.json({ keys }); });
+  const app = new Hono();
+  app.use("/api/*", requireWebAccess);
+  app.get("/api/ok", (c) => c.json({ ok: true }));
+  const bindings = { ...env, WEB_ACCESS_TEAM_DOMAIN: rotatedIssuer };
+  const sign = (signingKey, kid) => {
+    const now = Math.floor(Date.now() / 1000);
+    return new SignJWT({ iss: rotatedIssuer, aud: [audience], sub: "owner-id", email: "owner@example.com", type: "app", iat: now, exp: now + 600 })
+      .setProtectedHeader({ alg: "RS256", kid }).sign(signingKey);
+  };
+  const call = async (token) => (await app.request(`${origin}/api/ok`, { headers: { "Cf-Access-Jwt-Assertion": token } }, bindings)).status;
+  assert.equal(await call(await sign(key.privateKey, "test-key")), 200);
+  assert.equal(await call(await sign(key.privateKey, "test-key")), 200);
+  assert.equal(fetches, 1);
+  keys = [rotatedJwk];
+  assert.equal(await call(await sign(rotated.privateKey, "rotated-key")), 200);
+  assert.equal(fetches, 2);
+});
