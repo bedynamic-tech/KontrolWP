@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { scoreBand, type AccessibilityImpact, type ScoreBand } from "../../shared/accessibility";
+import { MAX_SCANNED_PAGES, scoreBand, type AccessibilityImpact, type ScoreBand } from "../../shared/accessibility";
 import type { AccessibilityIssue, SiteAccessibility, SiteSummary } from "../../shared/types";
 import { fetchAccessibility, scanAccessibility, setAccessibilityFixes } from "../api";
 import { timeAgo } from "../format";
@@ -160,7 +160,8 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
     queryKey: key,
     queryFn: () => fetchAccessibility(site.id),
     staleTime: 60_000,
-    refetchInterval: false,
+    // A scan reads a few pages per step in the background, so check on it until it finishes.
+    refetchInterval: (query) => (query.state.data?.scanning ? 5000 : false),
   });
   const setData = (data: SiteAccessibility) => queryClient.setQueryData(key, data);
   const scan = useMutation({ mutationFn: () => scanAccessibility(site.id), onSuccess: setData });
@@ -204,14 +205,17 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
   const issues = latest?.issues ?? [];
   const fixable = issues.filter((issue) => issue.fix && !issue.fix.enabled);
   const error = scan.error?.message ?? fixes.error?.message ?? (latest ? null : result.error);
-  const scanning = scan.isPending || fixes.isPending;
+  const scanning = scan.isPending || fixes.isPending || !!result.scanning;
+  const status = result.scanning
+    ? `Scanning page ${Math.min(result.scanning.done + 1, result.scanning.total)} of ${result.scanning.total}...`
+    : "Scanning...";
 
   return (
     <div className="mt-8">
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Accessibility score"
-          value={latest ? `${latest.score} out of 100` : scanning ? "Scanning..." : "Not scanned yet"}
+          value={latest ? `${latest.score} out of 100` : scanning ? status : "Not scanned yet"}
           className={latest ? BAND_CLASS[scoreBand(latest.score)] : undefined}
         />
         <StatCard label="Kinds of problem" value={latest ? issues.length.toLocaleString() : "-"} />
@@ -240,16 +244,21 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
         }
       >
         {error && <p className="border-b px-4 py-3 text-sm text-destructive">{error}</p>}
+        {result.scanning && latest && (
+          <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
+            {status} The results below are from the last scan until this one finishes.
+          </p>
+        )}
         {latest && (
           <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
-            Scanned {latest.pages.length} {latest.pages.length === 1 ? "page" : "pages"}: the home page and pages it
-            links to. The scan reads each page's HTML, so it finds missing text alternatives, labels, names and
-            headings. It cannot judge colour contrast, keyboard use or whether alt text is good, so a clean score is not
-            a full WCAG review.
+            Scanned {latest.pages.length} {latest.pages.length === 1 ? "page" : "pages"}: the home page and up to{" "}
+            {MAX_SCANNED_PAGES - 1} more from the site's sitemap, or the pages it links to. The scan reads each page's
+            HTML, so it finds missing text alternatives, labels, names and headings. It cannot judge colour contrast,
+            keyboard use or whether alt text is good, so a clean score is not a full WCAG review.
           </p>
         )}
         {!latest ? (
-          <EmptyRow>{scanning ? "Scanning the site's pages..." : "No scan yet."}</EmptyRow>
+          <EmptyRow>{scanning ? status : "No scan yet."}</EmptyRow>
         ) : issues.length ? (
           <ul className="divide-y">
             {issues.map((issue) => (

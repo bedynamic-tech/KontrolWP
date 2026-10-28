@@ -92,6 +92,15 @@ async function get(url: string, fetcher: typeof fetch): Promise<string | null> {
   }
 }
 
+/** Up to `limit` addresses spread evenly across a list, so a long sitemap is sampled, not just its start. */
+export function sample<T>(items: T[], limit: number): T[] {
+  if (items.length <= limit) return items;
+  return Array.from(
+    { length: limit },
+    (_, i) => items[Math.floor((i * items.length) / limit)],
+  );
+}
+
 /**
  * Read a static site's sitemap: the address robots.txt names, or
  * /sitemap.xml and /sitemap_index.xml. An index is followed into its

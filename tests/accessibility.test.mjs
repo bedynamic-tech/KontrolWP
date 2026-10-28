@@ -4,7 +4,10 @@ import { accessibilityScore, scoreBand } from "../src/shared/accessibility.ts";
 import { analyzePage } from "../src/worker/sites/accessibility-check.ts";
 import {
   AccessibilityError,
+  PAGES_PER_STEP,
+  continueScan,
   linkedPages,
+  pagesToScan,
   runScheduledScans,
   scanNow,
   siteAccessibility,
@@ -90,6 +93,13 @@ test("the home page's own links are the other pages scanned", () => {
   assert.deepEqual(linkedPages(html, "https://example.com/"), [
     "https://example.com/about",
     "https://example.com/contact/",
+    "https://example.com/a",
+    "https://example.com/b",
+    "https://example.com/c",
+  ]);
+  assert.deepEqual(linkedPages(html, "https://example.com/", 2), [
+    "https://example.com/about",
+    "https://example.com/contact/",
   ]);
 });
 
@@ -125,7 +135,20 @@ function setup() {
   for (const m of migrations) db.sqlite.exec(m.sql);
   db.sqlite.exec("INSERT INTO sites (id, name, url, key_id, secret) VALUES (1, 'A', 'https://a.test/', 'k', 'x')");
   db.sqlite.exec("INSERT INTO sites (id, name, url, key_id, secret) VALUES (2, 'B', 'https://b.test/', 'k', 'x')");
-  return { DB: db };
+  const sent = [];
+  return { DB: db, SYNC_QUEUE: { send: async (body) => sent.push(body) }, sent };
+}
+
+/** Run the queued steps of every scan, as the queue consumer would. */
+async function drain(env) {
+  let steps = 0;
+  while (env.sent.length) {
+    const message = env.sent.shift();
+    assert.equal(message.type, "accessibility");
+    await continueScan(env, message.siteId, message.run, 0);
+    steps++;
+  }
+  return steps;
 }
 
 const site = (id, url, extra = {}) => ({ id, url, kind: "wordpress", plugin_version: null, ...extra });
@@ -152,9 +175,16 @@ test("a scan stores the score, the issues and a history entry", async () => {
   };
   await withFetch(
     (url) => pages[url] ?? null,
-    () => scanNow(env, site(1, "https://a.test/")),
+    async () => {
+      await scanNow(env, site(1, "https://a.test/"));
+      const running = await siteAccessibility(env, site(1, "https://a.test/"), null);
+      assert.equal(running.scan, null);
+      assert.deepEqual(running.scanning, { done: 1, total: 2 });
+      await drain(env);
+    },
   );
   const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
+  assert.equal(result.scanning, null);
   assert.equal(result.scan.pages.length, 2);
   const alt = result.scan.issues.find((i) => i.rule === "image-alt");
   assert.equal(alt.count, 2);
@@ -203,10 +233,10 @@ test("the cron scans one site not scanned in a day per run", async () => {
   const now = 10_000_000;
   const ok = () => `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1></main></body></html>`;
   await withFetch(ok, async () => {
-    assert.equal(await runScheduledScans(env, now, 0), 1);
-    assert.equal(await runScheduledScans(env, now + 60, 0), 1);
-    assert.equal(await runScheduledScans(env, now + 120, 0), 0);
-    assert.equal(await runScheduledScans(env, now + 86400 + 1, 0), 1);
+    assert.equal(await runScheduledScans(env, now), 1);
+    assert.equal(await runScheduledScans(env, now + 60), 1);
+    assert.equal(await runScheduledScans(env, now + 120), 0);
+    assert.equal(await runScheduledScans(env, now + 86400 + 1), 1);
   });
 });
 
@@ -217,11 +247,11 @@ test("the cron skips sites with accessibility checks turned off", async () => {
     () => {
       throw new Error("should not fetch");
     },
-    async () => assert.equal(await runScheduledScans(env, 10_000_000, 0), 0),
+    async () => assert.equal(await runScheduledScans(env, 10_000_000), 0),
   );
   env.DB.sqlite.exec("UPDATE sites SET accessibility_excluded = 0 WHERE id = 1");
   const ok = () => `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1></main></body></html>`;
-  await withFetch(ok, async () => assert.equal(await runScheduledScans(env, 10_000_000, 0), 1));
+  await withFetch(ok, async () => assert.equal(await runScheduledScans(env, 10_000_000), 1));
 });
 
 test("a site that answers with a server error stops the scan, and sites already in error are skipped", async () => {
@@ -238,8 +268,12 @@ test("a site that answers with a server error stops the scan, and sites already 
     return response;
   };
   try {
-    assert.equal(await runScheduledScans(env, 10_000_000, 0), 1);
-    assert.deepEqual(fetched, ["https://a.test/", "https://a.test/a"]);
+    assert.equal(await runScheduledScans(env, 10_000_000), 1);
+    await drain(env);
+    assert.deepEqual(
+      fetched.filter((url) => !/robots|sitemap/.test(url)),
+      ["https://a.test/", "https://a.test/a"],
+    );
     const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
     assert.equal(result.scan.pages.length, 1);
     fetched = [];
@@ -248,4 +282,95 @@ test("a site that answers with a server error stops the scan, and sites already 
   } finally {
     globalThis.fetch = real;
   }
+});
+
+const plain = (title) =>
+  `<html lang="en"><head><title>${title}</title></head><body><a href="#m">Skip</a><main id="m"><h1>${title}</h1></main></body></html>`;
+
+test("pages come from across the sitemap, topped up with the home page's links", () => {
+  const sitemap = [
+    "https://example.com/",
+    "https://www.example.com/one",
+    "https://other.test/x",
+    "https://example.com/file.pdf",
+    "https://example.com/two?x=1",
+    ...Array.from({ length: 200 }, (_, i) => `https://example.com/p${i}`),
+  ];
+  const chosen = pagesToScan(sitemap, "", "https://example.com/", 49);
+  assert.equal(chosen.length, 49);
+  assert.equal(chosen[0], "https://www.example.com/one");
+  assert.ok(Number(chosen.at(-1).match(/p(\d+)$/)[1]) > 150, "the sample spreads across the whole sitemap");
+  assert.ok(!chosen.some((url) => /other|pdf|\?/.test(url)));
+  const short = pagesToScan(["https://example.com/a"], `<a href="/a">A</a><a href="/b">B</a>`, "https://example.com/", 49);
+  assert.deepEqual(short, ["https://example.com/a", "https://example.com/b"]);
+});
+
+test("a site with a long sitemap is scanned past three pages, a few pages per step", async () => {
+  const env = setup();
+  const urls = Array.from({ length: 120 }, (_, i) => `https://a.test/page-${i}`);
+  const sitemap = `<?xml version="1.0"?><urlset>${urls.map((u) => `<url><loc>${u}</loc></url>`).join("")}</urlset>`;
+  let pageFetches = 0;
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    url = String(url);
+    if (url.endsWith("/robots.txt")) return new Response("Sitemap: https://a.test/sitemap.xml");
+    if (url.endsWith("/sitemap.xml")) return new Response(sitemap, { headers: { "Content-Type": "application/xml" } });
+    if (url.endsWith("/sitemap_index.xml")) return new Response("no", { status: 404 });
+    pageFetches++;
+    const response = new Response(plain(url), { headers: { "Content-Type": "text/html" } });
+    Object.defineProperty(response, "url", { value: url });
+    return response;
+  };
+  try {
+    await scanNow(env, site(1, "https://a.test/"));
+    const steps = await drain(env);
+    assert.equal(steps, Math.ceil(49 / PAGES_PER_STEP));
+  } finally {
+    globalThis.fetch = real;
+  }
+  const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
+  assert.equal(result.scan.pages.length, 50);
+  assert.equal(pageFetches, 50);
+  assert.equal(result.history.length, 1);
+});
+
+test("a scan replaced by a newer one stops, and a running scan is not restarted", async () => {
+  const env = setup();
+  const home = `<html lang="en"><head><title>H</title></head><body><main><h1>H</h1>${Array.from(
+    { length: 12 },
+    (_, i) => `<a href="/p${i}">${i}</a>`,
+  ).join("")}</main></body></html>`;
+  await withFetch(
+    (url) => (url === "https://a.test/" ? home : plain(url)),
+    async () => {
+      await scanNow(env, site(1, "https://a.test/"));
+      const first = env.sent.shift();
+      env.DB.sqlite.exec("UPDATE accessibility_scans SET attempted_at = attempted_at - 60");
+      await scanNow(env, site(1, "https://a.test/"));
+      assert.equal(env.sent.length, 0);
+      await scanNow(env, site(1, "https://a.test/"), { force: true });
+      await continueScan(env, 1, first.run, 0);
+      assert.equal(env.sent.length, 1);
+      assert.notEqual(env.sent[0].run, first.run);
+      await drain(env);
+    },
+  );
+  const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
+  assert.equal(result.scan.pages.length, 13);
+  assert.equal(result.history.length, 1);
+});
+
+test("turning checks off for a site drops its running scan", async () => {
+  const env = setup();
+  await withFetch(
+    (url) => (url === "https://a.test/" ? `<a href="/x">x</a>` : plain(url)),
+    async () => {
+      await scanNow(env, site(1, "https://a.test/"));
+      env.DB.sqlite.exec("UPDATE sites SET accessibility_excluded = 1");
+      await drain(env);
+    },
+  );
+  const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
+  assert.equal(result.scan, null);
+  assert.equal(result.scanning, null);
 });

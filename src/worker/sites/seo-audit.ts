@@ -6,7 +6,9 @@ import type {
 } from "../../shared/types.ts";
 import { linkedPages } from "./accessibility.ts";
 import { analyzeSeoPage, type SeoFinding } from "./seo-audit-check.ts";
-import { readSitemap } from "./sitemap.ts";
+import { readSitemap, sample } from "./sitemap.ts";
+
+export { sample };
 
 /** The home page plus a handful of others: enough to show a template-wide problem and spot duplicates. */
 const MAX_PAGES = 5;
@@ -90,15 +92,6 @@ export function blocksEverything(robots: string): boolean {
     }
   }
   return false;
-}
-
-/** Up to `limit` addresses spread evenly across a list, so a long sitemap is sampled, not just its start. */
-export function sample<T>(items: T[], limit: number): T[] {
-  if (items.length <= limit) return items;
-  return Array.from(
-    { length: limit },
-    (_, i) => items[Math.floor((i * items.length) / limit)],
-  );
 }
 
 /** Add up the findings into one entry per kind of problem, and add the problems only several pages show. */

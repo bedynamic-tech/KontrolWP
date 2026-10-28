@@ -441,7 +441,9 @@ previous result and shows why.
 ## Accessibility
 
 Every site (WordPress and static) has an Accessibility tab. `src/worker/sites/accessibility.ts`
-fetches the home page and up to four same-site pages it links to, and
+fetches the home page and up to 49 more same-site pages, sampled evenly across
+the sitemap (`sitemap.ts`, the same reader the SEO audit uses) and topped up
+with the pages the home page links to when the sitemap is short or missing, and
 `accessibility-check.ts` reads each page's HTML for what markup alone shows:
 missing alt text, form labels, link and button names, frame titles, page title
 and language, heading structure, a main landmark, a skip link, a viewport that
@@ -452,9 +454,19 @@ and WCAG 2.1 criterion) and the score: 100 minus a penalty per kind of problem,
 by impact and how often it occurs.
 
 The latest result is in `accessibility_scans` and the score per scan in
-`accessibility_history` (last 90). The 15-minute cron scans up to three sites not
-tried in the last day, so each site is scanned daily; opening a never-scanned
-tab, Scan now (at most one per 30 seconds) and switching a fix scan too.
+`accessibility_history` (last 90). A scan starts by reading the home page and
+sitemap and choosing the pages, then reads five pages per `accessibility` queue
+message, saving the pages still to read and a running tally of findings in
+`accessibility_scans.progress` between messages. That keeps each Worker run well
+inside the free plan's 50 outside requests and CPU time, and spaces the pages
+1.5 seconds apart so a small host is not overloaded; a server error from a page
+ends the scan with the pages read so far. The tab shows the progress and polls
+until the result is saved. A scan replaced by a forced one, or on a site whose
+checks were turned off, stops quietly, and one still unfinished after an hour
+counts as lost so a new one can start. The 15-minute cron starts one scan of a
+site not tried in the last day, so each site is scanned daily; opening a
+never-scanned tab, Scan now (at most one per 30 seconds, and not while one runs)
+and switching a fix scan too.
 
 Fixes (plugin 0.14.0, WordPress only) are `GET /accessibility` and
 `POST /accessibility/fixes` on the plugin. Each is saved in the
