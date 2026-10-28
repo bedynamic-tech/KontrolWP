@@ -83,7 +83,7 @@ function IssueRow(props: { issue: AccessibilityIssue; busy: boolean; onFix: () =
             ))}
           </ul>
         </details>
-        {issue.fix?.enabled && (
+        {issue.fix?.enabled && !props.busy && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
             The fix is on, but this scan still sees the problem. A caching plugin may be serving the old page; clear its
             cache and scan again.
@@ -137,6 +137,20 @@ function Trend(props: { history: SiteAccessibility["history"] }) {
   );
 }
 
+/** The data with some fixes switched on or off, shown while the change is saved. */
+function withFixes(data: SiteAccessibility, ids: string[], enabled: boolean): SiteAccessibility {
+  const change = <T extends { id: string; enabled: boolean }>(fix: T): T =>
+    ids.includes(fix.id) ? { ...fix, enabled } : fix;
+  return {
+    ...data,
+    fixes: data.fixes.map(change),
+    scan: data.scan && {
+      ...data.scan,
+      issues: data.scan.issues.map((issue) => (issue.fix ? { ...issue, fix: change(issue.fix) } : issue)),
+    },
+  };
+}
+
 /** The site's accessibility score and the problems a scan of its pages found, with fixes for some. */
 export function AccessibilityTab(props: { site: SiteSummary }) {
   const { site } = props;
@@ -153,7 +167,11 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
   const fixes = useMutation({
     mutationFn: (change: { ids: string[]; enabled: boolean }) =>
       setAccessibilityFixes(site.id, change.ids, change.enabled),
+    // The switch moves at once; saving also rescans the site, which takes a few seconds.
+    onMutate: (change) =>
+      queryClient.setQueryData<SiteAccessibility>(key, (old) => old && withFixes(old, change.ids, change.enabled)),
     onSuccess: setData,
+    onError: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 
   // A site that has never been scanned is scanned when its tab first opens.
@@ -180,7 +198,8 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
       </Section>
     );
   }
-  const result = scan.data ?? data!;
+  // Scans and fix changes both write the query's data, so it is always the latest of the two.
+  const result = data!;
   const latest = result.scan;
   const issues = latest?.issues ?? [];
   const fixable = issues.filter((issue) => issue.fix && !issue.fix.enabled);

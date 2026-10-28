@@ -159,7 +159,15 @@ import { saveLoginLogo, siteLoginLogo } from "../sites/login-logo.ts";
 import { createSitePost, sitePostForm, uploadSiteImage } from "../sites/posts.ts";
 import { listSeoPages, saveSeoPage, saveSeoSettings, scoreSeoPage, SeoError, siteSeo } from "../sites/seo.ts";
 import { SeoAuditError, scanSeoNow, siteSeoAudit } from "../sites/seo-audit.ts";
-import { AccessibilityError, scanNow, setAccessibilityFixes, siteAccessibility } from "../sites/accessibility.ts";
+import {
+  AccessibilityError,
+  applyFixDefaultsToAll,
+  fixDefaultsView,
+  saveFixDefaults,
+  scanNow,
+  setAccessibilityFixes,
+  siteAccessibility,
+} from "../sites/accessibility.ts";
 import { claimTest, deletePagespeedKey, savePagespeedKey, loadPagespeedKey, pagespeedSource, sitePerformance } from "../sites/performance.ts";
 import { checkSite, siteCertificate, siteUptime } from "../sites/uptime.ts";
 import {
@@ -2659,6 +2667,21 @@ api.put("/settings/links", async (c) => {
   await saveLinkScanSettings(c.env, { interval_days: interval, time_zone: zone });
   return c.json(await linkScanSchedule(c.env));
 });
+
+/** The accessibility fixes every new WordPress site starts with. */
+api.get("/settings/accessibility", async (c) => c.json(await fixDefaultsView(c.env)));
+
+api.put("/settings/accessibility", async (c) => {
+  const parsed = z
+    .object({ enabled: z.array(z.enum(ACCESSIBILITY_FIXES.map((fix) => fix.id) as [string, ...string[]])).max(ACCESSIBILITY_FIXES.length) })
+    .safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Choose the default fixes" }, 400);
+  await saveFixDefaults(c.env, parsed.data.enabled);
+  return c.json(await fixDefaultsView(c.env));
+});
+
+/** Give every WordPress site the default fixes, turning the others off. */
+api.post("/settings/accessibility/apply", async (c) => c.json(await applyFixDefaultsToAll(c.env)));
 
 api.get("/settings/updates", async (c) => c.json(await globalPolicyView(c.env)));
 

@@ -4,6 +4,7 @@ import { Navigate, useLocation, useSearchParams } from "react-router";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { LINK_SCAN_INTERVALS, type LinkScanInterval } from "../../shared/types";
 import { fetchLinkScanSettings, saveLinkScanSettings } from "../api";
+import { AccessibilityDefaultsSection } from "./AccessibilityDefaults";
 import { HelpTip } from "./HelpTip";
 import { ResponsiveTabsList } from "./ResponsiveTabsList";
 import { Section } from "./Section";
@@ -15,6 +16,7 @@ const SETTINGS_TABS = [
   { value: "general", label: "General" },
   { value: "updates", label: "Updates" },
   { value: "links", label: "Link checks" },
+  { value: "accessibility", label: "Accessibility" },
 ];
 
 // Integrations used to be a Settings tab; older links and bookmarks still land on them.
@@ -54,6 +56,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="links">
           <LinkScanSettingsSection />
+        </TabsContent>
+        <TabsContent value="accessibility">
+          <AccessibilityDefaultsSection />
         </TabsContent>
       </Tabs>
     </div>

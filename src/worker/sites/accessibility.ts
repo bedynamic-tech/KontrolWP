@@ -1,10 +1,17 @@
 import { ACCESSIBILITY_FIXES, ACCESSIBILITY_RULES, accessibilityScore } from "../../shared/accessibility.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { ACCESSIBILITY_SINCE, compareVersions } from "../../shared/plugin-version.ts";
-import type { AccessibilityIssue, AccessibilityScan, SiteAccessibility, SiteSummary } from "../../shared/types.ts";
+import type {
+  AccessibilityFixDefaults,
+  AccessibilityIssue,
+  AccessibilityScan,
+  SiteAccessibility,
+  SiteSummary,
+} from "../../shared/types.ts";
 import { cachedRead } from "../content-cache.ts";
 import { analyzePage, type Finding } from "./accessibility-check.ts";
-import { callSite, type SiteCredentials } from "./client.ts";
+import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
+import { getCredentials } from "./store.ts";
 
 /** The home page and a few pages it links to, so a theme-wide problem shows up and a one-off does not dominate. */
 const MAX_PAGES = 3;
@@ -282,4 +289,97 @@ export async function siteAccessibility(
 /** Switch fixes on or off on one WordPress site. */
 export async function setAccessibilityFixes(credentials: SiteCredentials, ids: string[], enabled: boolean) {
   await callSite(credentials, "POST", `${REST_NAMESPACE}/accessibility/fixes`, { ids, enabled });
+}
+
+const DEFAULTS_SETTING = "accessibility_fix_defaults";
+
+/** The fixes Settings turns on for every newly connected WordPress site. */
+export async function loadFixDefaults(env: Env): Promise<string[]> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE name = ?")
+    .bind(DEFAULTS_SETTING)
+    .first<{ value: string }>();
+  try {
+    const saved = row ? (JSON.parse(row.value) as unknown) : [];
+    return ACCESSIBILITY_FIXES.map((fix) => fix.id).filter((id) => Array.isArray(saved) && saved.includes(id));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveFixDefaults(env: Env, ids: string[]): Promise<void> {
+  await env.DB.prepare("INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)")
+    .bind(DEFAULTS_SETTING, JSON.stringify(ACCESSIBILITY_FIXES.map((fix) => fix.id).filter((id) => ids.includes(id))))
+    .run();
+}
+
+/** The WordPress sites that can take fixes and have accessibility checks on. */
+async function fixableSites(env: Env): Promise<{ id: number; name: string; plugin_version: string | null }[]> {
+  const { results } = await env.DB.prepare(
+    "SELECT id, name, plugin_version FROM sites WHERE kind != 'static' AND accessibility_excluded = 0 ORDER BY name",
+  ).all<{ id: number; name: string; plugin_version: string | null }>();
+  return results.filter((site) => site.plugin_version && compareVersions(site.plugin_version, ACCESSIBILITY_SINCE) >= 0);
+}
+
+/** The defaults, with how many sites "Apply to all sites" would change. */
+export async function fixDefaultsView(env: Env): Promise<AccessibilityFixDefaults> {
+  const [enabled, sites] = await Promise.all([loadFixDefaults(env), fixableSites(env)]);
+  return {
+    fixes: ACCESSIBILITY_FIXES.map((fix) => ({ ...fix, enabled: enabled.includes(fix.id) })),
+    site_count: sites.length,
+  };
+}
+
+/** Make one site's fixes match the given ones: those on, every other fix off. */
+async function matchFixes(credentials: SiteCredentials, enabled: string[]) {
+  const off = ACCESSIBILITY_FIXES.map((fix) => fix.id).filter((id) => !enabled.includes(id));
+  if (enabled.length) await setAccessibilityFixes(credentials, enabled, true);
+  if (off.length) await setAccessibilityFixes(credentials, off, false);
+}
+
+/** Give every WordPress site the default fixes. Returns the names of sites that could not be changed. */
+export async function applyFixDefaultsToAll(env: Env): Promise<{ applied: number; failed: string[] }> {
+  const [enabled, sites] = await Promise.all([loadFixDefaults(env), fixableSites(env)]);
+  const failed: string[] = [];
+  let applied = 0;
+  // A few at a time, so a slow site does not hold up the rest for long.
+  for (let i = 0; i < sites.length; i += 4) {
+    await Promise.all(
+      sites.slice(i, i + 4).map(async (site) => {
+        try {
+          const credentials = await getCredentials(env, site.id);
+          if (!credentials) return;
+          await matchFixes(credentials, enabled);
+          applied++;
+        } catch (error) {
+          if (!(error instanceof SiteRequestError)) console.error("accessibility defaults", site.id, error);
+          failed.push(site.name);
+        }
+      }),
+    );
+  }
+  await env.DB.prepare("DELETE FROM content_cache WHERE kind = 'accessibility'").run();
+  await env.DB.prepare("UPDATE sites SET accessibility_defaults_applied = 1").run();
+  return { applied, failed };
+}
+
+/**
+ * A newly connected site gets the default fixes on its first sync that can
+ * take them. Best effort: a site that cannot be changed is tried on the next sync.
+ */
+export async function applyFixDefaultsOnce(env: Env, credentials: SiteCredentials, pluginVersion: string) {
+  if (!pluginVersion || compareVersions(pluginVersion, ACCESSIBILITY_SINCE) < 0) return;
+  const row = await env.DB.prepare("SELECT accessibility_defaults_applied, accessibility_excluded FROM sites WHERE id = ?")
+    .bind(credentials.id)
+    .first<{ accessibility_defaults_applied: number; accessibility_excluded: number }>();
+  if (!row || row.accessibility_defaults_applied) return;
+  if (!row.accessibility_excluded) {
+    const enabled = await loadFixDefaults(env);
+    try {
+      if (enabled.length) await setAccessibilityFixes(credentials, enabled, true);
+    } catch (error) {
+      if (error instanceof SiteRequestError) return;
+      throw error;
+    }
+  }
+  await env.DB.prepare("UPDATE sites SET accessibility_defaults_applied = 1 WHERE id = ?").bind(credentials.id).run();
 }

@@ -45,6 +45,7 @@ import type {
   SeoScore,
   SeoSettings,
   SiteAccessibility,
+  AccessibilityFixDefaults,
   SitePerformance,
   SiteUptime,
   SslCertificate,
@@ -433,6 +434,11 @@ export const deletePagespeedKey = () => request<{ configured: boolean }>("/setti
 export const fetchAccessibility = (siteId: number) => request<SiteAccessibility>(`/sites/${siteId}/accessibility`);
 export const scanAccessibility = (siteId: number) =>
   request<SiteAccessibility>(`/sites/${siteId}/accessibility/scan`, { method: "POST" });
+export const fetchAccessibilityDefaults = () => request<AccessibilityFixDefaults>("/settings/accessibility");
+export const saveAccessibilityDefaults = (enabled: string[]) =>
+  request<AccessibilityFixDefaults>("/settings/accessibility", { method: "PUT", json: { enabled } });
+export const applyAccessibilityDefaults = () =>
+  request<{ applied: number; failed: string[] }>("/settings/accessibility/apply", { method: "POST" });
 export const setAccessibilityFixes = (siteId: number, ids: string[], enabled: boolean) =>
   request<SiteAccessibility>(`/sites/${siteId}/accessibility/fixes`, { method: "PUT", json: { ids, enabled } });
 
