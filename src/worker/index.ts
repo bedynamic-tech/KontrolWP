@@ -7,7 +7,7 @@ import { checkLinks, collectLinks } from "./sites/links.ts";
 import { runScheduledSync, syncSite } from "./sites/sync.ts";
 import { runNextUpdate, runResync } from "./sites/updates.ts";
 import { runScheduledUpdates } from "./sites/update-policy.ts";
-import { runScheduledScans } from "./sites/accessibility.ts";
+import { continueScan, runScheduledScans } from "./sites/accessibility.ts";
 import { runScheduledSeoScans } from "./sites/seo-audit.ts";
 import { runScheduledFeedRefresh } from "./sites/vulnerabilities.ts";
 import { testSite } from "./sites/performance.ts";
@@ -61,6 +61,8 @@ export default {
             // A test can take a minute, longer than a request may keep working after it answers.
             const site = await getSite(env.DB, siteId);
             if (site) await testSite(env, site);
+          } else if (body.type === "accessibility") {
+            await continueScan(env, siteId, body.run);
           } else if (body.type === "update-check") {
             if (body.phase === "before") await checkBeforeUpdates(env, siteId, body.runId);
             else await checkAfterUpdates(env, siteId);

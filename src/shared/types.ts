@@ -842,6 +842,8 @@ export interface AccessibilityScan {
 
 export interface SiteAccessibility {
   scan: AccessibilityScan | null;
+  /** The pages read so far and in all while a scan runs, null when none is. */
+  scanning: { done: number; total: number } | null;
   /** The reason the latest attempt failed, when it did. */
   error: string | null;
   history: { scanned_at: number; score: number }[];

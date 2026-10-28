@@ -1,6 +1,9 @@
 export type AccessibilityImpact = "critical" | "serious" | "moderate" | "minor";
 
 /** An automatic fix KontrolWP Connect can apply (0.14.0), in the order the tab lists them. */
+/** The most pages one scan reads: the home page and a sample of the rest. */
+export const MAX_SCANNED_PAGES = 50;
+
 export const ACCESSIBILITY_FIXES = [
   {
     id: "image_alt",

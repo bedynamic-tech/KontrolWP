@@ -1,4 +1,4 @@
-import { ACCESSIBILITY_FIXES, ACCESSIBILITY_RULES, accessibilityScore } from "../../shared/accessibility.ts";
+import { ACCESSIBILITY_FIXES, ACCESSIBILITY_RULES, MAX_SCANNED_PAGES, accessibilityScore } from "../../shared/accessibility.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { ACCESSIBILITY_SINCE, compareVersions } from "../../shared/plugin-version.ts";
 import type {
@@ -11,13 +11,26 @@ import type {
 import { cachedRead } from "../content-cache.ts";
 import { analyzePage, type Finding } from "./accessibility-check.ts";
 import { callSite, SiteRequestError, type SiteCredentials } from "./client.ts";
+import { readSitemap, sample } from "./sitemap.ts";
 import { getCredentials } from "./store.ts";
 
-/** The home page and a few pages it links to, so a theme-wide problem shows up and a one-off does not dominate. */
-const MAX_PAGES = 3;
+/**
+ * The home page and up to 49 others, sampled across the sitemap (or the pages
+ * the home page links to), so a theme-wide problem shows up and a one-off does
+ * not dominate.
+ */
+const MAX_PAGES = MAX_SCANNED_PAGES;
+/**
+ * Pages read per queue message. Each Worker run on the free plan may make 50
+ * outside requests and use a few milliseconds of CPU, so a scan reads a few
+ * pages, saves what it found and hands the rest to the next message.
+ */
+export const PAGES_PER_STEP = 5;
 const DAY = 86400;
 /** Manual scans can follow each other, but not on top of each other. */
 const MIN_GAP = 30;
+/** A scan still running after this long lost its queue message, and a new one may start. */
+const STALE_AFTER = 3600;
 const HISTORY_LIMIT = 90;
 /** One site per cron run, so scans never pile up on small hosts or overlap a sync. */
 const SCANS_PER_RUN = 1;
@@ -30,6 +43,18 @@ export class AccessibilityError extends Error {}
 interface StoredResult {
   pages: string[];
   issues: Omit<AccessibilityIssue, "fix">[];
+}
+
+/** Findings so far, one entry per rule, kept small enough to save between queue messages. */
+type Tally = Record<string, { count: number; pages: string[]; examples: string[] }>;
+
+/** A scan in progress: the pages still to read, and what the pages read so far showed. */
+interface Progress {
+  run: string;
+  started_at: number;
+  queue: string[];
+  pages: string[];
+  tally: Tally;
 }
 
 type Page = { url: string; html: string };
@@ -76,21 +101,57 @@ export function linkedPages(html: string, home: string, limit = MAX_PAGES - 1): 
   return pages;
 }
 
-/** Add up the findings of every page into one entry per kind of problem. */
-export function summarize(perPage: { url: string; findings: Finding[] }[]): StoredResult {
-  const byRule = new Map<string, { count: number; pages: Set<string>; examples: string[] }>();
-  for (const { url, findings } of perPage) {
-    for (const finding of findings) {
-      if (!ACCESSIBILITY_RULES[finding.rule]) continue;
-      const entry = byRule.get(finding.rule) ?? { count: 0, pages: new Set(), examples: [] };
-      entry.count++;
-      entry.pages.add(url);
-      if (entry.examples.length < 3 && !entry.examples.includes(finding.example)) entry.examples.push(finding.example);
-      byRule.set(finding.rule, entry);
+const bareHost = (url: URL) => url.hostname.replace(/^www\./i, "").toLowerCase();
+
+/**
+ * The pages to scan after the home page: a sample spread across the sitemap,
+ * topped up with the pages the home page links to when the sitemap is short
+ * or missing.
+ */
+export function pagesToScan(sitemap: string[], html: string, home: string, limit = MAX_PAGES - 1): string[] {
+  const base = new URL(home);
+  const seen = new Set<string>([new URL("/", base).href, base.href]);
+  const listed: string[] = [];
+  for (const entry of sitemap) {
+    let url: URL;
+    try {
+      url = new URL(entry);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(url.protocol) || bareHost(url) !== bareHost(base) || url.search) continue;
+    if (SKIPPED_PATH.test(url.pathname)) continue;
+    url.hash = "";
+    if (seen.has(url.href)) continue;
+    seen.add(url.href);
+    listed.push(url.href);
+  }
+  const pages = sample(listed, limit);
+  for (const url of linkedPages(html, home, limit)) {
+    if (pages.length >= limit) break;
+    if (!seen.has(url)) {
+      seen.add(url);
+      pages.push(url);
     }
   }
+  return pages;
+}
+
+/** Add one page's findings to the tally. */
+function addPage(tally: Tally, url: string, findings: Finding[]) {
+  for (const finding of findings) {
+    if (!ACCESSIBILITY_RULES[finding.rule]) continue;
+    const entry = (tally[finding.rule] ??= { count: 0, pages: [], examples: [] });
+    entry.count++;
+    if (!entry.pages.includes(url)) entry.pages.push(url);
+    if (entry.examples.length < 3 && !entry.examples.includes(finding.example)) entry.examples.push(finding.example);
+  }
+}
+
+/** One entry per kind of problem, most serious and most frequent first. */
+function result(pages: string[], tally: Tally): StoredResult {
   const order = { critical: 0, serious: 1, moderate: 2, minor: 3 };
-  const issues = [...byRule]
+  const issues = Object.entries(tally)
     .map(([rule, entry]) => {
       const meta = ACCESSIBILITY_RULES[rule];
       return {
@@ -100,29 +161,33 @@ export function summarize(perPage: { url: string; findings: Finding[] }[]): Stor
         wcag: meta.wcag,
         help: meta.help,
         count: entry.count,
-        pages: [...entry.pages],
+        pages: entry.pages,
         examples: entry.examples,
       };
     })
     .sort((a, b) => order[a.impact] - order[b.impact] || b.count - a.count);
-  return { pages: perPage.map((page) => page.url), issues };
+  return { pages, issues };
+}
+
+/** Add up the findings of every page into one entry per kind of problem. */
+export function summarize(perPage: { url: string; findings: Finding[] }[]): StoredResult {
+  const tally: Tally = {};
+  for (const { url, findings } of perPage) addPage(tally, url, findings);
+  return result(
+    perPage.map((page) => page.url),
+    tally,
+  );
 }
 
 /**
- * Scan a site's home page and the pages it links to, and keep the result.
- * Throws AccessibilityError when the home page cannot be read, leaving the
- * last result in place.
+ * Start a scan of a site: read its home page and sitemap, choose the pages
+ * to scan, and queue the first few. Throws AccessibilityError when the home
+ * page cannot be read, leaving the last result in place.
  */
-export async function scanSite(
-  env: Env,
-  siteId: number,
-  siteUrl: string,
-  now = Math.floor(Date.now() / 1000),
-  pauseMs = PAGE_PAUSE_MS,
-) {
+export async function scanSite(env: Env, siteId: number, siteUrl: string, now = Math.floor(Date.now() / 1000)) {
   await env.DB.prepare(
     `INSERT INTO accessibility_scans (site_id, attempted_at) VALUES (?, ?)
-     ON CONFLICT(site_id) DO UPDATE SET attempted_at = excluded.attempted_at`,
+     ON CONFLICT(site_id) DO UPDATE SET attempted_at = excluded.attempted_at, progress = NULL`,
   )
     .bind(siteId, now)
     .run();
@@ -135,20 +200,79 @@ export async function scanSite(
     await env.DB.prepare("UPDATE accessibility_scans SET error = ? WHERE site_id = ?").bind(error, siteId).run();
     throw new AccessibilityError(error);
   }
+  const sitemap = await readSitemap(home.url);
+  const progress: Progress = {
+    run: crypto.randomUUID(),
+    started_at: now,
+    queue: pagesToScan(
+      sitemap.items.map((item) => item.url),
+      home.html,
+      home.url,
+    ),
+    pages: [home.url],
+    tally: {},
+  };
+  addPage(progress.tally, home.url, analyzePage(home.html));
+  if (!progress.queue.length) return finish(env, siteId, progress, now);
+  await env.DB.prepare("UPDATE accessibility_scans SET progress = ? WHERE site_id = ?")
+    .bind(JSON.stringify(progress), siteId)
+    .run();
+  await env.SYNC_QUEUE.send({ type: "accessibility", siteId, run: progress.run });
+}
+
+/**
+ * Read the next few pages of a running scan, from the queue. Queues the
+ * rest, or saves the result once every page is read or the site starts to
+ * struggle. A scan that was replaced, or a site whose checks were turned off
+ * or that was removed, is dropped quietly.
+ */
+export async function continueScan(env: Env, siteId: number, run: string, pauseMs = PAGE_PAUSE_MS) {
+  const row = await env.DB.prepare(
+    `SELECT a.progress, s.accessibility_excluded AS excluded FROM accessibility_scans a
+     JOIN sites s ON s.id = a.site_id WHERE a.site_id = ?`,
+  )
+    .bind(siteId)
+    .first<{ progress: string | null; excluded: number }>();
+  const progress = row?.progress ? (JSON.parse(row.progress) as Progress) : null;
+  if (!row || !progress || progress.run !== run) return;
+  if (row.excluded) {
+    await env.DB.prepare("UPDATE accessibility_scans SET progress = NULL WHERE site_id = ?").bind(siteId).run();
+    return;
+  }
   // One page at a time, and no more once the site starts to struggle.
-  const pages: Page[] = [home];
-  for (const url of linkedPages(home.html, home.url)) {
+  const step = progress.queue.splice(0, PAGES_PER_STEP);
+  for (const url of step) {
     await new Promise((resolve) => setTimeout(resolve, pauseMs));
     const page = await fetchPage(url);
-    if (page === "overloaded") break;
-    if (page) pages.push(page);
+    if (page === "overloaded") {
+      progress.queue = [];
+      break;
+    }
+    if (page && !progress.pages.includes(page.url)) {
+      progress.pages.push(page.url);
+      addPage(progress.tally, page.url, analyzePage(page.html));
+    }
   }
-  const result = summarize(pages.map((page) => ({ url: page.url, findings: analyzePage(page.html) })));
-  const score = accessibilityScore(result.issues);
+  if (!progress.queue.length) return finish(env, siteId, progress, Math.floor(Date.now() / 1000));
+  // A scan started meanwhile replaced this one, and keeps its own progress.
+  const saved = await env.DB.prepare(
+    "UPDATE accessibility_scans SET progress = ? WHERE site_id = ? AND json_extract(progress, '$.run') = ?",
+  )
+    .bind(JSON.stringify(progress), siteId, run)
+    .run();
+  if (!saved.meta.changes) return;
+  await env.SYNC_QUEUE.send({ type: "accessibility", siteId, run });
+}
+
+/** Save a finished scan's result and score. */
+async function finish(env: Env, siteId: number, progress: Progress, now: number) {
+  const stored = result(progress.pages, progress.tally);
+  const score = accessibilityScore(stored.issues);
   await env.DB.batch([
     env.DB.prepare(
-      "UPDATE accessibility_scans SET scanned_at = ?, score = ?, result = ?, error = NULL WHERE site_id = ?",
-    ).bind(now, score, JSON.stringify(result), siteId),
+      `UPDATE accessibility_scans SET scanned_at = ?, score = ?, result = ?, error = NULL, progress = NULL
+       WHERE site_id = ?`,
+    ).bind(now, score, JSON.stringify(stored), siteId),
     env.DB.prepare("INSERT OR REPLACE INTO accessibility_history (site_id, scanned_at, score) VALUES (?, ?, ?)").bind(
       siteId,
       now,
@@ -161,26 +285,25 @@ export async function scanSite(
   ]);
 }
 
-/** Scan on request, unless one just ran. */
-export async function scanNow(
-  env: Env,
-  site: Pick<SiteSummary, "id" | "url">,
-  options: { force?: boolean; pauseMs?: number } = {},
-) {
-  const now = Math.floor(Date.now() / 1000);
-  const row = await env.DB.prepare("SELECT attempted_at FROM accessibility_scans WHERE site_id = ?")
-    .bind(site.id)
-    .first<{ attempted_at: number }>();
-  if (!options.force && row && now - row.attempted_at < MIN_GAP) return;
-  await scanSite(env, site.id, site.url, now, options.pauseMs);
+/** A running scan's progress, unless it has gone stale. */
+function running(progress: string | null, now: number): Progress | null {
+  if (!progress) return null;
+  const parsed = JSON.parse(progress) as Progress;
+  return now - parsed.started_at < STALE_AFTER ? parsed : null;
 }
 
-/** Rescan the sites not scanned in the last day, a few at a time, from the cron. Returns how many were scanned. */
-export async function runScheduledScans(
-  env: Env,
-  now = Math.floor(Date.now() / 1000),
-  pauseMs = PAGE_PAUSE_MS,
-): Promise<number> {
+/** Start a scan on request, unless one just started or is still running. */
+export async function scanNow(env: Env, site: Pick<SiteSummary, "id" | "url">, options: { force?: boolean } = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const row = await env.DB.prepare("SELECT attempted_at, progress FROM accessibility_scans WHERE site_id = ?")
+    .bind(site.id)
+    .first<{ attempted_at: number; progress: string | null }>();
+  if (!options.force && row && (now - row.attempted_at < MIN_GAP || running(row.progress, now))) return;
+  await scanSite(env, site.id, site.url, now);
+}
+
+/** Start scans of the sites not scanned in the last day, one per cron run. Returns how many were started. */
+export async function runScheduledScans(env: Env, now = Math.floor(Date.now() / 1000)): Promise<number> {
   const { results } = await env.DB.prepare(
     `SELECT sites.id, sites.url FROM sites
      LEFT JOIN accessibility_scans a ON a.site_id = sites.id
@@ -192,7 +315,7 @@ export async function runScheduledScans(
     .all<{ id: number; url: string }>();
   for (const site of results) {
     try {
-      await scanSite(env, site.id, site.url, now, pauseMs);
+      await scanSite(env, site.id, site.url, now);
     } catch (error) {
       if (!(error instanceof AccessibilityError)) console.error("accessibility scan", site.id, error);
     }
@@ -237,9 +360,15 @@ export async function siteAccessibility(
   credentials: SiteCredentials | null,
 ): Promise<SiteAccessibility> {
   const [row, history, fixes] = await Promise.all([
-    env.DB.prepare("SELECT scanned_at, score, result, error FROM accessibility_scans WHERE site_id = ?")
+    env.DB.prepare("SELECT scanned_at, score, result, error, progress FROM accessibility_scans WHERE site_id = ?")
       .bind(site.id)
-      .first<{ scanned_at: number | null; score: number | null; result: string | null; error: string | null }>(),
+      .first<{
+        scanned_at: number | null;
+        score: number | null;
+        result: string | null;
+        error: string | null;
+        progress: string | null;
+      }>(),
     env.DB.prepare(
       "SELECT scanned_at, score FROM accessibility_history WHERE site_id = ? ORDER BY scanned_at DESC LIMIT 30",
     )
@@ -268,8 +397,12 @@ export async function siteAccessibility(
       }),
     };
   }
+  const progress = running(row?.progress ?? null, Math.floor(Date.now() / 1000));
   return {
     scan,
+    scanning: progress
+      ? { done: progress.pages.length, total: progress.pages.length + progress.queue.length }
+      : null,
     error: row?.error ?? null,
     history: history.results.reverse(),
     fixes: fixes.states
