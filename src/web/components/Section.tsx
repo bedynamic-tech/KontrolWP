@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { HelpTip } from "./HelpTip";
 
 /** A titled block. `hint` is explanatory text, shown in a tooltip beside the title. */
-export function Section(props: { title: string; hint?: ReactNode; action?: ReactNode; children: ReactNode }) {
+export function Section(props: { id?: string; title: string; hint?: ReactNode; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mt-8">
+    <section id={props.id} className="mt-8 scroll-mt-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-medium">
           {props.title}

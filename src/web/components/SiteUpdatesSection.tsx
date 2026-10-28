@@ -28,7 +28,7 @@ export function SiteUpdatesSection(props: { site: SiteSummary; updates: SiteUpda
   if (site.updates_excluded) return null;
 
   return (
-    <Section title="Updates" action={<UpdateAllButton updates={updates} />}>
+    <Section id="site-updates" title="Updates" action={<UpdateAllButton updates={updates} />}>
       <Part title="WordPress">
         <List updates={of("core")} empty="WordPress is up to date." />
       </Part>
