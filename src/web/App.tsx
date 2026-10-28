@@ -140,7 +140,7 @@ function NavItem(props: { to: string; icon: ReactNode; label: string }) {
   );
 }
 
-/** The pages, feedback and plugin download, shared by the sidebar and the phone menu. */
+/** The pages, feedback, plugin download, Integrations and Settings, shared by the sidebar and the phone menu. */
 function SidebarLinks(props: { folded?: boolean }) {
   return (
     <>
@@ -149,8 +149,6 @@ function SidebarLinks(props: { folded?: boolean }) {
         <NavItem to="/sites" icon={<GlobeIcon />} label="Sites" />
         <NavItem to="/plugins" icon={<PlugIcon />} label="Plugins" />
         <NavItem to="/users" icon={<UsersIcon />} label="Users" />
-        <NavItem to="/integrations" icon={<BlocksIcon />} label="Integrations" />
-        <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
       </nav>
       <div className="mt-auto">
         <FeedbackMenu folded={props.folded} />
@@ -163,6 +161,10 @@ function SidebarLinks(props: { folded?: boolean }) {
         <DownloadIcon />
         <span>KontrolWP Connect</span>
       </a>
+      <nav className="mt-1 space-y-1" aria-label="Setup">
+        <NavItem to="/integrations" icon={<BlocksIcon />} label="Integrations" />
+        <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" />
+      </nav>
     </>
   );
 }
