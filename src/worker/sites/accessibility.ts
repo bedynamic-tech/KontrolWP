@@ -1,4 +1,10 @@
-import { ACCESSIBILITY_FIXES, ACCESSIBILITY_RULES, MAX_SCANNED_PAGES, accessibilityScore } from "../../shared/accessibility.ts";
+import {
+  ACCESSIBILITY_FIXES,
+  ACCESSIBILITY_RULES,
+  MAX_SCANNED_PAGES,
+  accessibilityScore,
+  fixesFor,
+} from "../../shared/accessibility.ts";
 import { REST_NAMESPACE } from "../../shared/protocol.ts";
 import { ACCESSIBILITY_SINCE, compareVersions } from "../../shared/plugin-version.ts";
 import type {
@@ -376,6 +382,8 @@ export async function siteAccessibility(
       .all<{ scanned_at: number; score: number }>(),
     fixStates(env, site, credentials),
   ]);
+  // Fixes added after 0.14.0 show once the site's plugin can apply them.
+  const available = fixes.states ? fixesFor(site.plugin_version) : [];
   let scan: AccessibilityScan | null = null;
   if (row?.result && row.scanned_at !== null && row.score !== null) {
     const stored = JSON.parse(row.result) as StoredResult;
@@ -385,7 +393,7 @@ export async function siteAccessibility(
       pages: stored.pages,
       issues: stored.issues.map((issue) => {
         const id = ACCESSIBILITY_RULES[issue.rule]?.fix;
-        const fix = ACCESSIBILITY_FIXES.find((candidate) => candidate.id === id);
+        const fix = available.find((candidate) => candidate.id === id);
         const state = id ? fixes.states?.[id] : undefined;
         return {
           ...issue,
@@ -406,7 +414,7 @@ export async function siteAccessibility(
     error: row?.error ?? null,
     history: history.results.reverse(),
     fixes: fixes.states
-      ? ACCESSIBILITY_FIXES.map((fix) => ({
+      ? available.map((fix) => ({
           id: fix.id,
           title: fix.title,
           detail: fix.detail,
@@ -462,10 +470,12 @@ export async function fixDefaultsView(env: Env): Promise<AccessibilityFixDefault
   };
 }
 
-/** Make one site's fixes match the given ones: those on, every other fix off. */
-async function matchFixes(credentials: SiteCredentials, enabled: string[]) {
-  const off = ACCESSIBILITY_FIXES.map((fix) => fix.id).filter((id) => !enabled.includes(id));
-  if (enabled.length) await setAccessibilityFixes(credentials, enabled, true);
+/** Make one site's fixes match the given ones: those on, every other fix its plugin knows off. */
+async function matchFixes(credentials: SiteCredentials, enabled: string[], pluginVersion: string | null) {
+  const known = fixesFor(pluginVersion).map((fix) => fix.id);
+  const on = known.filter((id) => enabled.includes(id));
+  const off = known.filter((id) => !enabled.includes(id));
+  if (on.length) await setAccessibilityFixes(credentials, on, true);
   if (off.length) await setAccessibilityFixes(credentials, off, false);
 }
 
@@ -481,7 +491,7 @@ export async function applyFixDefaultsToAll(env: Env): Promise<{ applied: number
         try {
           const credentials = await getCredentials(env, site.id);
           if (!credentials) return;
-          await matchFixes(credentials, enabled);
+          await matchFixes(credentials, enabled, site.plugin_version);
           applied++;
         } catch (error) {
           if (!(error instanceof SiteRequestError)) console.error("accessibility defaults", site.id, error);
@@ -506,7 +516,8 @@ export async function applyFixDefaultsOnce(env: Env, credentials: SiteCredential
     .first<{ accessibility_defaults_applied: number; accessibility_excluded: number }>();
   if (!row || row.accessibility_defaults_applied) return;
   if (!row.accessibility_excluded) {
-    const enabled = await loadFixDefaults(env);
+    const known = fixesFor(pluginVersion).map((fix) => fix.id);
+    const enabled = (await loadFixDefaults(env)).filter((id) => known.includes(id));
     try {
       if (enabled.length) await setAccessibilityFixes(credentials, enabled, true);
     } catch (error) {

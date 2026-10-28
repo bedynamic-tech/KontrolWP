@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accessibilityScore, scoreBand } from "../src/shared/accessibility.ts";
-import { analyzePage } from "../src/worker/sites/accessibility-check.ts";
+import {
+  ACCESSIBILITY_RULES,
+  WCAG_CRITERIA,
+  accessibilityScore,
+  fixesFor,
+  scoreBand,
+  wcagChecklist,
+  wcagLink,
+} from "../src/shared/accessibility.ts";
+import {
+  analyzePage,
+  contrastRatio,
+  hiddenFocusRules,
+  parseColor,
+  validAutocomplete,
+} from "../src/worker/sites/accessibility-check.ts";
 import {
   AccessibilityError,
   PAGES_PER_STEP,
@@ -53,6 +67,7 @@ test("each kind of problem is found", () => {
     "meta-viewport",
     "page-has-heading-one",
     "tabindex",
+    "video-caption",
   ]);
   const count = (rule) => analyzePage(bad).filter((f) => f.rule === rule).length;
   assert.equal(count("image-alt"), 1);
@@ -373,4 +388,78 @@ test("turning checks off for a site drops its running scan", async () => {
   const result = await siteAccessibility(env, site(1, "https://a.test/"), null);
   assert.equal(result.scan, null);
   assert.equal(result.scanning, null);
+});
+
+test("WCAG 2.1 AA problems the markup shows are found", () => {
+  const html = `<html lang="en_US"><head><title>T</title><style>a:focus{outline:none}
+button:focus:not(:focus-visible){outline:0} .x:focus{outline:0;box-shadow:0 0 0 2px red}</style></head><body>
+<a href="#m">Skip</a><main id="m"><h1>H</h1><p lang="english">x</p><p lang="fr-CA">oui</p>
+<input type="image" src="a.png"><input type="image" src="b.png" alt="Search"><map><area href="/a"><area href="/b" alt="B"></map>
+<svg role="img"><path/></svg><svg role="img"><title>Logo</title></svg><span role="img" aria-label="Star">*</span>
+<video controls src="a.mp4"></video><video autoplay muted loop src="b.mp4"></video><video controls><track kind="captions" src="c.vtt"></video>
+<label for="e">E</label><input id="e" autocomplete="emial"><label for="f">F</label><input id="f" autocomplete="shipping email">
+<p style="color:#777;background:#888">grey</p><p style="color:#000;background-color:#fff">ok</p>
+<h2 style="color:#888;background:#fff;font-size:30px">big</h2>
+<marquee>hi</marquee><div onclick="go()">click</div><div role="button" tabindex="0" onclick="go()">ok</div>
+<a href="/x" aria-hidden="true">x</a><a href="/y" aria-hidden="true" tabindex="-1">y</a>
+<a href="/s" aria-label="Go to shop">Shop now</a><a href="/t" aria-label="Shop now, opens in a new tab">Shop now</a>
+<label for="d">D</label><input id="d"><input id="d" aria-label="z"></main></body></html>`;
+  const count = {};
+  for (const finding of analyzePage(html)) count[finding.rule] = (count[finding.rule] ?? 0) + 1;
+  assert.deepEqual(count, {
+    "focus-outline": 1,
+    "html-lang-valid": 1,
+    "valid-lang": 1,
+    "input-image-alt": 1,
+    "area-alt": 1,
+    "svg-img-alt": 1,
+    "video-caption": 1,
+    blink: 1,
+    "click-keyboard": 1,
+    "aria-hidden-focus": 1,
+    "color-contrast": 1,
+    "duplicate-id": 1,
+    "autocomplete-valid": 1,
+    "label-in-name": 1,
+  });
+});
+
+test("autocomplete values, colours and focus rules are read as browsers read them", () => {
+  for (const ok of ["on", "off", "email", "shipping email", "section-a billing work tel", "current-password webauthn"])
+    assert.ok(validAutocomplete(ok), ok);
+  for (const bad of ["emial", "email shipping", "phone", "work"]) assert.ok(!validAutocomplete(bad), bad);
+  assert.deepEqual(parseColor("#fff"), [255, 255, 255]);
+  assert.deepEqual(parseColor("rgb(10, 20, 30)"), [10, 20, 30]);
+  assert.equal(parseColor("rgba(0,0,0,0.5)"), null);
+  assert.equal(parseColor("var(--x)"), null);
+  assert.equal(contrastRatio([0, 0, 0], [255, 255, 255]).toFixed(1), "21.0");
+  assert.equal(contrastRatio(parseColor("#777"), parseColor("#fff")).toFixed(2), "4.48");
+  assert.equal(hiddenFocusRules("a:focus-visible{outline:none} a:focus{outline:2px solid red}").length, 0);
+  assert.equal(hiddenFocusRules("/* a:focus{outline:none} */ input:focus { outline: 0 !important; }").length, 1);
+});
+
+test("the checklist covers every WCAG 2.1 A and AA criterion, and best practices do not fail one", () => {
+  assert.equal(WCAG_CRITERIA.length, 50);
+  for (const rule of Object.values(ACCESSIBILITY_RULES)) {
+    assert.ok(
+      WCAG_CRITERIA.some((c) => c.id === rule.wcag),
+      `${rule.title} names a known criterion`,
+    );
+  }
+  const rows = wcagChecklist([{ rule: "image-alt" }, { rule: "heading-order" }]);
+  const status = (id) => rows.find((row) => row.id === id).status;
+  assert.equal(status("1.1.1"), "problems");
+  assert.equal(status("1.3.1"), "passed");
+  assert.equal(status("1.4.3"), "passed");
+  assert.equal(status("2.1.2"), "manual");
+  assert.equal(wcagLink("1.4.3"), "https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html");
+  assert.equal(wcagLink("4.1.2"), "https://www.w3.org/WAI/WCAG21/Understanding/name-role-value.html");
+});
+
+test("fixes added after 0.14.0 are offered only to sites whose plugin has them", () => {
+  assert.deepEqual(fixesFor(null), []);
+  assert.equal(fixesFor("0.13.0").length, 0);
+  const old = fixesFor("0.45.0").map((fix) => fix.id);
+  assert.ok(old.includes("skip_link") && !old.includes("focus_visible"));
+  assert.ok(fixesFor("0.46.0").some((fix) => fix.id === "media_autoplay"));
 });

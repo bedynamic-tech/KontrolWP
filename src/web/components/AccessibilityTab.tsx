@@ -4,7 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MAX_SCANNED_PAGES, scoreBand, type AccessibilityImpact, type ScoreBand } from "../../shared/accessibility";
+import {
+  ACCESSIBILITY_RULES,
+  MAX_SCANNED_PAGES,
+  WCAG_CRITERIA,
+  scoreBand,
+  wcagChecklist,
+  wcagLink,
+  type AccessibilityImpact,
+  type CriterionStatus,
+  type ScoreBand,
+} from "../../shared/accessibility";
 import type { AccessibilityIssue, SiteAccessibility, SiteSummary } from "../../shared/types";
 import { fetchAccessibility, scanAccessibility, setAccessibilityFixes } from "../api";
 import { timeAgo } from "../format";
@@ -50,8 +60,68 @@ function pagePath(url: string): string {
   }
 }
 
+/** A success criterion's number, name and level, linked to the W3C's explanation of it. */
+function WcagRef(props: { id: string; bestPractice?: boolean }) {
+  const criterion = WCAG_CRITERIA.find((candidate) => candidate.id === props.id);
+  const link = wcagLink(props.id);
+  const label = criterion ? `WCAG ${criterion.id} ${criterion.name} (Level ${criterion.level})` : `WCAG ${props.id}`;
+  return (
+    <>
+      {props.bestPractice && "Best practice, related to "}
+      {link ? (
+        <a href={link} target="_blank" rel="noreferrer noopener" className="underline underline-offset-4">
+          {label}
+        </a>
+      ) : (
+        label
+      )}
+      .
+    </>
+  );
+}
+
+const CRITERION_LABEL: Record<CriterionStatus, string> = {
+  problems: "Problems found",
+  passed: "No problems found",
+  manual: "Needs a manual review",
+};
+
+const CRITERION_CLASS: Record<CriterionStatus, string> = {
+  problems: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
+  passed: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
+  manual: "bg-muted text-muted-foreground",
+};
+
+/** Every WCAG 2.1 A and AA criterion, with what the scan found for it. */
+function Checklist(props: { issues: AccessibilityIssue[] }) {
+  const rows = wcagChecklist(props.issues);
+  return (
+    <ul className="divide-y">
+      {rows.map((row) => (
+        <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
+          <span className="min-w-0">
+            <a
+              href={wcagLink(row.id) ?? undefined}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline-offset-4 hover:underline"
+            >
+              {row.id} {row.name}
+            </a>{" "}
+            <span className="text-xs text-muted-foreground">Level {row.level}</span>
+          </span>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", CRITERION_CLASS[row.status])}>
+            {CRITERION_LABEL[row.status]}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function IssueRow(props: { issue: AccessibilityIssue; busy: boolean; onFix: () => void }) {
   const { issue } = props;
+  const bestPractice = !!ACCESSIBILITY_RULES[issue.rule]?.bestPractice;
   return (
     <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1">
@@ -64,7 +134,7 @@ function IssueRow(props: { issue: AccessibilityIssue; busy: boolean; onFix: () =
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Found {issue.count.toLocaleString()} {issue.count === 1 ? "time" : "times"} on {issue.pages.length}{" "}
-          {issue.pages.length === 1 ? "page" : "pages"}. WCAG {issue.wcag}.
+          {issue.pages.length === 1 ? "page" : "pages"}. <WcagRef id={issue.wcag} bestPractice={bestPractice} />
         </p>
         <details className="mt-1 text-xs text-muted-foreground">
           <summary className="cursor-pointer select-none">Where</summary>
@@ -204,6 +274,7 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
   const latest = result.scan;
   const issues = latest?.issues ?? [];
   const fixable = issues.filter((issue) => issue.fix && !issue.fix.enabled);
+  const failing = latest ? wcagChecklist(issues).filter((row) => row.status === "problems").length : 0;
   const error = scan.error?.message ?? fixes.error?.message ?? (latest ? null : result.error);
   const scanning = scan.isPending || fixes.isPending || !!result.scanning;
   const status = result.scanning
@@ -218,13 +289,18 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
           value={latest ? `${latest.score} out of 100` : scanning ? status : "Not scanned yet"}
           className={latest ? BAND_CLASS[scoreBand(latest.score)] : undefined}
         />
-        <StatCard label="Kinds of problem" value={latest ? issues.length.toLocaleString() : "-"} />
+        <StatCard
+          label="WCAG 2.1 AA criteria with problems"
+          value={latest ? `${failing} of ${WCAG_CRITERIA.length}` : "-"}
+          className={latest && failing ? "text-destructive" : undefined}
+        />
         <StatCard label="Fixable automatically" value={latest ? fixable.length.toLocaleString() : "-"} />
         <StatCard label="Last scan" value={latest ? timeAgo(latest.scanned_at) : "-"} />
       </dl>
 
       <Section
         title={`Issues${latest ? ` (${issues.length})` : ""}`}
+        hint="Pages are checked against WCAG 2.1 Level AA, the standard the ADA rules for websites point to. Each issue names the success criterion it fails."
         action={
           <div className="flex gap-2">
             {fixable.length > 1 && (
@@ -252,9 +328,9 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
         {latest && (
           <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">
             Scanned {latest.pages.length} {latest.pages.length === 1 ? "page" : "pages"}: the home page and up to{" "}
-            {MAX_SCANNED_PAGES - 1} more from the site's sitemap, or the pages it links to. The scan reads each page's
-            HTML, so it finds missing text alternatives, labels, names and headings. It cannot judge colour contrast,
-            keyboard use or whether alt text is good, so a clean score is not a full WCAG review.
+            {MAX_SCANNED_PAGES - 1} more from the site's sitemap, or the pages it links to. Automated checks find only
+            part of what WCAG 2.1 AA asks for, so a clean scan does not mean the site is ADA compliant. Test with a
+            keyboard and a screen reader as well, and check the criteria marked for manual review below.
           </p>
         )}
         {!latest ? (
@@ -275,6 +351,15 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
         )}
       </Section>
 
+      {latest && (
+        <Section
+          title="WCAG 2.1 AA checklist"
+          hint="All 50 Level A and AA success criteria. The scan can check some of them from a page's HTML; the rest, such as keyboard traps, captions on embedded videos, colours from stylesheets and PDFs, need a person to review them."
+        >
+          <Checklist issues={issues} />
+        </Section>
+      )}
+
       {result.history.length > 1 && (
         <Section title="Score history">
           <Trend history={result.history} />
@@ -284,7 +369,7 @@ export function AccessibilityTab(props: { site: SiteSummary }) {
       {site.kind === "wordpress" && (
         <Section
           title="Automatic fixes"
-          hint="Fixes change the page as it is sent to visitors. They never edit your content or theme, and turning one off puts the page back."
+          hint="Fixes change the page as it is sent to visitors. They never edit your content or theme, and turning one off puts the page back. They cover common problems while you fix the cause in your theme or content, which is still the lasting fix."
         >
           {result.fixes_note && <p className="border-b px-4 py-3 text-sm text-muted-foreground">{result.fixes_note}</p>}
           {result.fixes.length ? (

@@ -444,14 +444,25 @@ Every site (WordPress and static) has an Accessibility tab. `src/worker/sites/ac
 fetches the home page and up to 49 more same-site pages, sampled evenly across
 the sitemap (`sitemap.ts`, the same reader the SEO audit uses) and topped up
 with the pages the home page links to when the sitemap is short or missing, and
-`accessibility-check.ts` reads each page's HTML for what markup alone shows:
-missing alt text, form labels, link and button names, frame titles, page title
-and language, heading structure, a main landmark, a skip link, a viewport that
-blocks zooming, positive tabindex, timed refreshes, autoplay and vague link
-text. Colour contrast and anything script- or layout-dependent are not checked,
-and the tab says so. `src/shared/accessibility.ts` holds the rule catalog (impact
-and WCAG 2.1 criterion) and the score: 100 minus a penalty per kind of problem,
-by impact and how often it occurs.
+`accessibility-check.ts` checks each page's HTML against WCAG 2.1 Level AA,
+the standard the ADA rules for websites point to, for what markup alone shows:
+text alternatives (images, image buttons, image map areas, role="img"
+graphics), captions on self-hosted videos, form labels and valid autocomplete
+values, link and button names and whether an aria-label holds the visible
+text, frame titles, page title, a valid page language and valid lang
+attributes, contrast of colours set inline on the same element, focus styles
+in the page's own style blocks that hide the outline, clickable elements a
+keyboard cannot reach, aria-hidden on focusable elements, ids that labels and
+ARIA point at used more than once, a viewport that blocks zooming, positive
+tabindex, timed refreshes, autoplay, and marquee or blink. Headings, a main
+landmark, a skip link and vague link text are reported as best practices.
+Colours from stylesheets, embedded players, PDFs and anything script- or
+layout-dependent are not checked, and the tab says a clean scan is not a
+compliance certificate. `src/shared/accessibility.ts` holds the rule catalog
+(impact and WCAG 2.1 criterion), the list of all 50 A and AA criteria behind
+the tab's WCAG 2.1 AA checklist (problems found, no problems found, or needs a
+manual review; best-practice rules never fail a criterion), and the score: 100
+minus a penalty per kind of problem, by impact and how often it occurs.
 
 The latest result is in `accessibility_scans` and the score per scan in
 `accessibility_history` (last 90). A scan starts by reading the home page and
@@ -477,7 +488,10 @@ Nothing in the database or theme changes, so turning a fix off restores the page
 The fixes: empty alt on images with no alt attribute, field names from
 placeholders, names for icon-only links (social, email, phone), titles for
 iframes, zooming allowed in the viewport tag, and a skip link to the main
-content. A page cache may keep serving old HTML, so a scan can still show a
+content; plugin 0.46.0 adds a visible :focus-visible outline and stopping
+audio and unmuted video from autoplaying (with controls added). Each fix in
+`ACCESSIBILITY_FIXES` names the plugin version it needs (`since`), and
+`fixesFor()` keeps older sites from being offered or sent ones they lack. A page cache may keep serving old HTML, so a scan can still show a
 problem after its fix is on; the tab says so.
 
 Settings > Accessibility holds default fixes (the `accessibility_fix_defaults`

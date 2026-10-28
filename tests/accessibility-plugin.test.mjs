@@ -79,3 +79,19 @@ test("with no fixes on, a page is unchanged", { skip }, () => {
   const html = page('<img src="a.png"><a href="https://facebook.com/x"><svg></svg></a>');
   assert.equal(transform(html, []), html);
 });
+
+test("keyboard focus gets an outline once, before the head closes", { skip }, () => {
+  const out = transform(page("<a href=\"/x\">X</a>"), ["focus_visible"]);
+  assert.match(out, /<style id="kontrolwp-focus-visible">:focus-visible\{outline:3px solid[^<]*<\/style><\/head>/);
+  assert.equal(transform(out, ["focus_visible"]).match(/kontrolwp-focus-visible/g).length, 1);
+});
+
+test("audio and videos with sound stop playing on their own and get controls", { skip }, () => {
+  const out = transform(
+    page('<audio autoplay src="a.mp3"></audio><video autoplay controls src="b.mp4"></video><video autoplay muted loop src="c.mp4"></video>'),
+    ["media_autoplay"],
+  );
+  assert.ok(out.includes('<audio src="a.mp3" controls="controls">'));
+  assert.ok(out.includes('<video controls src="b.mp4">'));
+  assert.ok(out.includes('<video autoplay muted loop src="c.mp4">'));
+});
