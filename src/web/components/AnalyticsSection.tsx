@@ -275,6 +275,7 @@ export function Stat(props: { label: string; stat: AnalyticsStat; format: (value
 /** Pageviews as bars, with the visitors share drawn darker inside each one. */
 export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
   const { series, range } = props.data;
+  const max = Math.max(1, ...series.map((point) => point.pageviews));
   const hourly = range === "24h";
   const label = (key: string) => {
     if (hourly) return `${key.slice(11, 13)}:00`;
@@ -287,72 +288,34 @@ export function TrendChart(props: { data: SiteAnalytics; tall?: boolean }) {
     <div className="px-4 pt-4 pb-2">
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-3 rounded-full bg-primary/40" /> Pageviews
+          <span className="size-2.5 rounded-sm bg-primary/25" /> Pageviews
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-3 rounded-full bg-primary" /> Visitors
+          <span className="size-2.5 rounded-sm bg-primary" /> Visitors
         </span>
       </div>
-      <LineChart
-        className={cn("mt-3", props.tall ? "h-64" : "h-40")}
-        label="Pageviews and visitors over time"
-        points={series.map((point) => ({
-          values: [point.pageviews, point.visitors],
-          title: `${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} visitors`,
-        }))}
-        lines={[{ className: "text-primary/40", area: true }, { className: "text-primary", area: true }]}
-      />
+      <div className={cn("mt-3 flex items-end gap-[2px]", props.tall ? "h-64" : "h-40")} role="img" aria-label="Pageviews and visitors over time">
+        {series.map((point) => (
+          <div
+            key={point.label}
+            className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
+            title={`${label(point.label)}: ${count(point.pageviews)} pageviews, ${count(point.visitors)} visitors`}
+          >
+            <div
+              className="relative w-full rounded-t-sm bg-primary/25 group-hover:bg-primary/35"
+              style={{ height: `${(point.pageviews / max) * 100}%` }}
+            >
+              <div
+                className="absolute inset-x-0 bottom-0 rounded-t-sm bg-primary"
+                style={{ height: point.pageviews ? `${Math.min(1, point.visitors / point.pageviews) * 100}%` : 0 }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
       <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
         {ticks.map((index) => (
           <span key={index}>{series[index] ? label(series[index].label) : ""}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * A line chart over evenly spaced points, one line per entry in `lines`, all on one scale from zero.
- * Each point's `title` shows on hover. A line takes its colour from `className` (a text colour), and
- * `area` shades the space under it.
- */
-export function LineChart(props: {
-  points: { values: number[]; title: string }[];
-  lines: { className: string; area?: boolean }[];
-  label: string;
-  className?: string;
-}) {
-  const { points } = props;
-  const max = Math.max(1, ...points.flatMap((point) => point.values));
-  // One point still draws a flat line across the chart.
-  const x = (i: number) => (points.length > 1 ? (i / (points.length - 1)) * 100 : i * 100);
-  const y = (value: number) => 100 - (value / max) * 96;
-  const drawn = points.length > 1 ? points : [...points, ...points];
-  return (
-    <div className={cn("relative", props.className)} role="img" aria-label={props.label}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
-        {props.lines.map((line, index) => {
-          const path = drawn.map((point, i) => `${i ? "L" : "M"}${x(i)} ${y(point.values[index])}`).join(" ");
-          return (
-            <g key={index} className={line.className}>
-              {line.area && <path d={`${path} L100 100 L0 100 Z`} fill="currentColor" opacity={0.12} />}
-              <path
-                d={path}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            </g>
-          );
-        })}
-      </svg>
-      {/* One strip per point, so hovering anywhere over a day or hour shows its numbers. */}
-      <div className="absolute inset-0 flex">
-        {points.map((point, i) => (
-          <div key={i} className="min-w-0 flex-1 hover:bg-primary/5" title={point.title} />
         ))}
       </div>
     </div>
