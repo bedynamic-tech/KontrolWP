@@ -420,7 +420,6 @@ export function SitePage() {
                 const scrollToUpdates = () =>
                   document.getElementById("site-updates")?.scrollIntoView({ behavior: "smooth", block: "start" });
                 const coreUpdate = updates.find((update) => update.kind === "core");
-                const themeUpdate = updates.find((update) => update.kind === "theme" && update.name === site.theme_name);
                 const synced = {
                   value: timeAgo(site.last_synced_at),
                   detail: site.last_synced_at ? new Date(site.last_synced_at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "",
@@ -476,21 +475,6 @@ export function SitePage() {
                         tone: coreUpdate && !site.updates_excluded ? "warn" : undefined,
                       }}
                       onOpen={site.updates_excluded ? undefined : scrollToUpdates}
-                    />
-                    <OverviewCard
-                      icon={<PlugIcon />}
-                      title="KontrolWP Connect"
-                      summary={{ value: site.plugin_version || "Unknown", detail: "Updates itself" }}
-                    />
-                    <OverviewCard
-                      icon={<PaletteIcon />}
-                      title="Theme"
-                      summary={{
-                        value: site.theme_name || "Unknown",
-                        detail: themeUpdate && !site.updates_excluded ? `${themeUpdate.new_version} is available` : "",
-                        tone: themeUpdate && !site.updates_excluded ? "warn" : undefined,
-                      }}
-                      onOpen={themeUpdate && !site.updates_excluded ? scrollToUpdates : undefined}
                     />
                     <OverviewCard icon={<RefreshCwIcon />} title="Last synced" summary={synced} />
                   </>
