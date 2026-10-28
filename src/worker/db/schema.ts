@@ -11,16 +11,18 @@ const MIGRATIONS: Migration[] = Object.entries(files).map(([path, sql]) => ({
   sql,
 }));
 
-let ready: Promise<unknown> | null = null;
+let ready = false;
 
 /**
- * Bring the database up to date once per Worker instance. A failure is not
- * cached, so the next request tries again.
+ * Bring the database up to date once per Worker instance. Each caller runs the
+ * check itself until one succeeds, rather than awaiting another's: a Worker
+ * cannot settle a promise begun by a request, cron run or queue message that
+ * has since ended, so a shared one left pending would hang every later request
+ * in the instance. Concurrent runs are safe; applyMigrations skips a migration
+ * another run just applied. A failure is not remembered, so the next call tries again.
  */
-export function ensureSchema(db: D1Database): Promise<unknown> {
-  ready ??= applyMigrations(db, MIGRATIONS).catch((error) => {
-    ready = null;
-    throw error;
-  });
-  return ready;
+export async function ensureSchema(db: D1Database): Promise<void> {
+  if (ready) return;
+  await applyMigrations(db, MIGRATIONS);
+  ready = true;
 }
