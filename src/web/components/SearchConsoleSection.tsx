@@ -25,7 +25,7 @@ import {
 import { compareVersions, SEO_SINCE } from "../../shared/plugin-version";
 import { hostname } from "../format";
 import { useIntegrations } from "../integrations";
-import { count, JumpButton, LineChart, RangeSelect, Stat, useAnalyticsRange } from "./AnalyticsSection";
+import { count, JumpButton, RangeSelect, Stat, useAnalyticsRange } from "./AnalyticsSection";
 import { EmptyRow, Section } from "./Section";
 import { HelpTip } from "./HelpTip";
 import { Spinner } from "./Spinner";
@@ -161,6 +161,7 @@ function Body(props: {
 }) {
   const { data } = props;
   const totals = data.totals!;
+  const max = Math.max(1, ...data.series.map((point) => point.clicks));
   return (
     <div>
       <dl className="grid grid-cols-2 gap-px border-b bg-border @2xl:grid-cols-4">
@@ -176,15 +177,22 @@ function Body(props: {
       </dl>
       {!props.onOpen && data.series.length > 0 && (
         <div className="border-b px-4 pt-4 pb-3">
-          <LineChart
-            className="h-24"
-            label="Clicks per day"
-            points={data.series.map((point) => ({
-              values: [point.clicks],
-              title: `${point.label}: ${count(point.clicks)} clicks, ${count(point.impressions)} impressions`,
-            }))}
-            lines={[{ className: "text-primary", area: true }]}
-          />
+          <div
+            className="flex h-24 items-end gap-[2px]"
+            role="img"
+            aria-label="Clicks per day"
+          >
+            {data.series.map((point) => (
+              <div
+                key={point.label}
+                className="min-w-0 flex-1 rounded-t-sm bg-primary/70 hover:bg-primary"
+                style={{
+                  height: `${Math.max(2, (point.clicks / max) * 100)}%`,
+                }}
+                title={`${point.label}: ${count(point.clicks)} clicks, ${count(point.impressions)} impressions`}
+              />
+            ))}
+          </div>
           <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
             <span>{data.series[0].label}</span>
             <span>{data.series[data.series.length - 1].label}</span>
