@@ -98,7 +98,7 @@ import { DeploymentsSection } from "./DeploymentsSection";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { DomainSection } from "./DomainSection";
 import { ContentTab } from "./ContentTab";
-import { HealthOverview } from "./HealthOverview";
+import { HealthOverview, OverviewCard } from "./HealthOverview";
 import { BrandingTab } from "./BrandingTab";
 import { LinksTab } from "./LinksTab";
 import { SecurityTab } from "./SecurityTab";
@@ -417,54 +417,99 @@ export function SitePage() {
                     <SearchConsoleSection site={site} linked={analyticsOn} onOpen={() => jumpTo("analytics", "site-search-console")} />
                   </ErrorBoundary>
                 );
-                const facts = (
-              <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {isStatic ? (
+                const scrollToUpdates = () =>
+                  document.getElementById("site-updates")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                const coreUpdate = updates.find((update) => update.kind === "core");
+                const themeUpdate = updates.find((update) => update.kind === "theme" && update.name === site.theme_name);
+                const synced = {
+                  value: timeAgo(site.last_synced_at),
+                  detail: site.last_synced_at ? new Date(site.last_synced_at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "",
+                };
+                const facts = isStatic ? (
                   <>
-                    <Fact
-                      label="Type"
-                      value={onCloudflare ? "Static site on Cloudflare" : "Static site"}
+                    <OverviewCard
+                      icon={<FileTextIcon />}
+                      title="Type"
+                      summary={{
+                        value: onCloudflare ? "Static site on Cloudflare" : "Static site",
+                        detail: onCloudflare ? "Deployed from KontrolWP" : "Hosted elsewhere",
+                      }}
                     />
                     {onCloudflare && (
-                      <Fact label="Worker" value={site.cf_worker ?? "Not chosen"} />
-                    )}
-                    {onCloudflare && (
-                      <Fact
-                        label="Last deployed"
-                        value={
-                          site.last_deployed_at
-                            ? timeAgo(site.last_deployed_at)
-                            : "No deployments"
+                      <OverviewCard
+                        icon={<RocketIcon />}
+                        title="Worker"
+                        summary={
+                          site.cf_worker
+                            ? { value: site.cf_worker, detail: "Cloudflare Worker" }
+                            : { value: "Not chosen", detail: "Choose one in Site settings", tone: "warn" }
                         }
+                        onOpen={site.cf_worker ? () => setTab("deployments") : () => setSettingsOpen(true)}
                       />
                     )}
-                    <Fact label="Last checked" value={timeAgo(site.last_synced_at)} />
-                  </>
-                ) : (
-                  <>
-                    <Fact label="WordPress" value={site.wp_version} />
-                    <Fact label="KontrolWP Connect" value={site.plugin_version} />
-                    <Fact label="Theme" value={site.theme_name} />
-                    <Fact label="Last synced" value={timeAgo(site.last_synced_at)} />
-                  </>
-                )}
-              </dl>
-                );
-                const health = <HealthOverview site={site} onOpen={setTab} performance={performanceOn} />;
-                const main = isStatic ? (
-                  <>
-                    {health}
                     {onCloudflare && (
-                      <DeploymentsSection
-                        site={site}
-                        compact
-                        onChooseWorker={() => setSettingsOpen(true)}
+                      <OverviewCard
+                        icon={<RocketIcon />}
+                        title="Last deployed"
+                        summary={
+                          site.last_deployed_at
+                            ? { value: timeAgo(site.last_deployed_at), detail: new Date(site.last_deployed_at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) }
+                            : { value: "No deployments", detail: "" }
+                        }
+                        onOpen={() => setTab("deployments")}
                       />
                     )}
+                    <OverviewCard icon={<RefreshCwIcon />} title="Last checked" summary={synced} />
                   </>
                 ) : (
                   <>
-                    {health}
+                    <OverviewCard
+                      icon={<LayoutDashboardIcon />}
+                      title="WordPress"
+                      summary={{
+                        value: site.wp_version || "Unknown",
+                        detail: site.updates_excluded
+                          ? "Update checks are off"
+                          : coreUpdate
+                            ? `${coreUpdate.new_version} is available`
+                            : "Up to date",
+                        tone: coreUpdate && !site.updates_excluded ? "warn" : undefined,
+                      }}
+                      onOpen={site.updates_excluded ? undefined : scrollToUpdates}
+                    />
+                    <OverviewCard
+                      icon={<PlugIcon />}
+                      title="KontrolWP Connect"
+                      summary={{ value: site.plugin_version || "Unknown", detail: "Updates itself" }}
+                    />
+                    <OverviewCard
+                      icon={<PaletteIcon />}
+                      title="Theme"
+                      summary={{
+                        value: site.theme_name || "Unknown",
+                        detail: themeUpdate && !site.updates_excluded ? `${themeUpdate.new_version} is available` : "",
+                        tone: themeUpdate && !site.updates_excluded ? "warn" : undefined,
+                      }}
+                      onOpen={themeUpdate && !site.updates_excluded ? scrollToUpdates : undefined}
+                    />
+                    <OverviewCard icon={<RefreshCwIcon />} title="Last synced" summary={synced} />
+                  </>
+                );
+                const health = (
+                  <HealthOverview site={site} onOpen={setTab} performance={performanceOn}>
+                    {facts}
+                  </HealthOverview>
+                );
+                const main = isStatic ? (
+                  onCloudflare && (
+                    <DeploymentsSection
+                      site={site}
+                      compact
+                      onChooseWorker={() => setSettingsOpen(true)}
+                    />
+                  )
+                ) : (
+                  <>
                     <SiteUpdatesSection site={site} updates={updates} rollbacks={rollbacks} />
                     <Section
                       title={`Comments awaiting review (${site.pending_comments})`}
@@ -491,7 +536,7 @@ export function SitePage() {
                 );
                 return (
                   <>
-                    {facts}
+                    {health}
                     {content}
                   </>
                 );
@@ -1052,17 +1097,6 @@ function SettingRow(props: {
       <div className={props.stacked ? "min-w-0" : "shrink-0"}>
         {props.children}
       </div>
-    </div>
-  );
-}
-
-function Fact(props: { label: string; value: string | null }) {
-  return (
-    <div className="rounded-xl border bg-background px-4 py-3">
-      <dt className="text-xs text-muted-foreground">{props.label}</dt>
-      <dd className="mt-1 wrap-break-word text-sm font-medium">
-        {props.value || "Unknown"}
-      </dd>
     </div>
   );
 }

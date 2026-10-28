@@ -9,6 +9,7 @@ import {
   ShieldCheckIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { scoreBand, type ScoreBand } from "../../shared/accessibility";
 import { performanceBand, type PerformanceBand } from "../../shared/performance";
@@ -46,28 +47,23 @@ const BAND_TONE: Record<ScoreBand, Tone> = {
   bad: "bad",
 };
 
-interface Summary {
+export interface Summary {
   value: string;
   detail: string;
   tone?: Tone;
 }
 
-/** One module: what the area found in a line or two, opening its full tab when selected. */
-function HealthCard(props: {
+/** One card: what an area found in a line or two, opening its page when there is one. */
+export function OverviewCard(props: {
   icon: ReactNode;
   title: string;
-  tab: string;
   summary: Summary | null;
-  onOpen: (tab: string) => void;
+  onOpen?: () => void;
 }) {
   const { summary } = props;
-  return (
-    <button
-      type="button"
-      onClick={() => props.onOpen(props.tab)}
-      className="flex min-w-0 flex-col gap-1 rounded-xl border bg-background px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring"
-    >
-      <span className="flex items-center gap-2 text-xs text-muted-foreground [&_svg]:size-3.5">
+  const body = (
+    <>
+      <span className="flex items-center gap-2 text-xs text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0">
         {props.icon}
         {props.title}
       </span>
@@ -75,20 +71,59 @@ function HealthCard(props: {
         <>
           <span
             className={cn(
-              "text-base font-medium tabular-nums",
+              "wrap-break-word text-base font-medium tabular-nums",
               summary.tone && TONE_CLASS[summary.tone],
             )}
           >
             {summary.value}
           </span>
-          <span className="wrap-break-word text-xs text-muted-foreground">
-            {summary.detail}
-          </span>
+          {summary.detail && (
+            <span className="wrap-break-word text-xs text-muted-foreground">
+              {summary.detail}
+            </span>
+          )}
         </>
       ) : (
         <span className="text-sm text-muted-foreground">Loading...</span>
       )}
-    </button>
+    </>
+  );
+  const inner = "flex flex-1 flex-col gap-1 rounded-[inherit] px-4 py-3 text-left";
+  return (
+    <Card size="sm" className="min-w-0">
+      {props.onOpen ? (
+        <button
+          type="button"
+          onClick={props.onOpen}
+          className={cn(
+            inner,
+            "transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring",
+          )}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className={inner}>{body}</div>
+      )}
+    </Card>
+  );
+}
+
+/** A health card, opening its full tab when selected. */
+function HealthCard(props: {
+  icon: ReactNode;
+  title: string;
+  tab: string;
+  summary: Summary | null;
+  onOpen: (tab: string) => void;
+}) {
+  return (
+    <OverviewCard
+      icon={props.icon}
+      title={props.title}
+      summary={props.summary}
+      onOpen={() => props.onOpen(props.tab)}
+    />
   );
 }
 
@@ -430,9 +465,14 @@ function SslCard(props: { site: SiteSummary; onOpen: (tab: string) => void }) {
   return <HealthCard icon={<LockIcon />} title="Domain & SSL" tab="domain" summary={summary} onOpen={props.onOpen} />;
 }
 
-/** A basic summary of each health area the site has switched on, each opening its tab. */
+/**
+ * The cards at the top of a site's Overview: the site's own facts (passed in as
+ * children) followed by a summary of each health area it has switched on, each
+ * opening its tab.
+ */
 export function HealthOverview(props: {
   site: SiteSummary;
+  children?: ReactNode;
   onOpen: (tab: string) => void;
   /** PageSpeed Insights is set up in Integrations and the site has performance checks on. */
   performance: boolean;
@@ -449,8 +489,9 @@ export function HealthOverview(props: {
   const uptime = !site.uptime_excluded;
   return (
     <section className="mt-8">
-      <h2 className="mb-3 text-sm font-medium">Health</h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <h2 className="sr-only">At a glance</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {props.children}
         {uptime && <UptimeCard site={site} onOpen={onOpen} />}
         <SslCard site={site} onOpen={onOpen} />
         {links && <LinksCard site={site} onOpen={onOpen} />}
