@@ -853,6 +853,13 @@ export interface SiteAccessibility {
   can_fix: boolean;
 }
 
+/** Settings > Accessibility: the fixes every new WordPress site starts with. */
+export interface AccessibilityFixDefaults {
+  fixes: { id: string; title: string; detail: string; enabled: boolean }[];
+  /** WordPress sites that can take fixes, which "Apply to all sites" changes. */
+  site_count: number;
+}
+
 export const SEO_SEPARATORS = ["-", "|", "·", "»", "•"] as const;
 
 export const SEO_BUSINESS_TYPES = [

@@ -10,6 +10,7 @@ import {
   type SiteUsers,
 } from "../../shared/types.ts";
 import { callSite, DATABASE_DOWN_CODE, SiteRequestError, type SiteCredentials } from "./client.ts";
+import { applyFixDefaultsOnce } from "./accessibility.ts";
 import { discoverIcon } from "./icons.ts";
 import { queueSelfUpdate, queueSelfUpdates, SELF_UPDATE } from "./kontrolwp-connect.ts";
 import { SecretsKeyError } from "./secrets.ts";
@@ -216,6 +217,7 @@ async function runSync(
   await chooseMagicLoginUser(env, site, text(status.plugin_version));
   await storePlugins(env, site, text(status.plugin_version));
   await storeUsers(env, site, text(status.plugin_version));
+  await applyFixDefaultsOnce(env, site, text(status.plugin_version));
   // KontrolWP Connect's own update comes from this dashboard and runs by itself,
   // even on a site excluded from update checks.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);

@@ -468,6 +468,13 @@ iframes, zooming allowed in the viewport tag, and a skip link to the main
 content. A page cache may keep serving old HTML, so a scan can still show a
 problem after its fix is on; the tab says so.
 
+Settings > Accessibility holds default fixes (the `accessibility_fix_defaults`
+setting). A new WordPress site gets them on its first sync that can take fixes
+(`sites.accessibility_defaults_applied` marks it done; sites connected before
+the setting existed are marked already). "Apply to all sites" makes every
+WordPress site with accessibility checks on match the defaults, turning the
+other fixes off. Each site's tab can still change its own fixes afterwards.
+
 ## Load on the sites
 
 Small hosts have few database connections, so everything that reads a site is
