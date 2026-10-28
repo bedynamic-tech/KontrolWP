@@ -134,7 +134,7 @@ import { addProperty, propertyUrl, submitSitemap, verificationCode, verifyProper
 import { MigrationError } from "../db/migrate.ts";
 import { ensureSchema } from "../db/schema.ts";
 import { requireSameOrigin } from "./csrf.ts";
-import { ACCESSIBILITY_FIXES } from "../../shared/accessibility.ts";
+import { ACCESSIBILITY_FIXES, fixesFor } from "../../shared/accessibility.ts";
 import {
   bulkRedirects,
   deactivateMigrationSource,
@@ -1180,6 +1180,16 @@ api.put("/sites/:id/accessibility/fixes", async (c) => {
   if (site.kind === "static") return c.json({ error: "Fixes need a WordPress site with KontrolWP Connect." }, 400);
   const parsed = accessibilityFixesBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Choose the fixes to change" }, 400);
+  const known = fixesFor(site.plugin_version).map((fix) => fix.id);
+  if (parsed.data.ids.some((fix) => !known.includes(fix))) {
+    return c.json(
+      {
+        error:
+          "KontrolWP Connect on this site is too old for this fix. It updates automatically; select Sync now to check.",
+      },
+      400,
+    );
+  }
   try {
     await setAccessibilityFixes(credentials, parsed.data.ids, parsed.data.enabled);
   } catch (error) {

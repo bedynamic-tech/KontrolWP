@@ -1,6 +1,7 @@
 <?php
 /**
- * Accessibility fixes the dashboard's Accessibility tab can switch on (0.14.0).
+ * Accessibility fixes the dashboard's Accessibility tab can switch on (0.14.0;
+ * focus_visible and media_autoplay arrived in 0.46.0).
  * Each one is saved as an option and applied to the pages visitors see as they
  * are sent, by rewriting the finished HTML. Nothing in the database or the
  * theme changes, so switching a fix off puts every page back as it was.
@@ -15,7 +16,7 @@ class KontrolWP_Connect_Accessibility {
 	const OPTION = 'kontrolwp_connect_accessibility';
 
 	/** The fixes the dashboard can switch on, in the order it lists them. */
-	const FIXES = array( 'image_alt', 'form_labels', 'link_names', 'frame_titles', 'viewport_zoom', 'skip_link' );
+	const FIXES = array( 'image_alt', 'form_labels', 'link_names', 'frame_titles', 'viewport_zoom', 'skip_link', 'focus_visible', 'media_autoplay' );
 
 	/** Names for links that only hold an icon, by the site they go to. */
 	const SITE_NAMES = array(
@@ -119,6 +120,12 @@ class KontrolWP_Connect_Accessibility {
 		}
 		if ( in_array( 'skip_link', $fixes, true ) ) {
 			$html = self::fix_skip_link( $html );
+		}
+		if ( in_array( 'focus_visible', $fixes, true ) ) {
+			$html = self::fix_focus( $html );
+		}
+		if ( in_array( 'media_autoplay', $fixes, true ) ) {
+			$html = self::fix_autoplay( $html );
 		}
 		return $html;
 	}
@@ -326,6 +333,34 @@ class KontrolWP_Connect_Accessibility {
 		$link = '<style>.kontrolwp-skip-link{position:absolute;left:-9999px;top:0;z-index:100000;background:#fff;color:#000;padding:.75em 1em}.kontrolwp-skip-link:focus{left:0}</style>'
 			. '<a class="kontrolwp-skip-link" href="#' . htmlspecialchars( $target, ENT_QUOTES, 'UTF-8' ) . '">Skip to content</a>';
 		return preg_replace( '/(<body\b[^>]*>)/i', '$1' . $link, $html, 1 );
+	}
+
+	/** An outline on whatever has keyboard focus, after the theme's styles so it wins over ones that hide it. */
+	private static function fix_focus( $html ) {
+		$style = '<style id="kontrolwp-focus-visible">:focus-visible{outline:3px solid #1d4ed8!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}</style>';
+		if ( false !== stripos( $html, 'kontrolwp-focus-visible' ) ) {
+			return $html;
+		}
+		if ( preg_match( '/<\/head>/i', $html ) ) {
+			return preg_replace( '/<\/head>/i', $style . '$0', $html, 1 );
+		}
+		return preg_replace( '/(<body\b[^>]*>)/i', '$1' . $style, $html, 1 );
+	}
+
+	/** Audio, and videos with sound, wait to be played, and show controls to play and pause them. */
+	private static function fix_autoplay( $html ) {
+		return preg_replace_callback(
+			'/<(audio|video)\b[^>]*>/i',
+			function ( $m ) {
+				$tag = $m[0];
+				if ( ! self::has_attr( $tag, 'autoplay' ) || ( 'video' === strtolower( $m[1] ) && self::has_attr( $tag, 'muted' ) ) ) {
+					return $tag;
+				}
+				$tag = preg_replace( '/\sautoplay(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>"\']+))?(?=[\s\/>])/i', '', $tag );
+				return self::has_attr( $tag, 'controls' ) ? $tag : self::with_attr( $tag, 'controls', 'controls' );
+			},
+			$html
+		);
 	}
 
 	/** The host of a link, lower case, or an empty string. */
