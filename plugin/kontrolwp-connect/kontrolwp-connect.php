@@ -3,7 +3,7 @@
  * Plugin Name:       KontrolWP Connect
  * Plugin URI:        https://kontrolwp.com
  * Description:       Connects this site to your KontrolWP dashboard so you can see and act on updates and comments across all your sites.
- * Version:           0.46.0
+ * Version:           0.47.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            KontrolWP
@@ -30,12 +30,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KONTROLWP_CONNECT_VERSION', '0.46.0' );
+define( 'KONTROLWP_CONNECT_VERSION', '0.47.0' );
 define( 'KONTROLWP_CONNECT_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-kontrolwp-connect-auth.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-rest.php';
-require_once __DIR__ . '/includes/class-kontrolwp-connect-rollback.php';
+require_once __DIR__ . '/includes/kontrolwp-connect-remove-kept-versions.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-admin.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-login.php';
 require_once __DIR__ . '/includes/class-kontrolwp-connect-plugins.php';
@@ -77,6 +77,7 @@ add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Update_Emails', 'boot' )
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Login_URL', 'boot' ), 1 );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Login_Logo', 'boot' ) );
 add_action( 'plugins_loaded', array( 'KontrolWP_Connect_Maintenance', 'boot' ) );
+add_action( 'admin_init', 'kontrolwp_connect_remove_kept_versions' );
 KontrolWP_Connect_Login::init();
 
 if ( is_admin() ) {

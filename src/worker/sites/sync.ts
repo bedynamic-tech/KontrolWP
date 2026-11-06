@@ -18,7 +18,6 @@ import { clearContentCache } from "../content-cache.ts";
 import { siteRowChanges } from "../db/site-rows.ts";
 import { syncStaticSite } from "./static.ts";
 import { getCredentials } from "./store.ts";
-import { clearHealthyCopies } from "./update-check.ts";
 import { loadLinkScanSettings, localTime } from "./link-schedule.ts";
 
 /** Wait before the second try at an unreachable site. */
@@ -162,34 +161,6 @@ async function runSync(
     })),
   );
 
-  const rollbacks: (string | number)[][] = [];
-  for (const item of (updates.rollbacks ?? []).slice(0, 500)) {
-    if (item.kind !== "plugin" && item.kind !== "theme") continue;
-    rollbacks.push([
-      item.kind, text(item.slug), text(item.name), text(item.version), text(item.current_version),
-      Math.trunc(Number(item.created_at)) || now,
-    ]);
-  }
-  statements.push(
-    ...(await siteRowChanges(env.DB, {
-      table: "site_rollbacks",
-      siteId,
-      key: ["kind", "slug"],
-      columns: ["kind", "slug", "name", "version", "current_version", "created_at"],
-      rows: rollbacks,
-    })),
-  );
-  // A reverted version stops being skipped once a newer one is offered.
-  statements.push(
-    env.DB
-      .prepare(
-        `DELETE FROM update_holds WHERE site_id = ? AND EXISTS (
-           SELECT 1 FROM site_updates u WHERE u.site_id = update_holds.site_id AND u.kind = update_holds.kind
-             AND u.slug = update_holds.slug AND u.new_version != update_holds.version)`,
-      )
-      .bind(siteId),
-  );
-
   const pending: (string | number | null)[][] = [];
   for (const comment of (comments.comments ?? []).slice(0, 100)) {
     const created = Date.parse(`${comment.date_gmt.replace(" ", "T")}Z`);
@@ -221,8 +192,6 @@ async function runSync(
   // KontrolWP Connect's own update comes from this dashboard and runs by itself,
   // even on a site excluded from update checks.
   await queueSelfUpdate(env, siteId, text(status.plugin_version), options.retrySelfUpdate);
-  // Kept previous versions are deleted once the site is seen working after its updates.
-  await clearHealthyCopies(env, siteId, site.url);
   return { ok: true };
 }
 

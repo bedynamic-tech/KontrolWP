@@ -4,8 +4,7 @@
  * per "links-collect" and checks a few addresses per "links-check".
  * "performance" runs a PageSpeed Insights test the dashboard asked for.
  * "uptime" checks that a few sites answer (src/worker/sites/uptime.ts).
- * "update-check" looks at a site's home page before and after its scheduled
- * updates (src/worker/sites/update-check.ts). "accessibility" reads the next
+ * "accessibility" reads the next
  * few pages of a running accessibility scan (src/worker/sites/accessibility.ts).
  */
 type SyncMessage =
@@ -15,8 +14,7 @@ type SyncMessage =
   | { type: "links-check"; siteId: number; scanId: number }
   | { type: "performance"; siteId: number }
   | { type: "accessibility"; siteId: number; run: string }
-  | { type: "uptime"; siteIds: number[] }
-  | { type: "update-check"; siteId: number; runId: number; phase: "before" | "after" };
+  | { type: "uptime"; siteIds: number[] };
 
 interface Env {
   WEB_ACCESS_TEAM_DOMAIN?: string;
@@ -27,6 +25,4 @@ interface Env {
   /** The built dashboard, including downloads/kontrolwp-connect-<version>.zip. */
   ASSETS: Fetcher;
   SYNC_QUEUE: Queue<SyncMessage>;
-  /** Cloudflare Browser Rendering, for the regression check after scheduled updates. */
-  BROWSER?: Fetcher;
 }
