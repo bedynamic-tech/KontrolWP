@@ -40,17 +40,9 @@ _Avoid_: Refresh, poll, crawl
 A newer version of WordPress core, a plugin or a theme that a Site reported during its last Sync.
 _Avoid_: Upgrade, patch
 
-**Regression check**:
-After a Site's scheduled updates, KontrolWP compares its home page with how it looked just before them. If the page stopped loading, shows WordPress's critical error, answers with a new HTTP error or looks very different, the plugins and themes that run updated are reverted. The result is noted on the run.
-_Avoid_: Visual check, smoke test, safe updates
-
 **Update Queue**:
 The Updates the owner asked KontrolWP to install on one Site, run one at a time in the order they were queued. An Update in it is Queued, Updating, Updated (until the next Sync) or failed.
 _Avoid_: Job list, batch
-
-**Previous version**:
-The copy of a plugin or theme that KontrolWP Connect keeps on the Site right before KontrolWP updates it, one per plugin or theme. It is deleted as soon as the update is seen to break nothing: by the check after a scheduled run, or else by the next Sync that finds the home page working. A copy the site could not be asked to delete expires there after 30 days. Reverting puts it back through the Update Queue; scheduled updates then skip the version the owner reverted away from until a newer one is out or they install it by hand.
-_Avoid_: Backup, snapshot, downgrade
 
 **Pending Comment**:
 A comment held for moderation on a Site. KontrolWP shows the newest 50 per Site and can approve, spam or trash each one.

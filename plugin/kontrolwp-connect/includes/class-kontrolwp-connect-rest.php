@@ -79,7 +79,6 @@ class KontrolWP_Connect_Rest {
 				),
 			)
 		);
-		KontrolWP_Connect_Rollback::register_routes( $auth );
 		KontrolWP_Connect_Plugins::register_routes( $auth );
 		KontrolWP_Connect_Users::register_routes( $auth );
 		KontrolWP_Connect_Links::register_routes( $auth );
@@ -176,6 +175,8 @@ class KontrolWP_Connect_Rest {
 
 	public static function updates() {
 		self::load_admin_includes();
+		// Copies kept by earlier versions for reverting go on the first sync.
+		kontrolwp_connect_remove_kept_versions();
 
 		// WordPress checks on its own twice a day. Refresh only stale data so
 		// frequent dashboard syncs never hammer api.wordpress.org; data checked
@@ -229,10 +230,9 @@ class KontrolWP_Connect_Rest {
 		}
 
 		return array(
-			'core'      => $core_update,
-			'plugins'   => $plugins,
-			'themes'    => $themes,
-			'rollbacks' => KontrolWP_Connect_Rollback::items(),
+			'core'    => $core_update,
+			'plugins' => $plugins,
+			'themes'  => $themes,
 		);
 	}
 
@@ -307,17 +307,7 @@ class KontrolWP_Connect_Rest {
 			wp_update_themes();
 		}
 
-		// Keep the installed copy, so the owner can revert; only once the update worked does it replace an older copy.
-		$backup = KontrolWP_Connect_Rollback::prepare( $kind, $slug );
-		$result = self::bulk_upgrade( $kind, $slug );
-		if ( $backup ) {
-			if ( is_wp_error( $result ) ) {
-				KontrolWP_Connect_Rollback::discard( $backup );
-			} else {
-				KontrolWP_Connect_Rollback::commit( $backup );
-			}
-		}
-		return $result;
+		return self::bulk_upgrade( $kind, $slug );
 	}
 
 	/**

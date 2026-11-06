@@ -73,7 +73,6 @@ import {
   listFleetPlugins,
   listFleetUsers,
   listSites,
-  listRollbacks,
   listUpdates,
   setSiteName,
 } from "../sites/store.ts";
@@ -85,7 +84,7 @@ import { deleteFeedKey, FeedKeyError, loadFeedKey, refreshFeed, saveFeedKey, set
 import { readSitemap } from "../sites/sitemap.ts";
 import { ignoreLink, listLinks, recheckLink, setLinksExcluded, startLinkScan, unlinkLinks, UnlinkError } from "../sites/links.ts";
 import { coreAutoUpdate, syncAllOnOpen, syncSite } from "../sites/sync.ts";
-import { enqueueRollback, enqueueUpdate, RollbackError } from "../sites/updates.ts";
+import { enqueueUpdate } from "../sites/updates.ts";
 import { inspectStaticSite, readStaticSiteName, syncStaticSite } from "../sites/static.ts";
 import {
   CloudflareError,
@@ -321,7 +320,7 @@ api.use("/sites/:id/*", async (c, next) => {
 const routedPath = (c: AppContext) => c.req.path.replace(/^\/api/, "");
 
 const WORDPRESS_ONLY =
-  /^\/sites\/\d+\/(plugins|users|links\/unlink|content|posts|media|security|seo|admins|magic-login|comments|updates|rollbacks|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
+  /^\/sites\/\d+\/(plugins|users|links\/unlink|content|posts|media|security|seo|admins|magic-login|comments|updates|updates-excluded|update-emails|maintenance|login-url|login-logo|core-auto-update|connection-key)(\/|$)/;
 api.use("/sites/:id/*", async (c, next) => {
   if (WORDPRESS_ONLY.test(routedPath(c))) {
     const row = await c.env.DB.prepare("SELECT kind FROM sites WHERE id = ?")
@@ -399,12 +398,8 @@ api.get("/sites/:id", async (c) => {
   const id = siteId(c);
   const site = id && (await getSite(c.env.DB, id));
   if (!id || !site) return c.json({ error: "Site not found" }, 404);
-  const [updates, rollbacks, comments] = await Promise.all([
-    listUpdates(c.env.DB, id),
-    listRollbacks(c.env.DB, id),
-    listComments(c.env.DB, id),
-  ]);
-  return c.json<SiteDetail>({ site, updates, rollbacks, comments });
+  const [updates, comments] = await Promise.all([listUpdates(c.env.DB, id), listComments(c.env.DB, id)]);
+  return c.json<SiteDetail>({ site, updates, comments });
 });
 
 api.patch("/sites/:id", async (c) => {
@@ -438,9 +433,6 @@ api.delete("/sites/:id", async (c) => {
   if (!id) return c.json({ error: "Site not found" }, 404);
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
-    c.env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ?").bind(id),
-    c.env.DB.prepare("DELETE FROM update_holds WHERE site_id = ?").bind(id),
-    c.env.DB.prepare("DELETE FROM update_checks WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_comments WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM site_plugins WHERE site_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ?").bind(id),
@@ -534,32 +526,6 @@ api.post("/sites/:id/updates", async (c) => {
   if (!site) return c.json({ error: "Site not found" }, 404);
   if (site.updates_excluded) return c.json({ error: "This site is excluded from update checks" }, 409);
   await enqueueUpdate(c.env, id, parsed.data);
-  // Installing a version the owner once reverted means they want it after all.
-  await c.env.DB.prepare("DELETE FROM update_holds WHERE site_id = ? AND kind = ? AND slug = ?")
-    .bind(id, parsed.data.kind, parsed.data.slug)
-    .run();
-  return c.json({ ok: true }, 202);
-});
-
-const rollbackAction = z.object({
-  kind: z.enum(["plugin", "theme"]),
-  slug: z.string().min(1).max(300),
-});
-
-/** Queue putting back the previous version the site kept of a plugin or theme. */
-api.post("/sites/:id/rollbacks", async (c) => {
-  const id = siteId(c);
-  const parsed = rollbackAction.safeParse(await c.req.json().catch(() => null));
-  if (!id || !parsed.success) return c.json({ error: "Invalid revert" }, 400);
-  const site = await getSite(c.env.DB, id);
-  if (!site) return c.json({ error: "Site not found" }, 404);
-  if (site.updates_excluded) return c.json({ error: "This site is excluded from update checks" }, 409);
-  try {
-    await enqueueRollback(c.env, id, parsed.data);
-  } catch (error) {
-    if (error instanceof RollbackError) return c.json({ error: error.message }, 409);
-    throw error;
-  }
   return c.json({ ok: true }, 202);
 });
 
@@ -667,7 +633,6 @@ api.put("/sites/:id/updates-excluded", async (c) => {
     ...(excluded
       ? [
           c.env.DB.prepare("DELETE FROM site_updates WHERE site_id = ?").bind(id),
-          c.env.DB.prepare("DELETE FROM site_rollbacks WHERE site_id = ?").bind(id),
           // KontrolWP Connect's own update is not one the owner excludes.
           c.env.DB.prepare("DELETE FROM update_jobs WHERE site_id = ? AND status != 'running' AND slug != ?").bind(
             id,
