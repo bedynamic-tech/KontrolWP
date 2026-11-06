@@ -105,17 +105,16 @@ function RollbackRow(props: { rollback: SiteRollback }) {
           {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {busy && status && (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {status !== "done" && <Spinner className="size-3" />}
-            {REVERT_LABELS[status]}
-          </span>
-        )}
-        <Button size="sm" variant="outline" onClick={() => setConfirming(true)} disabled={busy}>
+      {busy && status ? (
+        <span className="flex h-8 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {status !== "done" && <Spinner className="size-3" />}
+          {REVERT_LABELS[status]}
+        </span>
+      ) : (
+        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setConfirming(true)}>
           Revert to {rollback.version}
         </Button>
-      </div>
+      )}
       <Dialog open={confirming} onOpenChange={(open) => !mutation.isPending && setConfirming(open)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
