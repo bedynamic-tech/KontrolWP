@@ -241,7 +241,10 @@ function UpdateRow(props: { update: SiteUpdate; showSite: boolean; siteOnly?: bo
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="wrap-break-word text-sm font-medium">{update.name}</span>
-            <Badge variant="outline" className="capitalize">{update.kind === "core" ? "WordPress" : update.kind}</Badge>
+            {/* A site's own list sits under WordPress, Plugins and Themes headings already. */}
+            {props.showSite && (
+              <Badge variant="outline" className="capitalize">{update.kind === "core" ? "WordPress" : update.kind}</Badge>
+            )}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {props.showSite && (
