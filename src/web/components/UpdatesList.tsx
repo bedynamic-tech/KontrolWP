@@ -145,20 +145,20 @@ const JOB_LABELS: Record<UpdateJobStatus, string> = {
   failed: "Failed",
 };
 
-/** Always reads "Update"; where the update stands shows beside it. */
+/** The Update button, or where the update stands once it is queued, running or done. */
 function UpdateButton(props: { status: string | null; onClick: () => void; disabled: boolean }) {
+  if (props.status) {
+    return (
+      <span className="flex h-8 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+        {props.status !== "Updated" && <Spinner className="size-3" />}
+        {props.status}
+      </span>
+    );
+  }
   return (
-    <div className="flex shrink-0 items-center gap-3">
-      {props.status && (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {props.status !== "Updated" && <Spinner className="size-3" />}
-          {props.status}
-        </span>
-      )}
-      <Button size="sm" onClick={props.onClick} disabled={props.disabled}>
-        Update
-      </Button>
-    </div>
+    <Button size="sm" className="shrink-0" onClick={props.onClick} disabled={props.disabled}>
+      Update
+    </Button>
   );
 }
 
