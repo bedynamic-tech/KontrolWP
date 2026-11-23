@@ -8,18 +8,7 @@
     <meta name="description" content="Manage all your WordPress sites from your own Cloudflare account." />
     <link rel="icon" type="image/svg+xml" href="/kontrolwp.svg" />
     <title>KontrolWP</title>
-    <script>
-      // Apply the saved theme before the first paint (see src/web/theme.ts).
-      (function () {
-        var choice = null;
-        try {
-          choice = localStorage.getItem("kontrolwp.theme");
-        } catch (error) {}
-        var dark = choice === "dark" || (choice !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.classList.toggle("dark", dark);
-        document.documentElement.style.colorScheme = dark ? "dark" : "light";
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

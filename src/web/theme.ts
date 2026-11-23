@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 export type ThemeChoice = "light" | "dark" | "system";
 
-// index.html reads the same key before the app loads, so the first paint
+// public/theme-init.js reads the same key before the app loads, so the first paint
 // already uses the saved theme.
 const THEME_KEY = "kontrolwp.theme";
 const THEME_COLORS = { light: "#ffffff", dark: "#111315" } as const;
