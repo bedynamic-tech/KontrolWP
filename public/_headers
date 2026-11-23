@@ -1,8 +1,10 @@
 # Applies to the dashboard's static files. The API sets its own headers.
 # same-origin, not no-referrer: no-referrer makes browsers send "Origin: null"
 # on same-origin POSTs, which the API's CSRF check rejects.
+# script-src 'self' means only the dashboard's own files run: a script that
+# slips into a page (a site name, a comment, a post) is refused by the browser.
 /*
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin

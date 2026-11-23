@@ -484,6 +484,8 @@ export interface SecurityReport {
   file_edit_allowed?: boolean;
   admin_user_exists?: boolean;
   xmlrpc_enabled?: boolean;
+  /** The role open sign-ups get when it can do more than read, or "" (KontrolWP Connect 0.48.0 and later). */
+  risky_signup_role?: string;
   fixes?: FixStates;
 }
 
@@ -570,7 +572,7 @@ export async function derivedChecks(env: Env, site: SiteSummary): Promise<Securi
 }
 
 export function reportChecks(report: SecurityReport): SecurityCheck[] {
-  return [
+  const checks = [
     check(
       "debug-display",
       Boolean(report.debug_display),
@@ -600,6 +602,19 @@ export function reportChecks(report: SecurityReport): SecurityCheck[] {
       "XML-RPC is disabled.",
     ),
   ];
+  // Older versions of KontrolWP Connect do not report sign-ups, so the line only shows once one does.
+  if (typeof report.risky_signup_role === "string") {
+    checks.push(
+      check(
+        "signup-role",
+        report.risky_signup_role !== "",
+        "Sign-ups cannot become staff",
+        `Anyone can register on this site and new users become ${report.risky_signup_role}, so a stranger can sign up and edit or publish content, or worse. In WordPress, go to Settings, General and set New User Default Role to Subscriber, or turn off Anyone can register.`,
+        "New sign-ups are closed or only get a reader's role.",
+      ),
+    );
+  }
+  return checks;
 }
 
 /** A fix and the finding that reports the same problem, which share one line. */

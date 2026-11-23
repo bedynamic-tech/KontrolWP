@@ -13,6 +13,7 @@ import {
   isAffected,
   retryDelay,
   pluginSlug,
+  reportChecks,
   refreshFeed,
   rowsFromEntry,
   runScheduledFeedRefresh,
@@ -219,6 +220,15 @@ test("securityItems folds each fix into the finding it clears and lists open ite
   assert.ok(items.slice(firstOk).every((item) => item.status === "ok"));
   // Without fixes (an older plugin) the findings stand alone.
   assert.deepEqual(securityItems(checks, null).map((item) => item.id), ["xmlrpc", "admin-user", "https"]);
+});
+
+test("reportChecks warns about open sign-ups that make staff, once the plugin reports them", () => {
+  const signup = (report) => reportChecks(report).find((check) => check.id === "signup-role");
+  assert.equal(signup({}), undefined, "older plugins do not report sign-ups");
+  assert.equal(signup({ risky_signup_role: "" }).status, "ok");
+  const risky = signup({ risky_signup_role: "Administrator" });
+  assert.equal(risky.status, "warning");
+  assert.match(risky.detail, /become Administrator/);
 });
 
 test("severity follows the CVSS score bands, ahead of the feed's own rating", () => {

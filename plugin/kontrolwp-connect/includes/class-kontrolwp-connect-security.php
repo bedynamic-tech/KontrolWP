@@ -208,7 +208,36 @@ class KontrolWP_Connect_Security {
 			'admin_user_exists'  => false !== username_exists( 'admin' ),
 			// XML-RPC lets a password be guessed hundreds of times in one request.
 			'xmlrpc_enabled'     => (bool) apply_filters( 'xmlrpc_enabled', true ),
+			// Open sign-ups that hand out more than a reader's role let anyone make themselves staff.
+			'risky_signup_role'  => self::risky_signup_role(),
 			'fixes'              => self::states(),
 		);
+	}
+
+	/** Capabilities a stranger must never get just by signing up. */
+	const STAFF_CAPS = array( 'manage_options', 'promote_users', 'create_users', 'edit_users', 'unfiltered_html', 'edit_posts', 'edit_pages', 'publish_posts', 'upload_files', 'moderate_comments', 'install_plugins', 'activate_plugins' );
+
+	/**
+	 * The name of the role new sign-ups get when "Anyone can register" is on
+	 * and that role can do more than read, or '' when sign-ups are closed or
+	 * only get a reader's role. Multisite keeps sign-ups in network settings, so
+	 * it reports ''.
+	 */
+	public static function risky_signup_role() {
+		if ( is_multisite() || ! get_option( 'users_can_register' ) ) {
+			return '';
+		}
+		$slug = (string) get_option( 'default_role', 'subscriber' );
+		$role = get_role( $slug );
+		if ( ! $role ) {
+			return '';
+		}
+		foreach ( self::STAFF_CAPS as $cap ) {
+			if ( ! empty( $role->capabilities[ $cap ] ) ) {
+				$names = wp_roles()->get_names();
+				return isset( $names[ $slug ] ) ? translate_user_role( $names[ $slug ] ) : $slug;
+			}
+		}
+		return '';
 	}
 }
